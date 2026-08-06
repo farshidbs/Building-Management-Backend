@@ -4,6 +4,9 @@
     <ProjectReference Include="../BuildingManagement.Application/BuildingManagement.Application.csproj" />
     <ProjectReference Include="../BuildingManagement.Infrastructure/BuildingManagement.Infrastructure.csproj" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.OpenApi" />
     <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
     <PackageReference Include="Swashbuckle.AspNetCore" />
