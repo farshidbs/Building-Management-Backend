@@ -20,6 +20,7 @@ public sealed class ApiScenarios : IAsyncLifetime
     private HttpClient? client;
     private bool enabled;
     private string? skipReason;
+    private string? fileRoot;
 
     public async ValueTask InitializeAsync()
     {
@@ -34,13 +35,15 @@ public sealed class ApiScenarios : IAsyncLifetime
         try
         {
             database = new MsSqlBuilder().Build();
+            fileRoot = Path.Combine(Path.GetTempPath(), $"bms-api-files-{Guid.NewGuid():N}");
             await database.StartAsync();
             factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
                 builder.ConfigureAppConfiguration((_, configuration) =>
                     configuration.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         ["ConnectionStrings:BuildingManagement"] = database.GetConnectionString(),
-                        ["SeedDevelopmentData"] = "true"
+                        ["SeedDevelopmentData"] = "true",
+                        ["FileStorage:LocalRootPath"] = fileRoot
                     })));
             client = factory.CreateClient();
         }
@@ -57,6 +60,7 @@ public sealed class ApiScenarios : IAsyncLifetime
     {
         if (factory is not null) await factory.DisposeAsync();
         if (database is not null) await database.DisposeAsync();
+        if (fileRoot is not null && Directory.Exists(fileRoot)) Directory.Delete(fileRoot, true);
     }
 
     [Fact]
@@ -119,6 +123,41 @@ public sealed class ApiScenarios : IAsyncLifetime
         using var nullJson = new StringContent("null", System.Text.Encoding.UTF8, "application/json");
         using var nullResponse = await client!.PostAsync("/api/v1/locations", nullJson);
         Assert.Equal(HttpStatusCode.BadRequest, nullResponse.StatusCode);
+    }
+    [Fact]
+    public async Task BuildingGalleryUploadDownloadAndDeleteWorks()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var country = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(null, $"File country {suffix}", ReferenceKeys.LocationTypes.Country));
+        var city = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(country.Code, $"File city {suffix}", ReferenceKeys.LocationTypes.City));
+        var building = await Post<BuildingResponse>("/api/v1/buildings",
+            new BuildingRequest(null, city.Code, ReferenceKeys.BuildingTypes.Residential,
+                $"File building {suffix}", "Address", suffix, null, null, 1, 2020, null));
+
+        using var form = new MultipartFormDataContent();
+        using var content = new ByteArrayContent([0x89, 0x50, 0x4e, 0x47]);
+        content.Headers.ContentType = new("image/png");
+        form.Add(content, "file", "front.png");
+        form.Add(new StringContent("نمای اصلی"), "title");
+        form.Add(new StringContent("true"), "isCover");
+        using var upload = await client!.PostAsync($"/api/v1/buildings/{building.Code}/gallery", form);
+        upload.EnsureSuccessStatusCode();
+        var gallery = (await upload.Content.ReadFromJsonAsync<GalleryFileResponse>())!;
+        Assert.True(gallery.IsCover);
+        Assert.Matches("^[A-Z0-9]{5}$", gallery.File.Code);
+
+        using var download = await client.GetAsync($"/api/v1/files/{gallery.File.Code}/content");
+        download.EnsureSuccessStatusCode();
+        Assert.Equal("image/png", download.Content.Headers.ContentType!.MediaType);
+
+        using var delete = await client.DeleteAsync($"/api/v1/buildings/{building.Code}/gallery/{gallery.Code}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        using var missing = await client.GetAsync($"/api/v1/files/{gallery.File.Code}/content");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
     private async Task<T> Post<T>(string uri, object value)
     {

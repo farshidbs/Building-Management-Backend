@@ -35,3 +35,12 @@ Deletes are restricted. Future names, schemas not final: Party, User, UnitPartyR
 ## Migration baseline
 
 The pre-Phase-2 migration history is squashed into one `InitialCreate` migration with a generated EF Core Model Snapshot. New development databases should be created from this baseline. An existing development database created by the previous three-migration chain must either be recreated or have its migration-history rows re-baselined without rerunning schema creation.
+
+## File management
+
+- `base.StoredFiles` contains storage-neutral metadata and a table-unique public code.
+- `bms.BuildingGalleryFiles` and `bms.ComplexGalleryFiles` link images to their real owners; a filtered unique index permits at most one active cover per owner.
+- `bms.DocumentTypes` is key-based reference data and intentionally has no public code.
+- `bms.BuildingDocuments` and `bms.ComplexDocuments` link document metadata, file, owner, and document type through real foreign keys.
+- Relationship rows and stored files use internal `bigint IDENTITY` keys. HTTP contracts expose only public codes or document-type keys.
+- Deleting a relationship removes it and deactivates/deletes an orphaned stored file; file bytes are never served directly from disk.

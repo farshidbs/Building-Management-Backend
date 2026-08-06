@@ -9,10 +9,16 @@ public interface IApplicationDbContext
     DbSet<BuildingType> BuildingTypes { get; }
     DbSet<UnitUsageType> UnitUsageTypes { get; }
     DbSet<UnitStatus> UnitStatuses { get; }
+    DbSet<DocumentType> DocumentTypes { get; }
     DbSet<Location> Locations { get; }
     DbSet<Complex> Complexes { get; }
     DbSet<Building> Buildings { get; }
     DbSet<Unit> Units { get; }
+    DbSet<StoredFile> StoredFiles { get; }
+    DbSet<BuildingGalleryFile> BuildingGalleryFiles { get; }
+    DbSet<ComplexGalleryFile> ComplexGalleryFiles { get; }
+    DbSet<BuildingDocument> BuildingDocuments { get; }
+    DbSet<ComplexDocument> ComplexDocuments { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
 
@@ -46,7 +52,8 @@ public sealed record ReferenceDataResponse(
     IReadOnlyList<ReferenceValueResponse> LocationTypes,
     IReadOnlyList<ReferenceValueResponse> BuildingTypes,
     IReadOnlyList<ReferenceValueResponse> UnitUsageTypes,
-    IReadOnlyList<ReferenceValueResponse> UnitStatuses);
+    IReadOnlyList<ReferenceValueResponse> UnitStatuses,
+    IReadOnlyList<ReferenceValueResponse> DocumentTypes);
 public sealed record LocationRequest(string? ParentCode, string Name, string LocationTypeKey);
 public sealed record LocationResponse(string Code, ResourceReferenceResponse? Parent, string Name, ReferenceValueResponse LocationType,
     bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
@@ -126,7 +133,8 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
             await ReferenceList(db.LocationTypes, ct),
             await ReferenceList(db.BuildingTypes, ct),
             await ReferenceList(db.UnitUsageTypes, ct),
-            await ReferenceList(db.UnitStatuses, ct));
+            await ReferenceList(db.UnitStatuses, ct),
+            await ReferenceList(db.DocumentTypes, ct));
 
     public async Task<LocationResponse> CreateLocation(LocationRequest request, CancellationToken ct)
     {

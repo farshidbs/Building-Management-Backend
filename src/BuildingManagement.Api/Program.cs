@@ -23,8 +23,12 @@ builder.Services.AddSwaggerGen(options =>
         Description = "Physical structure APIs for locations, complexes, buildings, and units."
     });
 });
+var fileStorageOptions = builder.Configuration.GetSection("FileStorage").Get<FileStorageOptions>() ?? new FileStorageOptions();
+builder.Services.AddSingleton(fileStorageOptions);
+builder.Services.AddSingleton<IFileStorage>(new LocalFileStorage(fileStorageOptions, builder.Environment.ContentRootPath));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PhysicalStructureService>();
+builder.Services.AddScoped<FileManagementService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 
@@ -56,6 +60,7 @@ if (app.Environment.IsDevelopment())
 }
 app.MapHealthChecks("/health");
 app.MapPhysicalStructureEndpoints();
+app.MapFileManagementEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedDevelopmentData"))
 {

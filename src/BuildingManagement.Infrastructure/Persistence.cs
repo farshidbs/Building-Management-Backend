@@ -13,10 +13,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<BuildingType> BuildingTypes => Set<BuildingType>();
     public DbSet<UnitUsageType> UnitUsageTypes => Set<UnitUsageType>();
     public DbSet<UnitStatus> UnitStatuses => Set<UnitStatus>();
+    public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Complex> Complexes => Set<Complex>();
     public DbSet<Building> Buildings => Set<Building>();
     public DbSet<Unit> Units => Set<Unit>();
+    public DbSet<StoredFile> StoredFiles => Set<StoredFile>();
+    public DbSet<BuildingGalleryFile> BuildingGalleryFiles => Set<BuildingGalleryFile>();
+    public DbSet<ComplexGalleryFile> ComplexGalleryFiles => Set<ComplexGalleryFile>();
+    public DbSet<BuildingDocument> BuildingDocuments => Set<BuildingDocument>();
+    public DbSet<ComplexDocument> ComplexDocuments => Set<ComplexDocument>();
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BuildingManagementDbContext).Assembly);
 }
@@ -36,9 +42,9 @@ internal static class ConfigurationHelpers
 {
     internal const string Schema = "bms";
 
-    internal static void Entity<T>(EntityTypeBuilder<T> builder, string table) where T : Entity
+    internal static void Entity<T>(EntityTypeBuilder<T> builder, string table, string schema = Schema) where T : Entity
     {
-        builder.ToTable(table, Schema, tableBuilder =>
+        builder.ToTable(table, schema, tableBuilder =>
             tableBuilder.HasCheckConstraint($"CK_{table}_CodeFormat",
                 "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5"));
         builder.HasKey(x => x.Id);
