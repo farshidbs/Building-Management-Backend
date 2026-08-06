@@ -71,6 +71,52 @@ public sealed record UnitResponse(string Code, ResourceReferenceResponse Buildin
     DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
 public sealed record ActivationRequest(bool IsActive);
 
+internal static class RequestValidation
+{
+    private static readonly string[] RequiredError = ["The field is required."];
+
+    public static void Validate(LocationRequest? request)
+    {
+        request = NotNull(request);
+        Required((nameof(request.Name), request.Name), (nameof(request.LocationTypeKey), request.LocationTypeKey));
+    }
+
+    public static void Validate(ComplexRequest? request)
+    {
+        request = NotNull(request);
+        Required((nameof(request.LocationCode), request.LocationCode), (nameof(request.Name), request.Name),
+            (nameof(request.Address), request.Address), (nameof(request.PostalCode), request.PostalCode));
+    }
+
+    public static void Validate(BuildingRequest? request)
+    {
+        request = NotNull(request);
+        Required((nameof(request.LocationCode), request.LocationCode),
+            (nameof(request.BuildingTypeKey), request.BuildingTypeKey), (nameof(request.Name), request.Name),
+            (nameof(request.Address), request.Address), (nameof(request.PostalCode), request.PostalCode));
+    }
+
+    public static void Validate(UnitRequest? request)
+    {
+        request = NotNull(request);
+        Required((nameof(request.UsageTypeKey), request.UsageTypeKey), (nameof(request.StatusKey), request.StatusKey),
+            (nameof(request.UnitNumber), request.UnitNumber));
+    }
+
+    private static T NotNull<T>(T? request) where T : class =>
+        request ?? throw new AppException(400, "validation.failed", "A request body is required.",
+            new Dictionary<string, string[]> { ["request"] = RequiredError });
+
+    private static void Required(params (string Field, string? Value)[] fields)
+    {
+        var errors = fields
+            .Where(field => string.IsNullOrWhiteSpace(field.Value))
+            .ToDictionary(field => char.ToLowerInvariant(field.Field[0]) + field.Field[1..],
+                _ => RequiredError);
+        if (errors.Count > 0)
+            throw new AppException(400, "validation.failed", "One or more validation errors occurred.", errors);
+    }
+}
 public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvider clock)
 {
     private DateTimeOffset Now => clock.GetUtcNow();
@@ -84,6 +130,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<LocationResponse> CreateLocation(LocationRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var parentId = await LocationId(request.ParentCode, false, ct);
         var typeId = await ReferenceId(db.LocationTypes, request.LocationTypeKey, "location_type", ct);
         var entity = new Location(await UniqueCode(db.Locations, ct), parentId, typeId, request.Name, Now);
@@ -115,6 +162,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<LocationResponse> UpdateLocation(string code, LocationRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var entity = await db.Locations.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("location");
         var parentId = await LocationId(request.ParentCode, false, ct);
@@ -130,6 +178,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<ComplexResponse> CreateComplex(ComplexRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var locationId = await LocationId(request.LocationCode, true, ct);
         var entity = new Complex(await UniqueCode(db.Complexes, ct), locationId!.Value, request.Name,
             request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);
@@ -155,6 +204,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<ComplexResponse> UpdateComplex(string code, ComplexRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var entity = await db.Complexes.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("complex");
         var locationId = await LocationId(request.LocationCode, true, ct);
@@ -166,6 +216,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<BuildingResponse> CreateBuilding(BuildingRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
         var typeId = await ReferenceId(db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
         var entity = new Building(await UniqueCode(db.Buildings, ct), parents.ComplexId, parents.LocationId,
@@ -200,6 +251,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<BuildingResponse> UpdateBuilding(string code, BuildingRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var entity = await db.Buildings.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("building");
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
@@ -213,6 +265,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<UnitResponse> CreateUnit(string buildingCode, UnitRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var buildingId = await db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
         var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
@@ -253,6 +306,7 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
 
     public async Task<UnitResponse> UpdateUnit(string code, UnitRequest request, CancellationToken ct)
     {
+        RequestValidation.Validate(request);
         var entity = await db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("unit");
         var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
@@ -321,7 +375,10 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
     }
 
     private static string NormalizeCode(string code) => PublicCode.Normalize(code);
-    private static string NormalizeKey(string key) => key.Trim().ToLowerInvariant();
+    private static string NormalizeKey(string? key) =>
+        string.IsNullOrWhiteSpace(key)
+            ? throw new AppException(400, "validation.failed", "Reference key is required.")
+            : key.Trim().ToLowerInvariant();
 
     private static async Task<string> UniqueCode<T>(IQueryable<T> set, CancellationToken ct) where T : Entity
     {
@@ -365,12 +422,9 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
     {
         var locationId = (await LocationId(locationCode, true, ct))!.Value;
         var complexId = await ComplexId(complexCode, ct);
-        if (complexId.HasValue)
-        {
-            var complexLocationId = await db.Complexes.Where(x => x.Id == complexId).Select(x => x.LocationId).SingleAsync(ct);
-            if (complexLocationId != locationId)
-                throw AppException.Conflict("building.location_mismatch", "Building and complex must reference the same location.");
-        }
+        // A complex is an operational grouping and may use a broad location (for example a city),
+        // while a building uses a more precise location (for example a neighborhood). Both must exist,
+        // but equality is not a domain invariant and hierarchy traversal here would be premature.
         return (locationId, complexId);
     }
 
