@@ -31,3 +31,7 @@ Public codes:
 - **Unit:** required building FK, display/normalized unit number, physical counts, usage-type/status FKs. Unit number remains unique per building. API uses `buildingCode`, `usageTypeKey`, and `statusKey`.
 
 Deletes are restricted. Future names, schemas not final: Party, User, UnitPartyRelation, BuildingRole, AssetType, BuildingAsset, BuildingAssetEvent, BuildingAssetSchedule, BuildingAssetScheduleNotificationRecipient, BuildingPeriod, ExpenseType, BuildingExpenseTypeSetting, BuildingPeriodExpenseDetail, ExpenseDistribution, BuildingPeriodCharge, UnitAccount, LedgerTransaction, Payment, Notification, Attachment.
+
+## Migration baseline
+
+The pre-Phase-2 migration history is squashed into one `InitialCreate` migration with a generated EF Core Model Snapshot. New development databases should be created from this baseline. An existing development database created by the previous three-migration chain must either be recreated or have its migration-history rows re-baselined without rerunning schema creation.

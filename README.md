@@ -28,12 +28,12 @@ $env:RUN_SQLSERVER_INTEGRATION_TESTS="true"; dotnet test tests/BuildingManagemen
 dotnet format BuildingManagement.slnx --verify-no-changes
 ```
 
-Integration tests use a real SQL Server Testcontainer, never EF InMemory.
+Integration tests use a real SQL Server Testcontainer, never EF InMemory. They are skipped by default and also skip gracefully when the opted-in Docker/SQL Server infrastructure cannot start.
 
 `Domain` holds invariants; `Application` DTOs/use cases; `Infrastructure` EF Core SQL Server; `Api` versioned Minimal APIs, Problem Details, Swagger/OpenAPI, CORS, correlation, and health.
 
 `ConnectionStrings__BuildingManagement` is required. Local secrets use .NET User Secrets or environment variables and are not committed. `Cors__AllowedOrigins__0` etc. configure explicit origins.
 
-Known limitations: no authentication/tenant isolation, deep location-cycle detection, localization tables, or bulk import. Next planned: Party/User invitation and historical `UnitPartyRelation`.
+Known limitations: no authentication/tenant isolation, deep location-cycle detection, localization tables, bulk import, or client-driven optimistic concurrency token. RowVersion is enforced by EF Core for changes tracked during one request, but it is not yet exposed to clients, so sequential stale updates remain last-write-wins. Next planned: Party/User invitation and historical `UnitPartyRelation`.
 
 See [domain overview](docs/domain-overview.md), [data model](docs/data-model.md), [API conventions](docs/api-conventions.md), and [roadmap](docs/roadmap.md).

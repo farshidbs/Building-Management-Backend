@@ -12,6 +12,10 @@
 - Create returns 201 plus a code-based Location header; read/update return 200; activation/delete return 204.
 - RFC 9457 Problem Details include stable error code, traceId, and field errors.
 
-Error codes include `validation.failed`, `{resource}.not_found`, `location.name_conflict`, `building.location_mismatch`, `building.has_units`, `unit.number_conflict`, `persistence.conflict`, and `concurrency.conflict`.
+Error codes include `validation.failed`, `{resource}.not_found`, `location.name_conflict`, `building.has_units`, `unit.number_conflict`, `persistence.conflict`, and `concurrency.conflict`.
 
 Breaking changes require a new route version.
+
+## Optimistic concurrency
+
+SQL Server `rowversion` is configured as an EF Core concurrency token, and a conflicting tracked write returns `409 concurrency.conflict`. The token is intentionally not exposed in the current HTTP contracts. Consequently, the API does not yet provide disconnected optimistic concurrency across separate client read/update requests; sequential stale updates are last-write-wins. Completing that workflow requires a deliberate contract decision (for example ETag/If-Match) and remains outside this hardening pass.
