@@ -1,6 +1,17 @@
 # Building Management Backend
 
-Production-oriented .NET 10 modular monolith. Phase 1 implements hierarchical locations, complexes, buildings, and units.
+Production-oriented .NET 10 modular monolith implementing hierarchical physical structure,
+file management, reusable Parties, historical Unit relationships, and transactional occupancy.
+
+## Party and occupancy
+
+Party is separate from a future User account and may be created with only `partyTypeKey` and
+`displayName`. Mobile, email, and identifiers are optional and can be added later.
+
+Unit onboarding explicitly supplies vacant or occupied state. `CurrentOccupantsCount` is
+returned with Unit reads, while `UnitOccupancyHistory` preserves changes. Occupancy updates
+must use the dedicated history endpoint so current count, history, and tenant/resident
+relations remain transactionally consistent.
 
 ## Identifier policy
 

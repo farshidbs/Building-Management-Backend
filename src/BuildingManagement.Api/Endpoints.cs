@@ -115,7 +115,7 @@ public static class Endpoints
             int? pageSize, string? sortBy, string? sortDirection, PhysicalStructureService service, CancellationToken ct) =>
             service.GetUnits(buildingCode, Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection),
                 floorNumber, usageTypeKey, statusKey, ct)).WithTags("Units");
-        api.MapPut("/units/{code}", (string code, UnitRequest request, PhysicalStructureService service, CancellationToken ct) =>
+        api.MapPut("/units/{code}", (string code, UnitUpdateRequest request, PhysicalStructureService service, CancellationToken ct) =>
             service.UpdateUnit(code, request, ct)).WithTags("Units");
         api.MapPatch("/units/{code}/activation",
             async (string code, ActivationRequest request, PhysicalStructureService service, CancellationToken ct) =>

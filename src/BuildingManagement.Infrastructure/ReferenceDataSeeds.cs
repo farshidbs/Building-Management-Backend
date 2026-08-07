@@ -47,8 +47,8 @@ internal sealed class UnitStatusSeedConfiguration : IEntityTypeConfiguration<Uni
     public void Configure(EntityTypeBuilder<UnitStatus> builder) =>
         builder.HasData(
             new { Id = 1L, Key = "available", Title = "آماده واگذاری", SortOrder = 10, IsActive = true, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
-            new { Id = 2L, Key = "occupied", Title = "در حال استفاده", SortOrder = 20, IsActive = true, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
-            new { Id = 3L, Key = "vacant", Title = "خالی", SortOrder = 30, IsActive = true, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
+            new { Id = 2L, Key = "occupied", Title = "در حال استفاده (قدیمی)", SortOrder = 20, IsActive = false, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
+            new { Id = 3L, Key = "vacant", Title = "خالی (قدیمی)", SortOrder = 30, IsActive = false, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
             new { Id = 4L, Key = "under_renovation", Title = "در حال بازسازی", SortOrder = 40, IsActive = true, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc },
             new { Id = 5L, Key = "inactive", Title = "غیرفعال", SortOrder = 50, IsActive = true, CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc });
 }

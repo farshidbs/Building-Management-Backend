@@ -87,7 +87,8 @@ public sealed class ApiScenarios : IAsyncLifetime
         Assert.Equal(city.Code, building.Location.Code);
         var unit = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
-                "۱۰۱", 1, 80, 2, 1, 0, null));
+                "۱۰۱", 1, 80, 2, 1, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0, DateTimeOffset.UtcNow)));
         Assert.Equal(ReferenceKeys.UnitStatuses.Available, unit.Status.Key);
         Assert.Equal(building.Code, unit.Building.Code);
         Assert.Equal(building.Name, unit.Building.Name);
@@ -95,7 +96,8 @@ public sealed class ApiScenarios : IAsyncLifetime
 
         var duplicateUnit = await client!.PostAsJsonAsync($"/api/v1/buildings/{building.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
-                " ۱۰۱ ", 1, 80, 2, 1, 0, null));
+                " ۱۰۱ ", 1, 80, 2, 1, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0, DateTimeOffset.UtcNow)));
         Assert.Equal(HttpStatusCode.Conflict, duplicateUnit.StatusCode);
     }
 
@@ -124,6 +126,84 @@ public sealed class ApiScenarios : IAsyncLifetime
         using var nullResponse = await client!.PostAsync("/api/v1/locations", nullJson);
         Assert.Equal(HttpStatusCode.BadRequest, nullResponse.StatusCode);
     }
+
+    [Fact]
+    public async Task PartyAndOccupancyFoundationWorks()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var party = await Post<PartyResponse>("/api/v1/parties",
+            new PartyRequest(PartyReferenceKeys.PartyTypes.Person, $"ساکن واحد {suffix}"));
+        Assert.NotEmpty(party.Code);
+
+        var contacts = await client!.GetFromJsonAsync<PartyContactResponse[]>(
+            $"/api/v1/parties/{party.Code}/contacts");
+        var identifiers = await client!.GetFromJsonAsync<PartyIdentifierResponse[]>(
+            $"/api/v1/parties/{party.Code}/identifiers");
+        Assert.Empty(contacts!);
+        Assert.Empty(identifiers!);
+
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09120000000", IsPrimary: true));
+        var identifier = await Post<PartyIdentifierResponse>(
+            $"/api/v1/parties/{party.Code}/identifiers",
+            new PartyIdentifierRequest(PartyReferenceKeys.IdentifierTypes.NationalId, "IR", "0012345678"));
+        Assert.Equal("********", identifier.MaskedValue);
+
+        var country = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(null, $"Party country {suffix}", ReferenceKeys.LocationTypes.Country));
+        var city = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(country.Code, $"Party city {suffix}", ReferenceKeys.LocationTypes.City));
+        var building = await Post<BuildingResponse>("/api/v1/buildings",
+            new BuildingRequest(null, city.Code, ReferenceKeys.BuildingTypes.Residential,
+                $"Party building {suffix}", "Address", suffix, null, null, 2, 2020, null));
+
+        var vacant = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
+            new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
+                $"V-{suffix}", 1, 80, 2, 0, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0, DateTimeOffset.UtcNow)));
+        Assert.Equal(0, vacant.CurrentOccupancy.OccupantsCount);
+        Assert.Equal(ReferenceKeys.UnitStatuses.Vacant, vacant.CurrentOccupancy.Status);
+
+        var occupied = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
+            new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
+                $"O-{suffix}", 1, 90, 2, 0, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Occupied, 3, DateTimeOffset.UtcNow,
+                [
+                    new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Resident,
+                        new PartySelectionRequest(party.Code, null)),
+                    new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                        new PartySelectionRequest(party.Code, null))
+                ])));
+        Assert.Equal(3, occupied.CurrentOccupancy.OccupantsCount);
+
+        var changed = await Post<CurrentOccupancyResponse>(
+            $"/api/v1/units/{occupied.Code}/occupancy-history",
+            new OccupancyChangeRequest(4, DateTimeOffset.UtcNow.AddMinutes(1)));
+        Assert.Equal(4, changed.OccupantsCount);
+
+        var vacantAgain = await Post<CurrentOccupancyResponse>(
+            $"/api/v1/units/{occupied.Code}/occupancy-history",
+            new OccupancyChangeRequest(0, DateTimeOffset.UtcNow.AddMinutes(2)));
+        Assert.Equal(0, vacantAgain.OccupantsCount);
+        var relations = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{occupied.Code}/parties?currentOnly=true");
+        Assert.Contains(relations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Owner);
+        Assert.DoesNotContain(relations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Resident);
+
+        var history = await client!.GetFromJsonAsync<UnitOccupancyHistoryResponse[]>(
+            $"/api/v1/units/{occupied.Code}/occupancy-history");
+        Assert.Equal(3, history!.Length);
+        Assert.Equal(0, history.Single(x => x.IsActive).OccupantsCount);
+
+        using var invalid = await client!.PostAsJsonAsync($"/api/v1/buildings/{building.Code}/units",
+            new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
+                $"I-{suffix}", 1, 70, 1, 0, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Occupied, 1, DateTimeOffset.UtcNow)));
+        Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+    }
+
     [Fact]
     public async Task BuildingGalleryUploadDownloadAndDeleteWorks()
     {

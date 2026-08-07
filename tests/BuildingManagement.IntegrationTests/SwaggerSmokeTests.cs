@@ -35,6 +35,8 @@ public sealed class SwaggerSmokeTests
             Assert.Contains("/api/v1/files/{fileCode}/content", document, StringComparison.Ordinal);
             Assert.Contains("/api/v1/buildings/{buildingCode}/gallery/", document, StringComparison.Ordinal);
             Assert.Contains("multipart/form-data", document, StringComparison.Ordinal);
+            Assert.Contains("/api/v1/parties/", document, StringComparison.Ordinal);
+            Assert.Contains("/api/v1/units/{unitCode}/occupancy-history", document, StringComparison.Ordinal);
         }
         finally
         {

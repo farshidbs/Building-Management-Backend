@@ -288,6 +288,7 @@ public sealed class Unit : Entity
     public int? RoomsCount { get; private set; }
     public int ParkingCount { get; private set; }
     public int StorageCount { get; private set; }
+    public int CurrentOccupantsCount { get; private set; }
     public string? Description { get; private set; }
 
     public Unit(string code, long buildingId, long usageTypeId, long statusId, string unitNumber,
@@ -298,6 +299,14 @@ public sealed class Unit : Entity
         BuildingId = buildingId;
         Update(usageTypeId, statusId, unitNumber, floorNumber, area, roomsCount, parkingCount, storageCount, description, now);
         UpdatedAtUtc = null;
+    }
+
+    public void ChangeOccupancy(int occupantsCount, DateTimeOffset now)
+    {
+        if (occupantsCount < 0)
+            throw new DomainValidationException("occupantsCount", "Must not be negative.");
+        CurrentOccupantsCount = occupantsCount;
+        Touch(now);
     }
 
     public void Update(long usageTypeId, long statusId, string unitNumber, int? floorNumber, decimal? area,

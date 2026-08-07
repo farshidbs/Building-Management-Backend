@@ -28,6 +28,7 @@ builder.Services.AddSingleton(fileStorageOptions);
 builder.Services.AddSingleton<IFileStorage>(new LocalFileStorage(fileStorageOptions, builder.Environment.ContentRootPath));
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PhysicalStructureService>();
+builder.Services.AddScoped<PartyOccupancyService>();
 builder.Services.AddScoped<FileManagementService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
@@ -61,6 +62,7 @@ if (app.Environment.IsDevelopment())
 app.MapHealthChecks("/health");
 app.MapPhysicalStructureEndpoints();
 app.MapFileManagementEndpoints();
+app.MapPartyOccupancyEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedDevelopmentData"))
 {

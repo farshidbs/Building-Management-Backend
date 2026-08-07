@@ -10,6 +10,10 @@ public interface IApplicationDbContext
     DbSet<UnitUsageType> UnitUsageTypes { get; }
     DbSet<UnitStatus> UnitStatuses { get; }
     DbSet<DocumentType> DocumentTypes { get; }
+    DbSet<PartyType> PartyTypes { get; }
+    DbSet<PartyContactType> PartyContactTypes { get; }
+    DbSet<PartyIdentifierType> PartyIdentifierTypes { get; }
+    DbSet<UnitPartyRelationType> UnitPartyRelationTypes { get; }
     DbSet<Location> Locations { get; }
     DbSet<Complex> Complexes { get; }
     DbSet<Building> Buildings { get; }
@@ -19,7 +23,14 @@ public interface IApplicationDbContext
     DbSet<ComplexGalleryFile> ComplexGalleryFiles { get; }
     DbSet<BuildingDocument> BuildingDocuments { get; }
     DbSet<ComplexDocument> ComplexDocuments { get; }
+    DbSet<Party> Parties { get; }
+    DbSet<PartyContact> PartyContacts { get; }
+    DbSet<PartyIdentifier> PartyIdentifiers { get; }
+    DbSet<UnitPartyRelation> UnitPartyRelations { get; }
+    DbSet<UnitOccupancyHistory> UnitOccupancyHistories { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken);
 }
 
 public sealed class AppException(int status, string code, string message, IDictionary<string, string[]>? errors = null) : Exception(message)
@@ -53,7 +64,11 @@ public sealed record ReferenceDataResponse(
     IReadOnlyList<ReferenceValueResponse> BuildingTypes,
     IReadOnlyList<ReferenceValueResponse> UnitUsageTypes,
     IReadOnlyList<ReferenceValueResponse> UnitStatuses,
-    IReadOnlyList<ReferenceValueResponse> DocumentTypes);
+    IReadOnlyList<ReferenceValueResponse> DocumentTypes,
+    IReadOnlyList<ReferenceValueResponse> PartyTypes,
+    IReadOnlyList<ReferenceValueResponse> PartyContactTypes,
+    IReadOnlyList<ReferenceValueResponse> PartyIdentifierTypes,
+    IReadOnlyList<ReferenceValueResponse> UnitPartyRelationTypes);
 public sealed record LocationRequest(string? ParentCode, string Name, string LocationTypeKey);
 public sealed record LocationResponse(string Code, ResourceReferenceResponse? Parent, string Name, ReferenceValueResponse LocationType,
     bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
@@ -70,11 +85,15 @@ public sealed record BuildingResponse(string Code, ResourceReferenceResponse? Co
     decimal? Latitude, decimal? Longitude, int? FloorsCount, int? ConstructionYear,
     string? Description, bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
 public sealed record UnitRequest(string UsageTypeKey, string StatusKey, string UnitNumber, int? FloorNumber,
+    decimal? Area, int? RoomsCount, int ParkingCount, int StorageCount, string? Description,
+    UnitOccupancyRequest? Occupancy = null);
+public sealed record UnitUpdateRequest(string UsageTypeKey, string StatusKey, string UnitNumber, int? FloorNumber,
     decimal? Area, int? RoomsCount, int ParkingCount, int StorageCount, string? Description);
 public sealed record UnitResponse(string Code, ResourceReferenceResponse Building, ResourceReferenceResponse? Complex,
     ReferenceValueResponse UsageType,
     ReferenceValueResponse Status, string UnitNumber, int? FloorNumber, decimal? Area, int? RoomsCount,
-    int ParkingCount, int StorageCount, string? Description, bool IsActive,
+    int ParkingCount, int StorageCount, string? Description, CurrentOccupancyResponse CurrentOccupancy,
+    bool IsActive,
     DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
 public sealed record ActivationRequest(bool IsActive);
 
@@ -108,6 +127,16 @@ internal static class RequestValidation
         request = NotNull(request);
         Required((nameof(request.UsageTypeKey), request.UsageTypeKey), (nameof(request.StatusKey), request.StatusKey),
             (nameof(request.UnitNumber), request.UnitNumber));
+        if (request.Occupancy is null)
+            throw new AppException(400, "validation.failed", "One or more validation errors occurred.",
+                new Dictionary<string, string[]> { ["occupancy"] = ["Occupancy is required."] });
+    }
+
+    public static void Validate(UnitUpdateRequest? request)
+    {
+        request = NotNull(request);
+        Required((nameof(request.UsageTypeKey), request.UsageTypeKey),
+            (nameof(request.StatusKey), request.StatusKey), (nameof(request.UnitNumber), request.UnitNumber));
     }
 
     private static T NotNull<T>(T? request) where T : class =>
@@ -124,7 +153,10 @@ internal static class RequestValidation
             throw new AppException(400, "validation.failed", "One or more validation errors occurred.", errors);
     }
 }
-public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvider clock)
+public sealed class PhysicalStructureService(
+    IApplicationDbContext db,
+    TimeProvider clock,
+    PartyOccupancyService partyOccupancy)
 {
     private DateTimeOffset Now => clock.GetUtcNow();
 
@@ -134,7 +166,11 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
             await ReferenceList(db.BuildingTypes, ct),
             await ReferenceList(db.UnitUsageTypes, ct),
             await ReferenceList(db.UnitStatuses, ct),
-            await ReferenceList(db.DocumentTypes, ct));
+            await ReferenceList(db.DocumentTypes, ct),
+            await ReferenceList(db.PartyTypes, ct),
+            await ReferenceList(db.PartyContactTypes, ct),
+            await ReferenceList(db.PartyIdentifierTypes, ct),
+            await ReferenceList(db.UnitPartyRelationTypes, ct));
 
     public async Task<LocationResponse> CreateLocation(LocationRequest request, CancellationToken ct)
     {
@@ -278,12 +314,17 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
         var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
         var statusId = await ReferenceId(db.UnitStatuses, request.StatusKey, "unit_status", ct);
+        RejectOccupancyStatus(request.StatusKey);
         var entity = new Unit(await UniqueCode(db.Units, ct), buildingId, usageTypeId, statusId,
             request.UnitNumber, request.FloorNumber, request.Area, request.RoomsCount, request.ParkingCount,
             request.StorageCount, request.Description, Now);
         await EnsureUnitNumber(entity, null, ct);
-        db.Units.Add(entity);
-        await Save(ct);
+        await db.ExecuteInTransaction(async token =>
+        {
+            db.Units.Add(entity);
+            await partyOccupancy.OnboardUnit(entity, request.Occupancy!, token);
+            return entity.Code;
+        }, ct);
         return await GetUnit(entity.Code, ct);
     }
 
@@ -312,13 +353,14 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
         return await Page(UnitProjection(Order(query, page, x => x.UnitNumber)), number, size, ct);
     }
 
-    public async Task<UnitResponse> UpdateUnit(string code, UnitRequest request, CancellationToken ct)
+    public async Task<UnitResponse> UpdateUnit(string code, UnitUpdateRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
         var entity = await db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("unit");
         var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
         var statusId = await ReferenceId(db.UnitStatuses, request.StatusKey, "unit_status", ct);
+        RejectOccupancyStatus(request.StatusKey);
         entity.Update(usageTypeId, statusId, request.UnitNumber, request.FloorNumber, request.Area,
             request.RoomsCount, request.ParkingCount, request.StorageCount, request.Description, Now);
         await EnsureUnitNumber(entity, entity.Id, ct);
@@ -383,6 +425,17 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
     }
 
     private static string NormalizeCode(string code) => PublicCode.Normalize(code);
+    private static void RejectOccupancyStatus(string statusKey)
+    {
+        var normalized = NormalizeKey(statusKey);
+        if (normalized is ReferenceKeys.UnitStatuses.Occupied or ReferenceKeys.UnitStatuses.Vacant)
+            throw new AppException(400, "validation.failed",
+                "Occupied and vacant are derived from current occupants count.",
+                new Dictionary<string, string[]>
+                {
+                    ["statusKey"] = ["Use an operational status; occupancy is supplied separately."]
+                });
+    }
     private static string NormalizeKey(string? key) =>
         string.IsNullOrWhiteSpace(key)
             ? throw new AppException(400, "validation.failed", "Reference key is required.")
@@ -513,5 +566,8 @@ public sealed class PhysicalStructureService(IApplicationDbContext db, TimeProvi
             db.UnitStatuses.Where(status => status.Id == x.StatusId)
                 .Select(status => new ReferenceValueResponse(status.Key, status.Title)).Single(),
             x.UnitNumber, x.FloorNumber, x.Area, x.RoomsCount, x.ParkingCount, x.StorageCount,
-            x.Description, x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
+            x.Description, new CurrentOccupancyResponse(
+                x.CurrentOccupantsCount == 0 ? ReferenceKeys.UnitStatuses.Vacant : ReferenceKeys.UnitStatuses.Occupied,
+                x.CurrentOccupantsCount),
+            x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 }

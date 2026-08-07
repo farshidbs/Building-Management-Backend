@@ -30,6 +30,22 @@ Public codes:
 - **Building:** required location FK, optional complex FK, physical details and building-type FK. Complex/building locations must match. API uses `locationCode`, optional `complexCode`, and `buildingTypeKey`.
 - **Unit:** required building FK, display/normalized unit number, physical counts, usage-type/status FKs. Unit number remains unique per building. API uses `buildingCode`, `usageTypeKey`, and `statusKey`.
 
+## Party and occupancy
+
+Global identity data lives in `base`: `PartyTypes`, `Parties`, `PartyContactTypes`,
+`PartyContacts`, `PartyIdentifierTypes`, and `PartyIdentifiers`. A Party requires only
+`PartyType` and `DisplayName`; contact and identifier rows are optional. Identifier values
+are not returned in Party lists and nested identifier reads return masked values.
+
+Unit-scoped history lives in `bms`: `UnitPartyRelationTypes`, `UnitPartyRelations`, and
+`UnitOccupancyHistories`. Relations use real FKs and restricted deletes. At most one active
+open occupancy-history row exists per Unit through a filtered unique index.
+
+`Unit.CurrentOccupantsCount` is non-negative and is the current snapshot. Zero derives
+`vacant`; a positive value derives `occupied`. The snapshot and open history row are written
+in one transaction. An occupied Unit requires an active tenant/resident relation; a vacant
+Unit has no active occupancy relation but may retain ownership.
+
 Deletes are restricted. Future names, schemas not final: Party, User, UnitPartyRelation, BuildingRole, AssetType, BuildingAsset, BuildingAssetEvent, BuildingAssetSchedule, BuildingAssetScheduleNotificationRecipient, BuildingPeriod, ExpenseType, BuildingExpenseTypeSetting, BuildingPeriodExpenseDetail, ExpenseDistribution, BuildingPeriodCharge, UnitAccount, LedgerTransaction, Payment, Notification, Attachment.
 
 ## Migration baseline

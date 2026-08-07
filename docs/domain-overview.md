@@ -8,15 +8,23 @@ flowchart LR
   Location --> Building
   Complex -. optional .-> Building
   Building --> Unit
-  Party["Party/access (planned next)"] -.-> UnitPartyRelation
-  UnitPartyRelation -. history .-> Unit
+  Party --> UnitPartyRelation
+  UnitPartyRelation --> Unit
+  Unit --> UnitOccupancyHistory
   Building -.-> Assets["Assets (future)"]
   Building -.-> Finance["Finance (future)"]
 ```
 
+## Party and occupancy
+
+Party is implemented as reusable real-world identity with optional contacts and identifiers.
+UnitPartyRelation preserves independent owner, tenant, resident, representative, and contact
+facts. Unit stores the current occupants count for fast reads while UnitOccupancyHistory
+preserves periods. Occupancy changes update both inside one SQL transaction.
+
 ## Planned Next
 
-Party, User invitation/link, historical UnitPartyRelation, roles, authorization, organization isolation.
+User invitation/link, roles, authorization, and organization isolation.
 
 ## Future
 

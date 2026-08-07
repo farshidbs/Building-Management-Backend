@@ -3,6 +3,8 @@
 - `/api/v1`, plural routes; units list/create under building scope.
 - Resources are addressed by immutable five-character uppercase alphanumeric codes, for example `/api/v1/buildings/A7K2P`. Numeric database IDs are never accepted or returned.
 - Relationship fields use codes: `parentCode`, `locationCode`, `complexCode`, and `buildingCode`.
+- Party and Unit relationship routes use `partyCode`, `unitCode`, and `relationCode`; numeric
+  identifiers and sensitive PartyIdentifier values never appear in routes.
 - Read responses embed parent summaries as { code, name }: buildings include location and optional complex; units include building and optional complex. This avoids extra client round trips without exposing internal IDs.
 - Codes are created by the server; create/update bodies never choose or change them.
 - Reference data is read from /api/v1/reference-data. Requests and filters use its stable semantic keys (for example esidential), not numeric IDs or public codes.
@@ -15,6 +17,10 @@
 Error codes include `validation.failed`, `{resource}.not_found`, `location.name_conflict`, `building.has_units`, `unit.number_conflict`, `persistence.conflict`, and `concurrency.conflict`.
 
 Breaking changes require a new route version.
+
+Unit creation requires an explicit `occupancy` object. Later occupancy changes use
+`POST /api/v1/units/{unitCode}/occupancy-history`; generic Unit update cannot change the
+current count. Unit responses include a derived `currentOccupancy` object.
 
 ## Optimistic concurrency
 

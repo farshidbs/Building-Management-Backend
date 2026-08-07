@@ -1,0 +1,34 @@
+# ADR 011: Party and unit occupancy foundation
+
+Status: Accepted — 2026-08-07
+
+## Context
+
+Managers often know that a unit is occupied before they know a resident's mobile number,
+national identifier, or legal role. Requiring complete identity data would block onboarding,
+while storing residents directly on Unit would lose history and prevent reuse across units.
+
+## Decision
+
+- Party represents a real person or organization; User remains a future login concept.
+- Party requires only a type and display name. Contacts and identifiers are optional child
+  records in schema `base`.
+- Mobile becomes mandatory only in the future Invitation workflow, not Party creation.
+- National/legal identifiers remain optional and unverified identifiers never merge Parties.
+- UnitPartyRelation in schema `bms` records independent historical facts such as owner,
+  tenant, and resident. An owner who resides in a unit has separate owner and resident facts.
+- `Unit.CurrentOccupantsCount` is the fast current snapshot. Zero means vacant and a positive
+  value means occupied.
+- `UnitOccupancyHistory` is the historical source of truth. The open history row and Unit
+  snapshot are changed in one SQL transaction.
+- An occupied Unit requires an active occupancy relation; a vacant Unit has none. Ownership
+  may remain active while vacant.
+- Legacy UnitStatus values `occupied` and `vacant` are inactive. Operational statuses remain
+  separate, and occupancy is derived only from current count.
+- Future financial debt remains attached to Unit, not Party.
+
+## Consequences
+
+Generic Unit updates cannot change occupancy. Onboarding and subsequent occupancy changes use
+dedicated transactional use cases. Identity verification, User, Invitation, authorization,
+deduplication, and finance remain deliberately deferred.

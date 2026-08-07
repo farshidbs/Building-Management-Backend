@@ -14,6 +14,10 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<UnitUsageType> UnitUsageTypes => Set<UnitUsageType>();
     public DbSet<UnitStatus> UnitStatuses => Set<UnitStatus>();
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
+    public DbSet<PartyType> PartyTypes => Set<PartyType>();
+    public DbSet<PartyContactType> PartyContactTypes => Set<PartyContactType>();
+    public DbSet<PartyIdentifierType> PartyIdentifierTypes => Set<PartyIdentifierType>();
+    public DbSet<UnitPartyRelationType> UnitPartyRelationTypes => Set<UnitPartyRelationType>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Complex> Complexes => Set<Complex>();
     public DbSet<Building> Buildings => Set<Building>();
@@ -23,6 +27,27 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<ComplexGalleryFile> ComplexGalleryFiles => Set<ComplexGalleryFile>();
     public DbSet<BuildingDocument> BuildingDocuments => Set<BuildingDocument>();
     public DbSet<ComplexDocument> ComplexDocuments => Set<ComplexDocument>();
+    public DbSet<Party> Parties => Set<Party>();
+    public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
+    public DbSet<PartyIdentifier> PartyIdentifiers => Set<PartyIdentifier>();
+    public DbSet<UnitPartyRelation> UnitPartyRelations => Set<UnitPartyRelation>();
+    public DbSet<UnitOccupancyHistory> UnitOccupancyHistories => Set<UnitOccupancyHistory>();
+
+    public async Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(operation);
+        if (Database.CurrentTransaction is not null)
+            return await operation(cancellationToken);
+        var strategy = Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await Database.BeginTransactionAsync(cancellationToken);
+            var result = await operation(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return result;
+        });
+    }
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BuildingManagementDbContext).Assembly);
 }
@@ -58,9 +83,10 @@ internal static class ConfigurationHelpers
         builder.HasIndex(x => x.IsActive);
     }
 
-    internal static void Reference<T>(EntityTypeBuilder<T> builder, string table) where T : ReferenceDataItem
+    internal static void Reference<T>(EntityTypeBuilder<T> builder, string table, string schema = Schema)
+        where T : ReferenceDataItem
     {
-        builder.ToTable(table, Schema, tableBuilder =>
+        builder.ToTable(table, schema, tableBuilder =>
             tableBuilder.HasCheckConstraint($"CK_{table}_KeyFormat",
                 "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0"));
         builder.HasKey(x => x.Id);
@@ -178,7 +204,7 @@ internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
         {
             table.HasCheckConstraint("CK_Units_Area", "[Area] IS NULL OR [Area] >= 0");
             table.HasCheckConstraint("CK_Units_Counts",
-                "([RoomsCount] IS NULL OR [RoomsCount] >= 0) AND [ParkingCount] >= 0 AND [StorageCount] >= 0");
+                "([RoomsCount] IS NULL OR [RoomsCount] >= 0) AND [ParkingCount] >= 0 AND [StorageCount] >= 0 AND [CurrentOccupantsCount] >= 0");
         });
     }
 }

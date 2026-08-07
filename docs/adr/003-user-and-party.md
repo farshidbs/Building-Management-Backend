@@ -6,4 +6,4 @@ Party represents real-world identity; User represents authentication and may lat
 ## Consequences
 Invitations and incomplete contact records do not distort identity.
 ## Status
-Accepted; implementation deferred.
+Accepted. Party is implemented; User remains deferred.

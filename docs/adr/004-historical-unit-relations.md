@@ -6,4 +6,4 @@ Do not store them on Unit; future UnitPartyRelation carries type and effective d
 ## Consequences
 History is preserved and current occupancy becomes a temporal query.
 ## Status
-Accepted; implementation deferred.
+Accepted and implemented by UnitPartyRelation and UnitOccupancyHistory.
