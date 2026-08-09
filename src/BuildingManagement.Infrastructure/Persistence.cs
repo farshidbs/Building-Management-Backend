@@ -16,7 +16,6 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<DocumentType> DocumentTypes => Set<DocumentType>();
     public DbSet<PartyType> PartyTypes => Set<PartyType>();
     public DbSet<PartyContactType> PartyContactTypes => Set<PartyContactType>();
-    public DbSet<PartyIdentifierType> PartyIdentifierTypes => Set<PartyIdentifierType>();
     public DbSet<UnitPartyRelationType> UnitPartyRelationTypes => Set<UnitPartyRelationType>();
     public DbSet<Location> Locations => Set<Location>();
     public DbSet<Complex> Complexes => Set<Complex>();
@@ -29,7 +28,6 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<ComplexDocument> ComplexDocuments => Set<ComplexDocument>();
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
-    public DbSet<PartyIdentifier> PartyIdentifiers => Set<PartyIdentifier>();
     public DbSet<UnitPartyRelation> UnitPartyRelations => Set<UnitPartyRelation>();
     public DbSet<UnitOccupancyHistory> UnitOccupancyHistories => Set<UnitOccupancyHistory>();
 
@@ -101,6 +99,7 @@ internal static class ConfigurationHelpers
         builder.HasIndex(x => x.Key).IsUnique();
         builder.HasIndex(x => new { x.IsActive, x.SortOrder });
     }
+
 }
 
 internal sealed class LocationTypeConfiguration : IEntityTypeConfiguration<LocationType>

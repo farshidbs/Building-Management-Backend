@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    [Migration("20260807175613_AddPartyAndUnitOccupancy")]
+    [Migration("20260809164336_AddPartyAndUnitOccupancy")]
     partial class AddPartyAndUnitOccupancy
     {
         /// <inheritdoc />
@@ -993,6 +993,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<string>("IdentityNumber")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1033,7 +1037,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("PartyTypeId");
 
-                    b.ToTable("Parties", "base", t =>
+                    b.ToTable("Parties", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_Parties_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                         });
@@ -1115,7 +1119,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[IsActive] = CAST(1 AS bit) AND [IsPrimary] = CAST(1 AS bit)");
 
-                    b.ToTable("PartyContacts", "base", t =>
+                    b.ToTable("PartyContacts", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_PartyContacts_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                         });
@@ -1165,7 +1169,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive", "SortOrder");
 
-                    b.ToTable("PartyContactTypes", "base", t =>
+                    b.ToTable("PartyContactTypes", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_PartyContactTypes_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
                         });
@@ -1200,178 +1204,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         });
                 });
 
-            modelBuilder.Entity("BuildingManagement.Domain.PartyIdentifier", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("varchar(5)");
-
-                    b.Property<string>("CountryCode")
-                        .IsRequired()
-                        .HasColumnType("char(2)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasPrecision(0)
-                        .HasColumnType("datetimeoffset(0)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsVerified")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("NormalizedValue")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<long>("PartyId")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("PartyIdentifierTypeId")
-                        .HasColumnType("bigint");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasPrecision(0)
-                        .HasColumnType("datetimeoffset(0)");
-
-                    b.Property<string>("Value")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTimeOffset?>("VerifiedAtUtc")
-                        .HasPrecision(0)
-                        .HasColumnType("datetimeoffset(0)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("IsActive");
-
-                    b.HasIndex("PartyId");
-
-                    b.HasIndex("PartyIdentifierTypeId");
-
-                    b.HasIndex("CountryCode", "PartyIdentifierTypeId", "NormalizedValue");
-
-                    b.ToTable("PartyIdentifiers", "base", t =>
-                        {
-                            t.HasCheckConstraint("CK_PartyIdentifiers_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                        });
-                });
-
-            modelBuilder.Entity("BuildingManagement.Domain.PartyIdentifierType", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasPrecision(0)
-                        .HasColumnType("datetimeoffset(0)");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Key")
-                        .IsRequired()
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAtUtc")
-                        .HasPrecision(0)
-                        .HasColumnType("datetimeoffset(0)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Key")
-                        .IsUnique();
-
-                    b.HasIndex("IsActive", "SortOrder");
-
-                    b.ToTable("PartyIdentifierTypes", "base", t =>
-                        {
-                            t.HasCheckConstraint("CK_PartyIdentifierTypes_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
-                        });
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "national_id",
-                            SortOrder = 10,
-                            Title = "کد ملی"
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "legal_entity_national_id",
-                            SortOrder = 20,
-                            Title = "شناسه ملی شخص حقوقی"
-                        },
-                        new
-                        {
-                            Id = 3L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "passport_number",
-                            SortOrder = 30,
-                            Title = "شماره گذرنامه"
-                        },
-                        new
-                        {
-                            Id = 4L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "residence_identifier",
-                            SortOrder = 40,
-                            Title = "شناسه اقامت"
-                        },
-                        new
-                        {
-                            Id = 5L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "other",
-                            SortOrder = 50,
-                            Title = "سایر"
-                        });
-                });
-
             modelBuilder.Entity("BuildingManagement.Domain.PartyType", b =>
                 {
                     b.Property<long>("Id")
@@ -1384,10 +1216,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
 
-                    b.Property<string>("Description")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -1420,7 +1248,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive", "SortOrder");
 
-                    b.ToTable("PartyTypes", "base", t =>
+                    b.ToTable("PartyTypes", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_PartyTypes_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
                         });
@@ -1431,18 +1259,36 @@ namespace BuildingManagement.Infrastructure.Migrations
                             Id = 1L,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "person",
+                            Key = "iranian_person",
                             SortOrder = 10,
-                            Title = "شخص"
+                            Title = "شخص حقیقی ایرانی"
                         },
                         new
                         {
                             Id = 2L,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "organization",
+                            Key = "iranian_organization",
                             SortOrder = 20,
-                            Title = "سازمان"
+                            Title = "شخص حقوقی ایرانی"
+                        },
+                        new
+                        {
+                            Id = 3L,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "foreign_person",
+                            SortOrder = 30,
+                            Title = "شخص حقیقی خارجی"
+                        },
+                        new
+                        {
+                            Id = 4L,
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "foreign_organization",
+                            SortOrder = 40,
+                            Title = "شخص حقوقی خارجی"
                         });
                 });
 
@@ -1637,7 +1483,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
 
-                    b.Property<DateTimeOffset>("EffectiveFrom")
+                    b.Property<DateTimeOffset?>("EffectiveFrom")
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
 
@@ -1680,7 +1526,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_UnitOccupancyHistories_Count", "[OccupantsCount] >= 0");
 
-                            t.HasCheckConstraint("CK_UnitOccupancyHistories_Dates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                            t.HasCheckConstraint("CK_UnitOccupancyHistories_Dates", "[EffectiveTo] IS NULL OR [EffectiveFrom] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
                         });
                 });
 
@@ -1691,10 +1537,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("varchar(5)");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasPrecision(0)
@@ -1707,19 +1549,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsPaymentContact")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsPrimaryContact")
                         .HasColumnType("bit");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
-
-                    b.Property<decimal?>("OwnershipShare")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("decimal(5,2)");
 
                     b.Property<long>("PartyId")
                         .HasColumnType("bigint");
@@ -1746,11 +1581,6 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("IsActive");
-
                     b.HasIndex("PartyId");
 
                     b.HasIndex("UnitPartyRelationTypeId");
@@ -1761,11 +1591,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.ToTable("UnitPartyRelations", "bms", t =>
                         {
-                            t.HasCheckConstraint("CK_UnitPartyRelations_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-
                             t.HasCheckConstraint("CK_UnitPartyRelations_Dates", "[EndDate] IS NULL OR [StartDate] IS NULL OR [EndDate] >= [StartDate]");
-
-                            t.HasCheckConstraint("CK_UnitPartyRelations_OwnershipShare", "[OwnershipShare] IS NULL OR ([OwnershipShare] > 0 AND [OwnershipShare] <= 100)");
                         });
                 });
 
@@ -1776,9 +1602,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<bool>("CanBePaymentContact")
-                        .HasColumnType("bit");
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasPrecision(0)
@@ -1835,7 +1658,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 1L,
-                            CanBePaymentContact = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = false,
@@ -1847,7 +1669,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 2L,
-                            CanBePaymentContact = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = true,
@@ -1859,7 +1680,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 3L,
-                            CanBePaymentContact = false,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = true,
@@ -1871,7 +1691,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 4L,
-                            CanBePaymentContact = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = false,
@@ -1883,7 +1702,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 5L,
-                            CanBePaymentContact = true,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = false,
@@ -1895,7 +1713,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 6L,
-                            CanBePaymentContact = false,
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             IsOccupancyRelation = false,
@@ -2243,21 +2060,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.Party", null)
                         .WithMany()
                         .HasForeignKey("PartyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("BuildingManagement.Domain.PartyIdentifier", b =>
-                {
-                    b.HasOne("BuildingManagement.Domain.Party", null)
-                        .WithMany()
-                        .HasForeignKey("PartyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("BuildingManagement.Domain.PartyIdentifierType", null)
-                        .WithMany()
-                        .HasForeignKey("PartyIdentifierTypeId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

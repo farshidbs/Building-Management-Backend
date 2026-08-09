@@ -3,8 +3,9 @@
 - `/api/v1`, plural routes; units list/create under building scope.
 - Resources are addressed by immutable five-character uppercase alphanumeric codes, for example `/api/v1/buildings/A7K2P`. Numeric database IDs are never accepted or returned.
 - Relationship fields use codes: `parentCode`, `locationCode`, `complexCode`, and `buildingCode`.
-- Party and Unit relationship routes use `partyCode`, `unitCode`, and `relationCode`; numeric
-  identifiers and sensitive PartyIdentifier values never appear in routes.
+- Party and Unit relationship routes use `partyCode`, `unitCode`, and stable relation-type keys;
+  numeric identifiers and `IdentityNumber` never appear in routes.
+- Generic Party list/search responses omit `IdentityNumber`.
 - Read responses embed parent summaries as { code, name }: buildings include location and optional complex; units include building and optional complex. This avoids extra client round trips without exposing internal IDs.
 - Codes are created by the server; create/update bodies never choose or change them.
 - Reference data is read from /api/v1/reference-data. Requests and filters use its stable semantic keys (for example esidential), not numeric IDs or public codes.

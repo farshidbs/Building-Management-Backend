@@ -32,14 +32,15 @@ Public codes:
 
 ## Party and occupancy
 
-Global identity data lives in `base`: `PartyTypes`, `Parties`, `PartyContactTypes`,
-`PartyContacts`, `PartyIdentifierTypes`, and `PartyIdentifiers`. A Party requires only
-`PartyType` and `DisplayName`; contact and identifier rows are optional. Identifier values
-are not returned in Party lists and nested identifier reads return masked values.
+Party data uses the database default schema: `PartyTypes`, `Parties`, `PartyContactTypes`, and
+`PartyContacts`. A Party requires only `PartyType` and `DisplayName`; contacts and the directly
+stored `Party.IdentityNumber` are optional. IdentityNumber is omitted from list/search responses.
 
-Unit-scoped history lives in `bms`: `UnitPartyRelationTypes`, `UnitPartyRelations`, and
-`UnitOccupancyHistories`. Relations use real FKs and restricted deletes. At most one active
-open occupancy-history row exists per Unit through a filtered unique index.
+Unit-scoped feature tables use the database default schema: `UnitPartyRelationTypes`,
+`UnitPartyRelations`, and `UnitOccupancyHistories`. Relations use internal Ids, real FKs and
+restricted deletes; they have no public Code, ownership share, or payment-contact flags.
+Relationship dates may be null when unknown. Occupancy effective dates may likewise be null.
+At most one active open occupancy-history row exists per Unit through a filtered unique index.
 
 `Unit.CurrentOccupantsCount` is non-negative and is the current snapshot. Zero derives
 `vacant`; a positive value derives `occupied`. The snapshot and open history row are written

@@ -8,15 +8,16 @@ internal sealed class PartyTypeSeedConfiguration : IEntityTypeConfiguration<Part
 {
     public void Configure(EntityTypeBuilder<PartyType> builder) =>
         builder.HasData(
-            Item(1, PartyReferenceKeys.PartyTypes.Person, "شخص", 10),
-            Item(2, PartyReferenceKeys.PartyTypes.Organization, "سازمان", 20));
+            Item(1, PartyReferenceKeys.PartyTypes.IranianPerson, "شخص حقیقی ایرانی", 10),
+            Item(2, PartyReferenceKeys.PartyTypes.IranianOrganization, "شخص حقوقی ایرانی", 20),
+            Item(3, PartyReferenceKeys.PartyTypes.ForeignPerson, "شخص حقیقی خارجی", 30),
+            Item(4, PartyReferenceKeys.PartyTypes.ForeignOrganization, "شخص حقوقی خارجی", 40));
 
     private static object Item(long id, string key, string title, int sortOrder) => new
     {
         Id = id,
         Key = key,
         Title = title,
-        Description = (string?)null,
         SortOrder = sortOrder,
         IsActive = true,
         CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc
@@ -42,40 +43,19 @@ internal sealed class PartyContactTypeSeedConfiguration : IEntityTypeConfigurati
     };
 }
 
-internal sealed class PartyIdentifierTypeSeedConfiguration : IEntityTypeConfiguration<PartyIdentifierType>
-{
-    public void Configure(EntityTypeBuilder<PartyIdentifierType> builder) =>
-        builder.HasData(
-            Item(1, PartyReferenceKeys.IdentifierTypes.NationalId, "کد ملی", 10),
-            Item(2, PartyReferenceKeys.IdentifierTypes.LegalEntityNationalId, "شناسه ملی شخص حقوقی", 20),
-            Item(3, PartyReferenceKeys.IdentifierTypes.PassportNumber, "شماره گذرنامه", 30),
-            Item(4, PartyReferenceKeys.IdentifierTypes.ResidenceIdentifier, "شناسه اقامت", 40),
-            Item(5, PartyReferenceKeys.IdentifierTypes.Other, "سایر", 50));
-
-    private static object Item(long id, string key, string title, int sortOrder) => new
-    {
-        Id = id,
-        Key = key,
-        Title = title,
-        SortOrder = sortOrder,
-        IsActive = true,
-        CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc
-    };
-}
-
 internal sealed class UnitPartyRelationTypeSeedConfiguration : IEntityTypeConfiguration<UnitPartyRelationType>
 {
     public void Configure(EntityTypeBuilder<UnitPartyRelationType> builder) =>
         builder.HasData(
-            Item(1, PartyReferenceKeys.RelationTypes.Owner, "مالک", true, false, true, 10),
-            Item(2, PartyReferenceKeys.RelationTypes.Tenant, "مستأجر", false, true, true, 20),
-            Item(3, PartyReferenceKeys.RelationTypes.Resident, "ساکن", false, true, false, 30),
-            Item(4, PartyReferenceKeys.RelationTypes.LegalRepresentative, "نماینده قانونی", false, false, true, 40),
-            Item(5, PartyReferenceKeys.RelationTypes.ContactPerson, "شخص رابط", false, false, true, 50),
-            Item(6, PartyReferenceKeys.RelationTypes.Other, "سایر", false, false, false, 60));
+            Item(1, PartyReferenceKeys.RelationTypes.Owner, "مالک", true, false, 10),
+            Item(2, PartyReferenceKeys.RelationTypes.Tenant, "مستأجر", false, true, 20),
+            Item(3, PartyReferenceKeys.RelationTypes.Resident, "ساکن", false, true, 30),
+            Item(4, PartyReferenceKeys.RelationTypes.LegalRepresentative, "نماینده قانونی", false, false, 40),
+            Item(5, PartyReferenceKeys.RelationTypes.ContactPerson, "شخص رابط", false, false, 50),
+            Item(6, PartyReferenceKeys.RelationTypes.Other, "سایر", false, false, 60));
 
     private static object Item(long id, string key, string title, bool ownership, bool occupancy,
-        bool paymentContact, int sortOrder) => new
+        int sortOrder) => new
         {
             Id = id,
             Key = key,
@@ -83,7 +63,6 @@ internal sealed class UnitPartyRelationTypeSeedConfiguration : IEntityTypeConfig
             Description = (string?)null,
             IsOwnershipRelation = ownership,
             IsOccupancyRelation = occupancy,
-            CanBePaymentContact = paymentContact,
             SortOrder = sortOrder,
             IsActive = true,
             CreatedAtUtc = ReferenceDataSeed.CreatedAtUtc

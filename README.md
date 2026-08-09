@@ -6,7 +6,7 @@ file management, reusable Parties, historical Unit relationships, and transactio
 ## Party and occupancy
 
 Party is separate from a future User account and may be created with only `partyTypeKey` and
-`displayName`. Mobile, email, and identifiers are optional and can be added later.
+`displayName`. Mobile, email, and the directly stored `IdentityNumber` are optional and can be added later.
 
 Unit onboarding explicitly supplies vacant or occupied state. `CurrentOccupantsCount` is
 returned with Unit reads, while `UnitOccupancyHistory` preserves changes. Occupancy updates

@@ -134,22 +134,17 @@ public sealed class ApiScenarios : IAsyncLifetime
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var party = await Post<PartyResponse>("/api/v1/parties",
-            new PartyRequest(PartyReferenceKeys.PartyTypes.Person, $"ساکن واحد {suffix}"));
+            new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, $"ساکن واحد {suffix}",
+                IdentityNumber: "0012345678"));
         Assert.NotEmpty(party.Code);
+        Assert.Equal("0012345678", party.IdentityNumber);
 
         var contacts = await client!.GetFromJsonAsync<PartyContactResponse[]>(
             $"/api/v1/parties/{party.Code}/contacts");
-        var identifiers = await client!.GetFromJsonAsync<PartyIdentifierResponse[]>(
-            $"/api/v1/parties/{party.Code}/identifiers");
         Assert.Empty(contacts!);
-        Assert.Empty(identifiers!);
 
         await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
             new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09120000000", IsPrimary: true));
-        var identifier = await Post<PartyIdentifierResponse>(
-            $"/api/v1/parties/{party.Code}/identifiers",
-            new PartyIdentifierRequest(PartyReferenceKeys.IdentifierTypes.NationalId, "IR", "0012345678"));
-        Assert.Equal("********", identifier.MaskedValue);
 
         var country = await Post<LocationResponse>("/api/v1/locations",
             new LocationRequest(null, $"Party country {suffix}", ReferenceKeys.LocationTypes.Country));
@@ -165,6 +160,12 @@ public sealed class ApiScenarios : IAsyncLifetime
                 new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0, DateTimeOffset.UtcNow)));
         Assert.Equal(0, vacant.CurrentOccupancy.OccupantsCount);
         Assert.Equal(ReferenceKeys.UnitStatuses.Vacant, vacant.CurrentOccupancy.Status);
+        await Post<UnitPartyRelationResponse>($"/api/v1/units/{vacant.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(party.Code, null)));
+        var vacantRelations = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{vacant.Code}/parties?currentOnly=true");
+        Assert.Contains(vacantRelations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Owner);
 
         var occupied = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
@@ -177,11 +178,16 @@ public sealed class ApiScenarios : IAsyncLifetime
                         new PartySelectionRequest(party.Code, null))
                 ])));
         Assert.Equal(3, occupied.CurrentOccupancy.OccupantsCount);
+        var beforeCountChange = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{occupied.Code}/parties?currentOnly=true");
 
         var changed = await Post<CurrentOccupancyResponse>(
             $"/api/v1/units/{occupied.Code}/occupancy-history",
             new OccupancyChangeRequest(4, DateTimeOffset.UtcNow.AddMinutes(1)));
         Assert.Equal(4, changed.OccupantsCount);
+        var afterCountChange = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{occupied.Code}/parties?currentOnly=true");
+        Assert.Equal(beforeCountChange!.Length, afterCountChange!.Length);
 
         var vacantAgain = await Post<CurrentOccupancyResponse>(
             $"/api/v1/units/{occupied.Code}/occupancy-history",
@@ -202,6 +208,18 @@ public sealed class ApiScenarios : IAsyncLifetime
                 $"I-{suffix}", 1, 70, 1, 0, 0, null,
                 new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Occupied, 1, DateTimeOffset.UtcNow)));
         Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+
+        var orphanName = $"Orphan {suffix}";
+        using var failedRelation = await client!.PostAsJsonAsync(
+            $"/api/v1/units/{vacant.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(null, new NewPartyInput(
+                    new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, orphanName),
+                    [new PartyContactRequest("missing_contact_type", "09121111111")]))));
+        Assert.Equal(HttpStatusCode.NotFound, failedRelation.StatusCode);
+        var orphanSearch = await client!.GetFromJsonAsync<Page<PartySummaryResponse>>(
+            $"/api/v1/parties?search={Uri.EscapeDataString(orphanName)}");
+        Assert.Equal(0, orphanSearch!.TotalCount);
     }
 
     [Fact]

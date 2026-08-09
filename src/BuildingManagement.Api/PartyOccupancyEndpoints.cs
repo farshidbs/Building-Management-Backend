@@ -2,7 +2,8 @@ using BuildingManagement.Application;
 
 namespace BuildingManagement.Api;
 
-public sealed record EndRelationRequest(DateTimeOffset EndDate);
+public sealed record EndRelationRequest(string PartyCode, string RelationTypeKey,
+    DateTimeOffset? EndDate = null);
 
 public static class PartyOccupancyEndpoints
 {
@@ -47,15 +48,6 @@ public static class PartyOccupancyEndpoints
         });
         parties.MapGet("/{partyCode}/contacts", (string partyCode, PartyOccupancyService service,
             CancellationToken ct) => service.GetContacts(partyCode, ct));
-        parties.MapPost("/{partyCode}/identifiers", async (string partyCode,
-            PartyIdentifierRequest request, PartyOccupancyService service, CancellationToken ct) =>
-        {
-            var response = await service.AddIdentifier(partyCode, request, ct);
-            return Results.Created($"/api/v1/parties/{partyCode}/identifiers/{response.Code}", response);
-        });
-        parties.MapGet("/{partyCode}/identifiers", (string partyCode,
-            PartyOccupancyService service, CancellationToken ct) =>
-            service.GetIdentifiers(partyCode, ct));
     }
 
     private static void MapUnitOccupancy(RouteGroupBuilder api)
@@ -68,13 +60,14 @@ public static class PartyOccupancyEndpoints
             UnitOnboardingRelationRequest request, PartyOccupancyService service, CancellationToken ct) =>
         {
             var response = await service.AddUnitRelation(unitCode, request, ct);
-            return Results.Created($"/api/v1/units/{unitCode}/party-relations/{response.Code}", response);
+            return Results.Created($"/api/v1/units/{unitCode}/parties", response);
         });
-        units.MapPost("/party-relations/{relationCode}/end", async (string unitCode,
-            string relationCode, EndRelationRequest request, PartyOccupancyService service,
+        units.MapPost("/party-relations/end", async (string unitCode,
+            EndRelationRequest request, PartyOccupancyService service,
             CancellationToken ct) =>
         {
-            await service.EndUnitRelation(unitCode, relationCode, request.EndDate, ct);
+            await service.EndUnitRelation(unitCode, request.PartyCode, request.RelationTypeKey,
+                request.EndDate, ct);
             return Results.NoContent();
         });
         units.MapGet("/occupancy-history", (string unitCode, PartyOccupancyService service,

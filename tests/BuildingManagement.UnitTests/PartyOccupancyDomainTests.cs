@@ -10,16 +10,34 @@ public sealed class PartyOccupancyDomainTests
     [Fact]
     public void PartyAllowsOnlyDisplayNameAndType()
     {
-        var party = new Party("PTY01", 1, "ساکن واحد 17", null, null, null, null, Now);
+        var party = new Party("PTY01", 1, "ساکن واحد 17", null, null, null, null, null, Now);
 
         Assert.Equal("ساکن واحد 17", party.DisplayName);
         Assert.Null(party.FirstName);
+        Assert.Null(party.IdentityNumber);
     }
 
     [Fact]
     public void PartyRequiresDisplayName() =>
         Assert.Throws<DomainValidationException>(() =>
-            new Party("PTY01", 1, " ", null, null, null, null, Now));
+            new Party("PTY01", 1, " ", null, null, null, null, null, Now));
+
+    [Fact]
+    public void PartyAllowsOptionalIdentityNumber()
+    {
+        var party = new Party("PTY01", 1, "علی رضایی", null, null, null, "0012345678", null, Now);
+
+        Assert.Equal("0012345678", party.IdentityNumber);
+    }
+
+    [Fact]
+    public void PartyIdentifierAbstractionDoesNotExist()
+    {
+        var assembly = typeof(Party).Assembly;
+
+        Assert.Null(assembly.GetType("BuildingManagement.Domain.PartyIdentifier"));
+        Assert.Null(assembly.GetType("BuildingManagement.Domain.PartyIdentifierType"));
+    }
 
     [Fact]
     public void UnitOccupancyCannotBeNegative()
@@ -41,7 +59,19 @@ public sealed class PartyOccupancyDomainTests
     }
 
     [Fact]
-    public void RelationRejectsInvalidOwnershipShare() =>
-        Assert.Throws<DomainValidationException>(() =>
-            new UnitPartyRelation("REL01", 1, 2, 3, Now, null, 101, false, false, null, Now));
+    public void RelationAllowsUnknownDates()
+    {
+        var relation = new UnitPartyRelation(1, 2, 3, null, null, false, null, Now);
+
+        Assert.Null(relation.StartDate);
+        Assert.Null(relation.EndDate);
+    }
+
+    [Fact]
+    public void OccupancyHistoryAllowsUnknownEffectiveFrom()
+    {
+        var history = new UnitOccupancyHistory(1, 3, null, null, Now);
+
+        Assert.Null(history.EffectiveFrom);
+    }
 }

@@ -17,10 +17,12 @@ flowchart LR
 
 ## Party and occupancy
 
-Party is implemented as reusable real-world identity with optional contacts and identifiers.
-UnitPartyRelation preserves independent owner, tenant, resident, representative, and contact
-facts. Unit stores the current occupants count for fast reads while UnitOccupancyHistory
-preserves periods. Occupancy changes update both inside one SQL transaction.
+Party is reusable real-world identity with optional contacts and an optional identity number
+stored directly on Party. Party is not a login User, and mobile remains optional until a future
+Invitation use case. UnitPartyRelation preserves independent owner, tenant, resident,
+representative, and contact facts; relationship dates may be unknown. Unit stores the current
+occupants count for fast reads while UnitOccupancyHistory preserves periods with optional
+effective dates. Occupancy changes update both inside one SQL transaction.
 
 ## Planned Next
 

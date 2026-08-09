@@ -12,7 +12,6 @@ public interface IApplicationDbContext
     DbSet<DocumentType> DocumentTypes { get; }
     DbSet<PartyType> PartyTypes { get; }
     DbSet<PartyContactType> PartyContactTypes { get; }
-    DbSet<PartyIdentifierType> PartyIdentifierTypes { get; }
     DbSet<UnitPartyRelationType> UnitPartyRelationTypes { get; }
     DbSet<Location> Locations { get; }
     DbSet<Complex> Complexes { get; }
@@ -25,7 +24,6 @@ public interface IApplicationDbContext
     DbSet<ComplexDocument> ComplexDocuments { get; }
     DbSet<Party> Parties { get; }
     DbSet<PartyContact> PartyContacts { get; }
-    DbSet<PartyIdentifier> PartyIdentifiers { get; }
     DbSet<UnitPartyRelation> UnitPartyRelations { get; }
     DbSet<UnitOccupancyHistory> UnitOccupancyHistories { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
@@ -67,7 +65,6 @@ public sealed record ReferenceDataResponse(
     IReadOnlyList<ReferenceValueResponse> DocumentTypes,
     IReadOnlyList<ReferenceValueResponse> PartyTypes,
     IReadOnlyList<ReferenceValueResponse> PartyContactTypes,
-    IReadOnlyList<ReferenceValueResponse> PartyIdentifierTypes,
     IReadOnlyList<ReferenceValueResponse> UnitPartyRelationTypes);
 public sealed record LocationRequest(string? ParentCode, string Name, string LocationTypeKey);
 public sealed record LocationResponse(string Code, ResourceReferenceResponse? Parent, string Name, ReferenceValueResponse LocationType,
@@ -169,7 +166,6 @@ public sealed class PhysicalStructureService(
             await ReferenceList(db.DocumentTypes, ct),
             await ReferenceList(db.PartyTypes, ct),
             await ReferenceList(db.PartyContactTypes, ct),
-            await ReferenceList(db.PartyIdentifierTypes, ct),
             await ReferenceList(db.UnitPartyRelationTypes, ct));
 
     public async Task<LocationResponse> CreateLocation(LocationRequest request, CancellationToken ct)

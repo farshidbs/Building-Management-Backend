@@ -8,21 +8,14 @@ internal sealed class PartyTypeConfiguration : IEntityTypeConfiguration<PartyTyp
 {
     public void Configure(EntityTypeBuilder<PartyType> builder)
     {
-        ConfigurationHelpers.Reference(builder, "PartyTypes", "base");
-        builder.Property(x => x.Description).HasMaxLength(500);
+        ConfigurationHelpers.Reference(builder, "PartyTypes");
     }
 }
 
 internal sealed class PartyContactTypeConfiguration : IEntityTypeConfiguration<PartyContactType>
 {
     public void Configure(EntityTypeBuilder<PartyContactType> builder) =>
-        ConfigurationHelpers.Reference(builder, "PartyContactTypes", "base");
-}
-
-internal sealed class PartyIdentifierTypeConfiguration : IEntityTypeConfiguration<PartyIdentifierType>
-{
-    public void Configure(EntityTypeBuilder<PartyIdentifierType> builder) =>
-        ConfigurationHelpers.Reference(builder, "PartyIdentifierTypes", "base");
+        ConfigurationHelpers.Reference(builder, "PartyContactTypes");
 }
 
 internal sealed class UnitPartyRelationTypeConfiguration : IEntityTypeConfiguration<UnitPartyRelationType>
@@ -38,12 +31,13 @@ internal sealed class PartyConfiguration : IEntityTypeConfiguration<Party>
 {
     public void Configure(EntityTypeBuilder<Party> builder)
     {
-        ConfigurationHelpers.Entity(builder, "Parties", "base");
+        ConfigurationHelpers.Entity(builder, "Parties");
         builder.Property(x => x.DisplayName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.NormalizedDisplayName).HasMaxLength(200).IsRequired();
         builder.Property(x => x.FirstName).HasMaxLength(100);
         builder.Property(x => x.LastName).HasMaxLength(100);
         builder.Property(x => x.OrganizationName).HasMaxLength(200);
+        builder.Property(x => x.IdentityNumber).HasMaxLength(200);
         builder.Property(x => x.Description).HasMaxLength(1000);
         builder.HasOne<PartyType>().WithMany().HasForeignKey(x => x.PartyTypeId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -56,7 +50,7 @@ internal sealed class PartyContactConfiguration : IEntityTypeConfiguration<Party
 {
     public void Configure(EntityTypeBuilder<PartyContact> builder)
     {
-        ConfigurationHelpers.Entity(builder, "PartyContacts", "base");
+        ConfigurationHelpers.Entity(builder, "PartyContacts");
         builder.Property(x => x.Value).HasMaxLength(320).IsRequired();
         builder.Property(x => x.NormalizedValue).HasMaxLength(320).IsRequired();
         builder.Property(x => x.Label).HasMaxLength(100);
@@ -71,45 +65,27 @@ internal sealed class PartyContactConfiguration : IEntityTypeConfiguration<Party
     }
 }
 
-internal sealed class PartyIdentifierConfiguration : IEntityTypeConfiguration<PartyIdentifier>
-{
-    public void Configure(EntityTypeBuilder<PartyIdentifier> builder)
-    {
-        ConfigurationHelpers.Entity(builder, "PartyIdentifiers", "base");
-        builder.Property(x => x.CountryCode).HasColumnType("char(2)").IsRequired();
-        builder.Property(x => x.Value).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.NormalizedValue).HasMaxLength(200).IsRequired();
-        builder.Property(x => x.VerifiedAtUtc).HasPrecision(0);
-        builder.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
-        builder.HasOne<PartyIdentifierType>().WithMany().HasForeignKey(x => x.PartyIdentifierTypeId)
-            .OnDelete(DeleteBehavior.Restrict);
-        builder.HasIndex(x => x.PartyId);
-        builder.HasIndex(x => new { x.CountryCode, x.PartyIdentifierTypeId, x.NormalizedValue });
-    }
-}
-
 internal sealed class UnitPartyRelationConfiguration : IEntityTypeConfiguration<UnitPartyRelation>
 {
     public void Configure(EntityTypeBuilder<UnitPartyRelation> builder)
     {
-        ConfigurationHelpers.Entity(builder, "UnitPartyRelations");
+        builder.ToTable("UnitPartyRelations", ConfigurationHelpers.Schema, table =>
+            table.HasCheckConstraint("CK_UnitPartyRelations_Dates",
+                "[EndDate] IS NULL OR [StartDate] IS NULL OR [EndDate] >= [StartDate]"));
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
         builder.Property(x => x.StartDate).HasPrecision(0);
         builder.Property(x => x.EndDate).HasPrecision(0);
-        builder.Property(x => x.OwnershipShare).HasPrecision(5, 2);
         builder.Property(x => x.Notes).HasMaxLength(1000);
+        builder.Property(x => x.CreatedAtUtc).HasPrecision(0).IsRequired();
+        builder.Property(x => x.UpdatedAtUtc).HasPrecision(0);
+        builder.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
         builder.HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<UnitPartyRelationType>().WithMany().HasForeignKey(x => x.UnitPartyRelationTypeId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.UnitId, x.IsActive, x.EndDate });
         builder.HasIndex(x => new { x.UnitId, x.PartyId, x.UnitPartyRelationTypeId, x.EndDate });
-        builder.ToTable(table =>
-        {
-            table.HasCheckConstraint("CK_UnitPartyRelations_Dates",
-                "[EndDate] IS NULL OR [StartDate] IS NULL OR [EndDate] >= [StartDate]");
-            table.HasCheckConstraint("CK_UnitPartyRelations_OwnershipShare",
-                "[OwnershipShare] IS NULL OR ([OwnershipShare] > 0 AND [OwnershipShare] <= 100)");
-        });
     }
 }
 
@@ -121,11 +97,11 @@ internal sealed class UnitOccupancyHistoryConfiguration : IEntityTypeConfigurati
         {
             table.HasCheckConstraint("CK_UnitOccupancyHistories_Count", "[OccupantsCount] >= 0");
             table.HasCheckConstraint("CK_UnitOccupancyHistories_Dates",
-                "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                "[EffectiveTo] IS NULL OR [EffectiveFrom] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
         });
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Id).UseIdentityColumn();
-        builder.Property(x => x.EffectiveFrom).HasPrecision(0).IsRequired();
+        builder.Property(x => x.EffectiveFrom).HasPrecision(0);
         builder.Property(x => x.EffectiveTo).HasPrecision(0);
         builder.Property(x => x.Notes).HasMaxLength(1000);
         builder.Property(x => x.CreatedAtUtc).HasPrecision(0).IsRequired();

@@ -11,16 +11,18 @@ while storing residents directly on Unit would lose history and prevent reuse ac
 ## Decision
 
 - Party represents a real person or organization; User remains a future login concept.
-- Party requires only a type and display name. Contacts and identifiers are optional child
-  records in schema `base`.
+- Party requires only a type and display name. Contacts are optional child records. The optional
+  `IdentityNumber` is stored directly on Party and omitted from generic list/search responses.
+- Party and occupancy feature tables use the application's default `bms` schema.
 - Mobile becomes mandatory only in the future Invitation workflow, not Party creation.
-- National/legal identifiers remain optional and unverified identifiers never merge Parties.
-- UnitPartyRelation in schema `bms` records independent historical facts such as owner,
+- IdentityNumber remains optional, is not verified, and never merges Parties.
+- UnitPartyRelation records independent historical facts such as owner,
   tenant, and resident. An owner who resides in a unit has separate owner and resident facts.
 - `Unit.CurrentOccupantsCount` is the fast current snapshot. Zero means vacant and a positive
   value means occupied.
 - `UnitOccupancyHistory` is the historical source of truth. The open history row and Unit
   snapshot are changed in one SQL transaction.
+- Relationship and occupancy effective dates may be null when the exact date is unknown.
 - An occupied Unit requires an active occupancy relation; a vacant Unit has none. Ownership
   may remain active while vacant.
 - Legacy UnitStatus values `occupied` and `vacant` are inactive. Operational statuses remain
@@ -31,4 +33,5 @@ while storing residents directly on Unit would lose history and prevent reuse ac
 
 Generic Unit updates cannot change occupancy. Onboarding and subsequent occupancy changes use
 dedicated transactional use cases. Identity verification, User, Invitation, authorization,
-deduplication, and finance remain deliberately deferred.
+deduplication, and finance remain deliberately deferred. Future debt/payment workflows must not
+shape Party or UnitPartyRelation before they have a concrete use case.

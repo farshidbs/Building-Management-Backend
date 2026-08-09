@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 #nullable disable
 
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
-#pragma warning disable CA1861 // Generated migration index column arrays.
+#pragma warning disable CA1861 // Generated migration uses constant array arguments
 
 namespace BuildingManagement.Infrastructure.Migrations
 {
@@ -14,6 +14,47 @@ namespace BuildingManagement.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Some development databases contain the earlier untracked Party/Occupancy draft.
+            // Reconcile that drift atomically inside this migration before creating the final model.
+            migrationBuilder.Sql("""
+                IF OBJECT_ID(N'[bms].[UnitPartyRelations]', N'U') IS NOT NULL DROP TABLE [bms].[UnitPartyRelations];
+                IF OBJECT_ID(N'[bms].[UnitOccupancyHistories]', N'U') IS NOT NULL DROP TABLE [bms].[UnitOccupancyHistories];
+                IF OBJECT_ID(N'[bms].[UnitPartyRelationTypes]', N'U') IS NOT NULL DROP TABLE [bms].[UnitPartyRelationTypes];
+                IF OBJECT_ID(N'[base].[PartyIdentifiers]', N'U') IS NOT NULL DROP TABLE [base].[PartyIdentifiers];
+                IF OBJECT_ID(N'[base].[PartyContacts]', N'U') IS NOT NULL DROP TABLE [base].[PartyContacts];
+                IF OBJECT_ID(N'[base].[PartyIdentifierTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyIdentifierTypes];
+                IF OBJECT_ID(N'[base].[Parties]', N'U') IS NOT NULL DROP TABLE [base].[Parties];
+                IF OBJECT_ID(N'[base].[PartyContactTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyContactTypes];
+                IF OBJECT_ID(N'[base].[PartyTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyTypes];
+
+                IF COL_LENGTH('bms.Units', 'CurrentOccupantsCount') IS NOT NULL
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM sys.check_constraints
+                               WHERE name = N'CK_Units_Counts'
+                                 AND parent_object_id = OBJECT_ID(N'[bms].[Units]'))
+                        ALTER TABLE [bms].[Units] DROP CONSTRAINT [CK_Units_Counts];
+
+                    DECLARE @defaultConstraint sysname, @dropDefaultSql nvarchar(max);
+                    SELECT @defaultConstraint = dc.name
+                    FROM sys.default_constraints dc
+                    JOIN sys.columns c ON c.object_id = dc.parent_object_id
+                                      AND c.column_id = dc.parent_column_id
+                    WHERE dc.parent_object_id = OBJECT_ID(N'[bms].[Units]')
+                      AND c.name = N'CurrentOccupantsCount';
+                    IF @defaultConstraint IS NOT NULL
+                    BEGIN
+                        SET @dropDefaultSql = N'ALTER TABLE [bms].[Units] DROP CONSTRAINT '
+                            + QUOTENAME(@defaultConstraint);
+                        EXEC sp_executesql @dropDefaultSql;
+                    END;
+
+                    ALTER TABLE [bms].[Units] DROP COLUMN [CurrentOccupantsCount];
+                    ALTER TABLE [bms].[Units] ADD CONSTRAINT [CK_Units_Counts]
+                        CHECK (([RoomsCount] IS NULL OR [RoomsCount] >= 0)
+                           AND [ParkingCount] >= 0 AND [StorageCount] >= 0);
+                END;
+                """);
+
             migrationBuilder.DropCheckConstraint(
                 name: "CK_Units_Counts",
                 schema: "bms",
@@ -29,7 +70,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PartyContactTypes",
-                schema: "base",
+                schema: "bms",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -49,34 +90,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PartyIdentifierTypes",
-                schema: "base",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Key = table.Column<string>(type: "varchar(50)", nullable: false),
-                    Title = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    SortOrder = table.Column<int>(type: "int", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PartyIdentifierTypes", x => x.Id);
-                    table.CheckConstraint("CK_PartyIdentifierTypes_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "PartyTypes",
-                schema: "base",
+                schema: "bms",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
-                    Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     Key = table.Column<string>(type: "varchar(50)", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     SortOrder = table.Column<int>(type: "int", nullable: false),
@@ -100,7 +119,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UnitId = table.Column<long>(type: "bigint", nullable: false),
                     OccupantsCount = table.Column<int>(type: "int", nullable: false),
-                    EffectiveFrom = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    EffectiveFrom = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
                     EffectiveTo = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
                     Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
@@ -112,7 +131,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_UnitOccupancyHistories", x => x.Id);
                     table.CheckConstraint("CK_UnitOccupancyHistories_Count", "[OccupantsCount] >= 0");
-                    table.CheckConstraint("CK_UnitOccupancyHistories_Dates", "[EffectiveTo] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
+                    table.CheckConstraint("CK_UnitOccupancyHistories_Dates", "[EffectiveTo] IS NULL OR [EffectiveFrom] IS NULL OR [EffectiveTo] >= [EffectiveFrom]");
                     table.ForeignKey(
                         name: "FK_UnitOccupancyHistories_Units_UnitId",
                         column: x => x.UnitId,
@@ -132,7 +151,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     Description = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
                     IsOwnershipRelation = table.Column<bool>(type: "bit", nullable: false),
                     IsOccupancyRelation = table.Column<bool>(type: "bit", nullable: false),
-                    CanBePaymentContact = table.Column<bool>(type: "bit", nullable: false),
                     Key = table.Column<string>(type: "varchar(50)", nullable: false),
                     Title = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     SortOrder = table.Column<int>(type: "int", nullable: false),
@@ -149,7 +167,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "Parties",
-                schema: "base",
+                schema: "bms",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -160,6 +178,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                     FirstName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     LastName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
                     OrganizationName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
+                    IdentityNumber = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: true),
                     Description = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
                     Code = table.Column<string>(type: "varchar(5)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
@@ -174,7 +193,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                     table.ForeignKey(
                         name: "FK_Parties_PartyTypes_PartyTypeId",
                         column: x => x.PartyTypeId,
-                        principalSchema: "base",
+                        principalSchema: "bms",
                         principalTable: "PartyTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -182,7 +201,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.CreateTable(
                 name: "PartyContacts",
-                schema: "base",
+                schema: "bms",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
@@ -208,55 +227,15 @@ namespace BuildingManagement.Infrastructure.Migrations
                     table.ForeignKey(
                         name: "FK_PartyContacts_Parties_PartyId",
                         column: x => x.PartyId,
-                        principalSchema: "base",
+                        principalSchema: "bms",
                         principalTable: "Parties",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_PartyContacts_PartyContactTypes_PartyContactTypeId",
                         column: x => x.PartyContactTypeId,
-                        principalSchema: "base",
+                        principalSchema: "bms",
                         principalTable: "PartyContactTypes",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "PartyIdentifiers",
-                schema: "base",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    PartyId = table.Column<long>(type: "bigint", nullable: false),
-                    PartyIdentifierTypeId = table.Column<long>(type: "bigint", nullable: false),
-                    CountryCode = table.Column<string>(type: "char(2)", nullable: false),
-                    Value = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    NormalizedValue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    IsVerified = table.Column<bool>(type: "bit", nullable: false),
-                    VerifiedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PartyIdentifiers", x => x.Id);
-                    table.CheckConstraint("CK_PartyIdentifiers_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                    table.ForeignKey(
-                        name: "FK_PartyIdentifiers_Parties_PartyId",
-                        column: x => x.PartyId,
-                        principalSchema: "base",
-                        principalTable: "Parties",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_PartyIdentifiers_PartyIdentifierTypes_PartyIdentifierTypeId",
-                        column: x => x.PartyIdentifierTypeId,
-                        principalSchema: "base",
-                        principalTable: "PartyIdentifierTypes",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -273,11 +252,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     UnitPartyRelationTypeId = table.Column<long>(type: "bigint", nullable: false),
                     StartDate = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
                     EndDate = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    OwnershipShare = table.Column<decimal>(type: "decimal(5,2)", precision: 5, scale: 2, nullable: true),
                     IsPrimaryContact = table.Column<bool>(type: "bit", nullable: false),
-                    IsPaymentContact = table.Column<bool>(type: "bit", nullable: false),
                     Notes = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
@@ -286,13 +262,11 @@ namespace BuildingManagement.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_UnitPartyRelations", x => x.Id);
-                    table.CheckConstraint("CK_UnitPartyRelations_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                     table.CheckConstraint("CK_UnitPartyRelations_Dates", "[EndDate] IS NULL OR [StartDate] IS NULL OR [EndDate] >= [StartDate]");
-                    table.CheckConstraint("CK_UnitPartyRelations_OwnershipShare", "[OwnershipShare] IS NULL OR ([OwnershipShare] > 0 AND [OwnershipShare] <= 100)");
                     table.ForeignKey(
                         name: "FK_UnitPartyRelations_Parties_PartyId",
                         column: x => x.PartyId,
-                        principalSchema: "base",
+                        principalSchema: "bms",
                         principalTable: "Parties",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
@@ -313,7 +287,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.InsertData(
-                schema: "base",
+                schema: "bms",
                 table: "PartyContactTypes",
                 columns: new[] { "Id", "CreatedAtUtc", "IsActive", "Key", "SortOrder", "Title", "UpdatedAtUtc" },
                 values: new object[,]
@@ -324,40 +298,29 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.InsertData(
-                schema: "base",
-                table: "PartyIdentifierTypes",
+                schema: "bms",
+                table: "PartyTypes",
                 columns: new[] { "Id", "CreatedAtUtc", "IsActive", "Key", "SortOrder", "Title", "UpdatedAtUtc" },
                 values: new object[,]
                 {
-                    { 1L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "national_id", 10, "کد ملی", null },
-                    { 2L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "legal_entity_national_id", 20, "شناسه ملی شخص حقوقی", null },
-                    { 3L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "passport_number", 30, "شماره گذرنامه", null },
-                    { 4L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "residence_identifier", 40, "شناسه اقامت", null },
-                    { 5L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "other", 50, "سایر", null }
-                });
-
-            migrationBuilder.InsertData(
-                schema: "base",
-                table: "PartyTypes",
-                columns: new[] { "Id", "CreatedAtUtc", "Description", "IsActive", "Key", "SortOrder", "Title", "UpdatedAtUtc" },
-                values: new object[,]
-                {
-                    { 1L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "person", 10, "شخص", null },
-                    { 2L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "organization", 20, "سازمان", null }
+                    { 1L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "iranian_person", 10, "شخص حقیقی ایرانی", null },
+                    { 2L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "iranian_organization", 20, "شخص حقوقی ایرانی", null },
+                    { 3L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "foreign_person", 30, "شخص حقیقی خارجی", null },
+                    { 4L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), true, "foreign_organization", 40, "شخص حقوقی خارجی", null }
                 });
 
             migrationBuilder.InsertData(
                 schema: "bms",
                 table: "UnitPartyRelationTypes",
-                columns: new[] { "Id", "CanBePaymentContact", "CreatedAtUtc", "Description", "IsActive", "IsOccupancyRelation", "IsOwnershipRelation", "Key", "SortOrder", "Title", "UpdatedAtUtc" },
+                columns: new[] { "Id", "CreatedAtUtc", "Description", "IsActive", "IsOccupancyRelation", "IsOwnershipRelation", "Key", "SortOrder", "Title", "UpdatedAtUtc" },
                 values: new object[,]
                 {
-                    { 1L, true, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, true, "owner", 10, "مالک", null },
-                    { 2L, true, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, false, "tenant", 20, "مستأجر", null },
-                    { 3L, false, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, false, "resident", 30, "ساکن", null },
-                    { 4L, true, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "legal_representative", 40, "نماینده قانونی", null },
-                    { 5L, true, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "contact_person", 50, "شخص رابط", null },
-                    { 6L, false, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "other", 60, "سایر", null }
+                    { 1L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, true, "owner", 10, "مالک", null },
+                    { 2L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, false, "tenant", 20, "مستأجر", null },
+                    { 3L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, false, "resident", 30, "ساکن", null },
+                    { 4L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "legal_representative", 40, "نماینده قانونی", null },
+                    { 5L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "contact_person", 50, "شخص رابط", null },
+                    { 6L, new DateTimeOffset(new DateTime(2026, 8, 5, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, false, false, "other", 60, "سایر", null }
                 });
 
             migrationBuilder.UpdateData(
@@ -382,65 +345,75 @@ namespace BuildingManagement.Infrastructure.Migrations
                 table: "Units",
                 sql: "([RoomsCount] IS NULL OR [RoomsCount] >= 0) AND [ParkingCount] >= 0 AND [StorageCount] >= 0 AND [CurrentOccupantsCount] >= 0");
 
+            // Existing units have no reliable occupancy effective date. Preserve that fact as unknown
+            // while establishing the required single current history row.
+            migrationBuilder.Sql("""
+                INSERT INTO [bms].[UnitOccupancyHistories]
+                    ([UnitId], [OccupantsCount], [EffectiveFrom], [EffectiveTo], [Notes],
+                     [IsActive], [CreatedAtUtc], [UpdatedAtUtc])
+                SELECT [Id], [CurrentOccupantsCount], NULL, NULL, NULL, 1, SYSUTCDATETIME(), NULL
+                FROM [bms].[Units];
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_Parties_Code",
-                schema: "base",
+                schema: "bms",
                 table: "Parties",
                 column: "Code",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Parties_IsActive",
-                schema: "base",
+                schema: "bms",
                 table: "Parties",
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Parties_NormalizedDisplayName",
-                schema: "base",
+                schema: "bms",
                 table: "Parties",
                 column: "NormalizedDisplayName");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Parties_PartyTypeId",
-                schema: "base",
+                schema: "bms",
                 table: "Parties",
                 column: "PartyTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_Code",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 column: "Code",
                 unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_IsActive",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_NormalizedValue",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 column: "NormalizedValue");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_PartyContactTypeId",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 column: "PartyContactTypeId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_PartyId",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 column: "PartyId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_PartyId_PartyContactTypeId",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContacts",
                 columns: new[] { "PartyId", "PartyContactTypeId" },
                 unique: true,
@@ -448,83 +421,29 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContactTypes_IsActive_SortOrder",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContactTypes",
                 columns: new[] { "IsActive", "SortOrder" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContactTypes_Key",
-                schema: "base",
+                schema: "bms",
                 table: "PartyContactTypes",
                 column: "Key",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifiers_Code",
-                schema: "base",
-                table: "PartyIdentifiers",
-                column: "Code",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifiers_CountryCode_PartyIdentifierTypeId_NormalizedValue",
-                schema: "base",
-                table: "PartyIdentifiers",
-                columns: new[] { "CountryCode", "PartyIdentifierTypeId", "NormalizedValue" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifiers_IsActive",
-                schema: "base",
-                table: "PartyIdentifiers",
-                column: "IsActive");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifiers_PartyId",
-                schema: "base",
-                table: "PartyIdentifiers",
-                column: "PartyId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifiers_PartyIdentifierTypeId",
-                schema: "base",
-                table: "PartyIdentifiers",
-                column: "PartyIdentifierTypeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifierTypes_IsActive_SortOrder",
-                schema: "base",
-                table: "PartyIdentifierTypes",
-                columns: new[] { "IsActive", "SortOrder" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyIdentifierTypes_Key",
-                schema: "base",
-                table: "PartyIdentifierTypes",
-                column: "Key",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_PartyTypes_IsActive_SortOrder",
-                schema: "base",
+                schema: "bms",
                 table: "PartyTypes",
                 columns: new[] { "IsActive", "SortOrder" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyTypes_Key",
-                schema: "base",
+                schema: "bms",
                 table: "PartyTypes",
                 column: "Key",
                 unique: true);
-
-            migrationBuilder.Sql(
-                """
-                INSERT INTO [bms].[UnitOccupancyHistories]
-                    ([UnitId], [OccupantsCount], [EffectiveFrom], [EffectiveTo], [Notes],
-                     [IsActive], [CreatedAtUtc], [UpdatedAtUtc])
-                SELECT [Id], 0, [CreatedAtUtc], NULL, N'Migration baseline',
-                       CAST(1 AS bit), [CreatedAtUtc], NULL
-                FROM [bms].[Units];
-                """);
 
             migrationBuilder.CreateIndex(
                 name: "IX_UnitOccupancyHistories_UnitId",
@@ -539,19 +458,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "UnitOccupancyHistories",
                 columns: new[] { "UnitId", "EffectiveFrom" });
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UnitPartyRelations_Code",
-                schema: "bms",
-                table: "UnitPartyRelations",
-                column: "Code",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_UnitPartyRelations_IsActive",
-                schema: "bms",
-                table: "UnitPartyRelations",
-                column: "IsActive");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UnitPartyRelations_PartyId",
@@ -596,11 +502,7 @@ namespace BuildingManagement.Infrastructure.Migrations
         {
             migrationBuilder.DropTable(
                 name: "PartyContacts",
-                schema: "base");
-
-            migrationBuilder.DropTable(
-                name: "PartyIdentifiers",
-                schema: "base");
+                schema: "bms");
 
             migrationBuilder.DropTable(
                 name: "UnitOccupancyHistories",
@@ -612,15 +514,11 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "PartyContactTypes",
-                schema: "base");
-
-            migrationBuilder.DropTable(
-                name: "PartyIdentifierTypes",
-                schema: "base");
+                schema: "bms");
 
             migrationBuilder.DropTable(
                 name: "Parties",
-                schema: "base");
+                schema: "bms");
 
             migrationBuilder.DropTable(
                 name: "UnitPartyRelationTypes",
@@ -628,7 +526,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             migrationBuilder.DropTable(
                 name: "PartyTypes",
-                schema: "base");
+                schema: "bms");
 
             migrationBuilder.DropCheckConstraint(
                 name: "CK_Units_Counts",

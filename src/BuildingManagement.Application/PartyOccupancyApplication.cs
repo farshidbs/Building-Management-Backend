@@ -4,44 +4,43 @@ using Microsoft.EntityFrameworkCore;
 namespace BuildingManagement.Application;
 
 public sealed record PartyRequest(string PartyTypeKey, string DisplayName, string? FirstName = null,
-    string? LastName = null, string? OrganizationName = null, string? Description = null);
+    string? LastName = null, string? OrganizationName = null, string? IdentityNumber = null,
+    string? Description = null);
 
 public sealed record PartyContactRequest(string ContactTypeKey, string Value, string? Label = null,
     bool IsPrimary = false);
 
-public sealed record PartyIdentifierRequest(string IdentifierTypeKey, string CountryCode, string Value);
-
 public sealed record NewPartyInput(PartyRequest Party,
-    IReadOnlyList<PartyContactRequest>? Contacts = null,
-    IReadOnlyList<PartyIdentifierRequest>? Identifiers = null);
+    IReadOnlyList<PartyContactRequest>? Contacts = null);
 
 public sealed record PartySelectionRequest(string? ExistingPartyCode, NewPartyInput? NewParty);
 
 public sealed record UnitOnboardingRelationRequest(string RelationTypeKey, PartySelectionRequest Party,
-    decimal? OwnershipShare = null, bool IsPrimaryContact = false, bool IsPaymentContact = false,
-    string? Notes = null);
+    DateTimeOffset? StartDate = null, bool IsPrimaryContact = false, string? Notes = null);
 
-public sealed record UnitOccupancyRequest(string Status, int OccupantsCount, DateTimeOffset EffectiveFrom,
+public sealed record UnitOccupancyRequest(string Status, int OccupantsCount, DateTimeOffset? EffectiveFrom = null,
     IReadOnlyList<UnitOnboardingRelationRequest>? Relations = null, string? Notes = null);
 
-public sealed record OccupancyChangeRequest(int OccupantsCount, DateTimeOffset EffectiveFrom,
+public sealed record OccupancyChangeRequest(int OccupantsCount, DateTimeOffset? EffectiveFrom = null,
     IReadOnlyList<UnitOnboardingRelationRequest>? OccupancyRelations = null, string? Notes = null);
 
 public sealed record PartyResponse(string Code, ReferenceValueResponse PartyType, string DisplayName,
-    string? FirstName, string? LastName, string? OrganizationName, string? Description,
+    string? FirstName, string? LastName, string? OrganizationName, string? IdentityNumber,
+    string? Description,
     bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
+
+public sealed record PartySummaryResponse(string Code, ReferenceValueResponse PartyType,
+    string DisplayName, string? FirstName, string? LastName, string? OrganizationName,
+    string? Description, bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
 
 public sealed record PartyContactResponse(string Code, ReferenceValueResponse ContactType, string Value,
     string? Label, bool IsPrimary, bool IsVerified, bool IsActive);
 
-public sealed record PartyIdentifierResponse(string Code, ReferenceValueResponse IdentifierType,
-    string CountryCode, string MaskedValue, bool IsVerified, bool IsActive);
-
-public sealed record UnitPartyRelationResponse(string Code, string PartyCode, string DisplayName,
+public sealed record UnitPartyRelationResponse(string PartyCode, string DisplayName,
     ReferenceValueResponse RelationType, DateTimeOffset? StartDate, DateTimeOffset? EndDate,
-    decimal? OwnershipShare, bool IsPrimaryContact, bool IsPaymentContact, string? Notes, bool IsActive);
+    bool IsPrimaryContact, string? Notes, bool IsActive);
 
-public sealed record UnitOccupancyHistoryResponse(int OccupantsCount, DateTimeOffset EffectiveFrom,
+public sealed record UnitOccupancyHistoryResponse(int OccupantsCount, DateTimeOffset? EffectiveFrom,
     DateTimeOffset? EffectiveTo, string? Notes, bool IsActive);
 
 public sealed record CurrentOccupancyResponse(string Status, int OccupantsCount);
@@ -55,7 +54,8 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         ValidateParty(request);
         var typeId = await ReferenceId(db.PartyTypes, request.PartyTypeKey, "party_type", ct);
         var party = new Party(await UniqueCode(db.Parties, ct), typeId, request.DisplayName,
-            request.FirstName, request.LastName, request.OrganizationName, request.Description, Now);
+            request.FirstName, request.LastName, request.OrganizationName, request.IdentityNumber,
+            request.Description, Now);
         db.Parties.Add(party);
         await Save(ct);
         return await GetParty(party.Code, ct);
@@ -65,7 +65,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         await PartyProjection(db.Parties.AsNoTracking().Where(x => x.Code == NormalizeCode(code)))
             .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party");
 
-    public async Task<Page<PartyResponse>> GetParties(PageQuery page, string? partyTypeKey,
+    public async Task<Page<PartySummaryResponse>> GetParties(PageQuery page, string? partyTypeKey,
         string? contact, CancellationToken ct)
     {
         var (number, size) = page.Validated();
@@ -95,7 +95,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             _ => query.OrderBy(x => x.DisplayName)
         };
         var count = await query.CountAsync(ct);
-        var items = await PartyProjection(query.Skip((number - 1) * size).Take(size)).ToListAsync(ct);
+        var items = await PartySummaryProjection(query.Skip((number - 1) * size).Take(size)).ToListAsync(ct);
         return new(items, number, size, count);
     }
 
@@ -106,7 +106,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             ?? throw AppException.NotFound("party");
         var typeId = await ReferenceId(db.PartyTypes, request.PartyTypeKey, "party_type", ct);
         party.Update(typeId, request.DisplayName, request.FirstName, request.LastName,
-            request.OrganizationName, request.Description, Now);
+            request.OrganizationName, request.IdentityNumber, request.Description, Now);
         await Save(ct);
         return await GetParty(party.Code, ct);
     }
@@ -141,41 +141,17 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.IsPrimary).ToListAsync(ct);
     }
 
-    public async Task<PartyIdentifierResponse> AddIdentifier(string partyCode,
-        PartyIdentifierRequest request, CancellationToken ct)
-    {
-        ValidateIdentifier(request);
-        var partyId = await ActivePartyId(partyCode, ct);
-        var typeId = await ReferenceId(db.PartyIdentifierTypes, request.IdentifierTypeKey,
-            "party_identifier_type", ct);
-        var identifier = new PartyIdentifier(await UniqueCode(db.PartyIdentifiers, ct), partyId,
-            typeId, request.CountryCode, request.Value, NormalizeLoose(request.Value), Now);
-        db.PartyIdentifiers.Add(identifier);
-        await Save(ct);
-        return await IdentifierProjection(db.PartyIdentifiers.Where(x => x.Id == identifier.Id))
-            .SingleAsync(ct);
-    }
-
-    public async Task<IReadOnlyList<PartyIdentifierResponse>> GetIdentifiers(string partyCode,
-        CancellationToken ct)
-    {
-        var partyId = await PartyId(partyCode, ct);
-        return await IdentifierProjection(db.PartyIdentifiers.AsNoTracking()
-            .Where(x => x.PartyId == partyId)
-            .OrderByDescending(x => x.IsActive).ThenBy(x => x.CreatedAtUtc)).ToListAsync(ct);
-    }
-
     public async Task OnboardUnit(Unit unit, UnitOccupancyRequest request, CancellationToken ct)
     {
         ValidateOccupancy(request);
-        await db.SaveChangesAsync(ct);
+        await Save(ct);
         unit.ChangeOccupancy(request.OccupantsCount, Now);
         db.UnitOccupancyHistories.Add(new UnitOccupancyHistory(unit.Id, request.OccupantsCount,
             request.EffectiveFrom, request.Notes, Now));
         var relations = request.Relations ?? [];
         foreach (var input in relations)
-            await AddRelation(unit.Id, input, request.EffectiveFrom, ct);
-        await db.SaveChangesAsync(ct);
+            await AddRelation(unit.Id, input, ct);
+        await Save(ct);
         if (request.OccupantsCount > 0 && !await HasOccupancyRelation(unit.Id, ct))
             throw Validation("relations", "An occupied unit requires at least one tenant or resident relation.");
         if (request.OccupantsCount == 0 && await HasOccupancyRelation(unit.Id, ct))
@@ -206,7 +182,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             else if (request.OccupancyRelations is not null)
                 await ReplaceOccupancyRelations(unit.Id, request.OccupancyRelations,
                     request.EffectiveFrom, token);
-            await db.SaveChangesAsync(token);
+            await Save(token);
             if (request.OccupantsCount > 0 && !await HasOccupancyRelation(unit.Id, token))
                 throw Validation("occupancyRelations",
                     "An occupied unit requires at least one active tenant or resident relation.");
@@ -244,24 +220,36 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
     public async Task<UnitPartyRelationResponse> AddUnitRelation(string unitCode,
         UnitOnboardingRelationRequest request, CancellationToken ct)
     {
-        var unitId = await UnitId(unitCode, ct);
-        var type = await Reference(db.UnitPartyRelationTypes, request.RelationTypeKey,
-            "unit_party_relation_type", ct);
-        if (type.IsOccupancyRelation)
-            throw Validation("relationTypeKey",
-                "Tenant and resident relations must be changed through the occupancy workflow.");
-        var relation = await AddRelation(unitId, request, Now, ct);
-        await Save(ct);
-        return await RelationProjection(db.UnitPartyRelations.Where(x => x.Id == relation.Id))
-            .SingleAsync(ct);
+        if (request is null) throw Validation("relation", "Relation is required.");
+        return await db.ExecuteInTransaction(async token =>
+        {
+            var unitId = await UnitId(unitCode, token);
+            var type = await Reference(db.UnitPartyRelationTypes, request.RelationTypeKey,
+                "unit_party_relation_type", token);
+            if (type.IsOccupancyRelation)
+                throw Validation("relationTypeKey",
+                    "Tenant and resident relations must be changed through the occupancy workflow.");
+            var relation = await AddRelation(unitId, request, token);
+            await Save(token);
+            return await RelationProjection(db.UnitPartyRelations.Where(x => x.Id == relation.Id))
+                .SingleAsync(token);
+        }, ct);
     }
 
-    public async Task EndUnitRelation(string unitCode, string relationCode,
-        DateTimeOffset endDate, CancellationToken ct)
+    public async Task EndUnitRelation(string unitCode, string partyCode, string relationTypeKey,
+        DateTimeOffset? endDate, CancellationToken ct)
     {
+        if (string.IsNullOrWhiteSpace(partyCode))
+            throw Validation("partyCode", "Party code is required.");
+        if (string.IsNullOrWhiteSpace(relationTypeKey))
+            throw Validation("relationTypeKey", "Relation type is required.");
         var unitId = await UnitId(unitCode, ct);
+        var partyId = await PartyId(partyCode, ct);
+        var relationTypeId = await ReferenceId(db.UnitPartyRelationTypes, relationTypeKey,
+            "unit_party_relation_type", ct);
         var relation = await db.UnitPartyRelations.SingleOrDefaultAsync(x =>
-            x.UnitId == unitId && x.Code == NormalizeCode(relationCode), ct)
+            x.UnitId == unitId && x.PartyId == partyId &&
+            x.UnitPartyRelationTypeId == relationTypeId && x.IsActive, ct)
             ?? throw AppException.NotFound("unit_party_relation");
         var isOccupancy = await db.UnitPartyRelationTypes.Where(x =>
             x.Id == relation.UnitPartyRelationTypeId).Select(x => x.IsOccupancyRelation).SingleAsync(ct);
@@ -280,15 +268,14 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         new(count == 0 ? ReferenceKeys.UnitStatuses.Vacant : ReferenceKeys.UnitStatuses.Occupied, count);
 
     private async Task<UnitPartyRelation> AddRelation(long unitId, UnitOnboardingRelationRequest request,
-        DateTimeOffset effectiveFrom, CancellationToken ct)
+        CancellationToken ct)
     {
         if (request is null) throw Validation("relation", "Relation is required.");
         var type = await Reference(db.UnitPartyRelationTypes, request.RelationTypeKey,
             "unit_party_relation_type", ct);
         var partyId = await ResolveParty(request.Party, ct);
-        var relation = new UnitPartyRelation(await UniqueCode(db.UnitPartyRelations, ct), unitId,
-            partyId, type.Id, effectiveFrom, null, request.OwnershipShare, request.IsPrimaryContact,
-            request.IsPaymentContact, request.Notes, Now);
+        var relation = new UnitPartyRelation(unitId, partyId, type.Id,
+            request.StartDate, null, request.IsPrimaryContact, request.Notes, Now);
         db.UnitPartyRelations.Add(relation);
         return relation;
     }
@@ -309,9 +296,9 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         var typeId = await ReferenceId(db.PartyTypes, input.Party.PartyTypeKey, "party_type", ct);
         var party = new Party(await UniqueCode(db.Parties, ct), typeId, input.Party.DisplayName,
             input.Party.FirstName, input.Party.LastName, input.Party.OrganizationName,
-            input.Party.Description, Now);
+            input.Party.IdentityNumber, input.Party.Description, Now);
         db.Parties.Add(party);
-        await db.SaveChangesAsync(ct);
+        await Save(ct);
         foreach (var contact in input.Contacts ?? [])
         {
             ValidateContact(contact);
@@ -321,20 +308,11 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
                 contactType.Id, contact.Value, NormalizeContact(contactType.Key, contact.Value),
                 contact.Label, contact.IsPrimary, Now));
         }
-        foreach (var identifier in input.Identifiers ?? [])
-        {
-            ValidateIdentifier(identifier);
-            var identifierTypeId = await ReferenceId(db.PartyIdentifierTypes,
-                identifier.IdentifierTypeKey, "party_identifier_type", ct);
-            db.PartyIdentifiers.Add(new PartyIdentifier(await UniqueCode(db.PartyIdentifiers, ct),
-                party.Id, identifierTypeId, identifier.CountryCode, identifier.Value,
-                NormalizeLoose(identifier.Value), Now));
-        }
         return party.Id;
     }
 
     private async Task ReplaceOccupancyRelations(long unitId,
-        IReadOnlyList<UnitOnboardingRelationRequest> requested, DateTimeOffset effectiveFrom,
+        IReadOnlyList<UnitOnboardingRelationRequest> requested, DateTimeOffset? effectiveFrom,
         CancellationToken ct)
     {
         var desired = new List<(long PartyId, long TypeId, UnitOnboardingRelationRequest Input)>();
@@ -355,12 +333,12 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         foreach (var item in desired.Where(x =>
             !current.Any(existing => existing.PartyId == x.PartyId &&
                 existing.UnitPartyRelationTypeId == x.TypeId)))
-            db.UnitPartyRelations.Add(new UnitPartyRelation(await UniqueCode(db.UnitPartyRelations, ct),
-                unitId, item.PartyId, item.TypeId, effectiveFrom, null, item.Input.OwnershipShare,
-                item.Input.IsPrimaryContact, item.Input.IsPaymentContact, item.Input.Notes, Now));
+            db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, item.PartyId, item.TypeId,
+                item.Input.StartDate, null, item.Input.IsPrimaryContact,
+                item.Input.Notes, Now));
     }
 
-    private async Task CloseOccupancyRelations(long unitId, DateTimeOffset endDate, CancellationToken ct)
+    private async Task CloseOccupancyRelations(long unitId, DateTimeOffset? endDate, CancellationToken ct)
     {
         var relations = await db.UnitPartyRelations.Where(x => x.UnitId == unitId && x.IsActive &&
             x.EndDate == null && db.UnitPartyRelationTypes.Any(type =>
@@ -410,17 +388,6 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             throw Validation("contactTypeKey", "Contact type is required.");
         if (string.IsNullOrWhiteSpace(request.Value))
             throw Validation("value", "Contact value is required.");
-    }
-
-    private static void ValidateIdentifier(PartyIdentifierRequest request)
-    {
-        if (request is null) throw Validation("identifier", "Identifier is required.");
-        if (string.IsNullOrWhiteSpace(request.IdentifierTypeKey))
-            throw Validation("identifierTypeKey", "Identifier type is required.");
-        if (string.IsNullOrWhiteSpace(request.CountryCode))
-            throw Validation("countryCode", "Country code is required.");
-        if (string.IsNullOrWhiteSpace(request.Value))
-            throw Validation("value", "Identifier value is required.");
     }
 
     private static void ValidateOccupancy(UnitOccupancyRequest request)
@@ -489,6 +456,13 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         query.Select(x => new PartyResponse(x.Code,
             db.PartyTypes.Where(type => type.Id == x.PartyTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
+            x.DisplayName, x.FirstName, x.LastName, x.OrganizationName, x.IdentityNumber, x.Description,
+            x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
+
+    private IQueryable<PartySummaryResponse> PartySummaryProjection(IQueryable<Party> query) =>
+        query.Select(x => new PartySummaryResponse(x.Code,
+            db.PartyTypes.Where(type => type.Id == x.PartyTypeId)
+                .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
             x.DisplayName, x.FirstName, x.LastName, x.OrganizationName, x.Description,
             x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 
@@ -498,18 +472,11 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
             x.Value, x.Label, x.IsPrimary, x.IsVerified, x.IsActive));
 
-    private IQueryable<PartyIdentifierResponse> IdentifierProjection(IQueryable<PartyIdentifier> query) =>
-        query.Select(x => new PartyIdentifierResponse(x.Code,
-            db.PartyIdentifierTypes.Where(type => type.Id == x.PartyIdentifierTypeId)
-                .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
-            x.CountryCode, "********", x.IsVerified, x.IsActive));
-
     private IQueryable<UnitPartyRelationResponse> RelationProjection(IQueryable<UnitPartyRelation> query) =>
-        query.Select(x => new UnitPartyRelationResponse(x.Code,
+        query.Select(x => new UnitPartyRelationResponse(
             db.Parties.Where(party => party.Id == x.PartyId).Select(party => party.Code).Single(),
             db.Parties.Where(party => party.Id == x.PartyId).Select(party => party.DisplayName).Single(),
             db.UnitPartyRelationTypes.Where(type => type.Id == x.UnitPartyRelationTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
-            x.StartDate, x.EndDate, x.OwnershipShare, x.IsPrimaryContact, x.IsPaymentContact,
-            x.Notes, x.IsActive));
+            x.StartDate, x.EndDate, x.IsPrimaryContact, x.Notes, x.IsActive));
 }
