@@ -50,11 +50,16 @@ internal sealed class PartyContactConfiguration : IEntityTypeConfiguration<Party
 {
     public void Configure(EntityTypeBuilder<PartyContact> builder)
     {
-        ConfigurationHelpers.Entity(builder, "PartyContacts");
+        builder.ToTable("PartyContacts", ConfigurationHelpers.Schema);
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Id).UseIdentityColumn();
         builder.Property(x => x.Value).HasMaxLength(320).IsRequired();
         builder.Property(x => x.NormalizedValue).HasMaxLength(320).IsRequired();
         builder.Property(x => x.Label).HasMaxLength(100);
         builder.Property(x => x.VerifiedAtUtc).HasPrecision(0);
+        builder.Property(x => x.CreatedAtUtc).HasPrecision(0).IsRequired();
+        builder.Property(x => x.UpdatedAtUtc).HasPrecision(0);
+        builder.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken();
         builder.HasOne<Party>().WithMany().HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
         builder.HasOne<PartyContactType>().WithMany().HasForeignKey(x => x.PartyContactTypeId)
             .OnDelete(DeleteBehavior.Restrict);

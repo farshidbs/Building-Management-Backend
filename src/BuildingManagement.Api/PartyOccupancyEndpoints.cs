@@ -44,7 +44,7 @@ public static class PartyOccupancyEndpoints
             PartyOccupancyService service, CancellationToken ct) =>
         {
             var response = await service.AddContact(partyCode, request, ct);
-            return Results.Created($"/api/v1/parties/{partyCode}/contacts/{response.Code}", response);
+            return Results.Created($"/api/v1/parties/{partyCode}/contacts", response);
         });
         parties.MapGet("/{partyCode}/contacts", (string partyCode, PartyOccupancyService service,
             CancellationToken ct) => service.GetContacts(partyCode, ct));

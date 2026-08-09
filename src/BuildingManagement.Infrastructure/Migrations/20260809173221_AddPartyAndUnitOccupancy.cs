@@ -14,47 +14,6 @@ namespace BuildingManagement.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Some development databases contain the earlier untracked Party/Occupancy draft.
-            // Reconcile that drift atomically inside this migration before creating the final model.
-            migrationBuilder.Sql("""
-                IF OBJECT_ID(N'[bms].[UnitPartyRelations]', N'U') IS NOT NULL DROP TABLE [bms].[UnitPartyRelations];
-                IF OBJECT_ID(N'[bms].[UnitOccupancyHistories]', N'U') IS NOT NULL DROP TABLE [bms].[UnitOccupancyHistories];
-                IF OBJECT_ID(N'[bms].[UnitPartyRelationTypes]', N'U') IS NOT NULL DROP TABLE [bms].[UnitPartyRelationTypes];
-                IF OBJECT_ID(N'[base].[PartyIdentifiers]', N'U') IS NOT NULL DROP TABLE [base].[PartyIdentifiers];
-                IF OBJECT_ID(N'[base].[PartyContacts]', N'U') IS NOT NULL DROP TABLE [base].[PartyContacts];
-                IF OBJECT_ID(N'[base].[PartyIdentifierTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyIdentifierTypes];
-                IF OBJECT_ID(N'[base].[Parties]', N'U') IS NOT NULL DROP TABLE [base].[Parties];
-                IF OBJECT_ID(N'[base].[PartyContactTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyContactTypes];
-                IF OBJECT_ID(N'[base].[PartyTypes]', N'U') IS NOT NULL DROP TABLE [base].[PartyTypes];
-
-                IF COL_LENGTH('bms.Units', 'CurrentOccupantsCount') IS NOT NULL
-                BEGIN
-                    IF EXISTS (SELECT 1 FROM sys.check_constraints
-                               WHERE name = N'CK_Units_Counts'
-                                 AND parent_object_id = OBJECT_ID(N'[bms].[Units]'))
-                        ALTER TABLE [bms].[Units] DROP CONSTRAINT [CK_Units_Counts];
-
-                    DECLARE @defaultConstraint sysname, @dropDefaultSql nvarchar(max);
-                    SELECT @defaultConstraint = dc.name
-                    FROM sys.default_constraints dc
-                    JOIN sys.columns c ON c.object_id = dc.parent_object_id
-                                      AND c.column_id = dc.parent_column_id
-                    WHERE dc.parent_object_id = OBJECT_ID(N'[bms].[Units]')
-                      AND c.name = N'CurrentOccupantsCount';
-                    IF @defaultConstraint IS NOT NULL
-                    BEGIN
-                        SET @dropDefaultSql = N'ALTER TABLE [bms].[Units] DROP CONSTRAINT '
-                            + QUOTENAME(@defaultConstraint);
-                        EXEC sp_executesql @dropDefaultSql;
-                    END;
-
-                    ALTER TABLE [bms].[Units] DROP COLUMN [CurrentOccupantsCount];
-                    ALTER TABLE [bms].[Units] ADD CONSTRAINT [CK_Units_Counts]
-                        CHECK (([RoomsCount] IS NULL OR [RoomsCount] >= 0)
-                           AND [ParkingCount] >= 0 AND [StorageCount] >= 0);
-                END;
-                """);
-
             migrationBuilder.DropCheckConstraint(
                 name: "CK_Units_Counts",
                 schema: "bms",
@@ -214,7 +173,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     IsPrimary = table.Column<bool>(type: "bit", nullable: false),
                     IsVerified = table.Column<bool>(type: "bit", nullable: false),
                     VerifiedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
@@ -223,7 +181,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_PartyContacts", x => x.Id);
-                    table.CheckConstraint("CK_PartyContacts_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                     table.ForeignKey(
                         name: "FK_PartyContacts_Parties_PartyId",
                         column: x => x.PartyId,
@@ -379,19 +336,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "Parties",
                 column: "PartyTypeId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyContacts_Code",
-                schema: "bms",
-                table: "PartyContacts",
-                column: "Code",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_PartyContacts_IsActive",
-                schema: "bms",
-                table: "PartyContacts",
-                column: "IsActive");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyContacts_NormalizedValue",

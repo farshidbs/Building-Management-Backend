@@ -35,6 +35,7 @@ Public codes:
 Party data uses the database default schema: `PartyTypes`, `Parties`, `PartyContactTypes`, and
 `PartyContacts`. A Party requires only `PartyType` and `DisplayName`; contacts and the directly
 stored `Party.IdentityNumber` are optional. IdentityNumber is omitted from list/search responses.
+PartyContact is an internal child row without a public Code; verification fields remain available.
 
 Unit-scoped feature tables use the database default schema: `UnitPartyRelationTypes`,
 `UnitPartyRelations`, and `UnitOccupancyHistories`. Relations use internal Ids, real FKs and

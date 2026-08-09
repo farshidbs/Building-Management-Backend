@@ -133,6 +133,14 @@ public sealed class ApiScenarios : IAsyncLifetime
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
+        var minimalParty = await Post<PartyResponse>("/api/v1/parties",
+            new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson,
+                $"ساکن بدون اطلاعات تماس {suffix}"));
+        Assert.Null(minimalParty.IdentityNumber);
+        var minimalContacts = await client!.GetFromJsonAsync<PartyContactResponse[]>(
+            $"/api/v1/parties/{minimalParty.Code}/contacts");
+        Assert.Empty(minimalContacts!);
+
         var party = await Post<PartyResponse>("/api/v1/parties",
             new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, $"ساکن واحد {suffix}",
                 IdentityNumber: "0012345678"));
@@ -153,11 +161,15 @@ public sealed class ApiScenarios : IAsyncLifetime
         var building = await Post<BuildingResponse>("/api/v1/buildings",
             new BuildingRequest(null, city.Code, ReferenceKeys.BuildingTypes.Residential,
                 $"Party building {suffix}", "Address", suffix, null, null, 2, 2020, null));
+        var secondBuilding = await Post<BuildingResponse>("/api/v1/buildings",
+            new BuildingRequest(null, city.Code, ReferenceKeys.BuildingTypes.Residential,
+                $"Second party building {suffix}", "Address 2", $"2{suffix}", null, null,
+                2, 2021, null));
 
         var vacant = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,
                 $"V-{suffix}", 1, 80, 2, 0, 0, null,
-                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0, DateTimeOffset.UtcNow)));
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0)));
         Assert.Equal(0, vacant.CurrentOccupancy.OccupantsCount);
         Assert.Equal(ReferenceKeys.UnitStatuses.Vacant, vacant.CurrentOccupancy.Status);
         await Post<UnitPartyRelationResponse>($"/api/v1/units/{vacant.Code}/party-relations",
@@ -166,6 +178,24 @@ public sealed class ApiScenarios : IAsyncLifetime
         var vacantRelations = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
             $"/api/v1/units/{vacant.Code}/parties?currentOnly=true");
         Assert.Contains(vacantRelations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Owner);
+        Assert.Null(vacantRelations!.Single(x =>
+            x.RelationType.Key == PartyReferenceKeys.RelationTypes.Owner).StartDate);
+        var vacantHistory = await client!.GetFromJsonAsync<UnitOccupancyHistoryResponse[]>(
+            $"/api/v1/units/{vacant.Code}/occupancy-history");
+        Assert.Null(vacantHistory!.Single(x => x.IsActive).EffectiveFrom);
+
+        var secondBuildingUnit = await Post<UnitResponse>(
+            $"/api/v1/buildings/{secondBuilding.Code}/units",
+            new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential,
+                ReferenceKeys.UnitStatuses.Available, $"R-{suffix}", 1, 75, 2, 0, 0, null,
+                new UnitOccupancyRequest(ReferenceKeys.UnitStatuses.Vacant, 0)));
+        await Post<UnitPartyRelationResponse>(
+            $"/api/v1/units/{secondBuildingUnit.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(party.Code, null)));
+        var reusedPartyRelations = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{secondBuildingUnit.Code}/parties?currentOnly=true");
+        Assert.Contains(reusedPartyRelations!, x => x.PartyCode == party.Code);
 
         var occupied = await Post<UnitResponse>($"/api/v1/buildings/{building.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential, ReferenceKeys.UnitStatuses.Available,

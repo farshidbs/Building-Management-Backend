@@ -33,7 +33,7 @@ public sealed record PartySummaryResponse(string Code, ReferenceValueResponse Pa
     string DisplayName, string? FirstName, string? LastName, string? OrganizationName,
     string? Description, bool IsActive, DateTimeOffset CreatedAtUtc, DateTimeOffset? UpdatedAtUtc);
 
-public sealed record PartyContactResponse(string Code, ReferenceValueResponse ContactType, string Value,
+public sealed record PartyContactResponse(ReferenceValueResponse ContactType, string Value,
     string? Label, bool IsPrimary, bool IsVerified, bool IsActive);
 
 public sealed record UnitPartyRelationResponse(string PartyCode, string DisplayName,
@@ -127,7 +127,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         var type = await Reference(db.PartyContactTypes, request.ContactTypeKey, "party_contact_type", ct);
         if (request.IsPrimary)
             await ClearPrimaryContact(partyId, type.Id, ct);
-        var contact = new PartyContact(await UniqueCode(db.PartyContacts, ct), partyId, type.Id,
+        var contact = new PartyContact(partyId, type.Id,
             request.Value, NormalizeContact(type.Key, request.Value), request.Label, request.IsPrimary, Now);
         db.PartyContacts.Add(contact);
         await Save(ct);
@@ -304,7 +304,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             ValidateContact(contact);
             var contactType = await Reference(db.PartyContactTypes, contact.ContactTypeKey,
                 "party_contact_type", ct);
-            db.PartyContacts.Add(new PartyContact(await UniqueCode(db.PartyContacts, ct), party.Id,
+            db.PartyContacts.Add(new PartyContact(party.Id,
                 contactType.Id, contact.Value, NormalizeContact(contactType.Key, contact.Value),
                 contact.Label, contact.IsPrimary, Now));
         }
@@ -467,7 +467,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 
     private IQueryable<PartyContactResponse> ContactProjection(IQueryable<PartyContact> query) =>
-        query.Select(x => new PartyContactResponse(x.Code,
+        query.Select(x => new PartyContactResponse(
             db.PartyContactTypes.Where(type => type.Id == x.PartyContactTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
             x.Value, x.Label, x.IsPrimary, x.IsVerified, x.IsActive));

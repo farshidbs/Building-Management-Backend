@@ -15,6 +15,8 @@ while storing residents directly on Unit would lose history and prevent reuse ac
   `IdentityNumber` is stored directly on Party and omitted from generic list/search responses.
 - Party and occupancy feature tables use the application's default `bms` schema.
 - Mobile becomes mandatory only in the future Invitation workflow, not Party creation.
+- PartyContact is a child entity identified internally and has no public Code. Its verification
+  state and timestamp are retained for the future Invitation/User workflow.
 - IdentityNumber remains optional, is not verified, and never merges Parties.
 - UnitPartyRelation records independent historical facts such as owner,
   tenant, and resident. An owner who resides in a unit has separate owner and resident facts.

@@ -1048,10 +1048,6 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasColumnType("varchar(5)");
-
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
@@ -1101,11 +1097,6 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.HasIndex("IsActive");
-
                     b.HasIndex("NormalizedValue");
 
                     b.HasIndex("PartyContactTypeId");
@@ -1116,10 +1107,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[IsActive] = CAST(1 AS bit) AND [IsPrimary] = CAST(1 AS bit)");
 
-                    b.ToTable("PartyContacts", "bms", t =>
-                        {
-                            t.HasCheckConstraint("CK_PartyContacts_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                        });
+                    b.ToTable("PartyContacts", "bms");
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.PartyContactType", b =>
