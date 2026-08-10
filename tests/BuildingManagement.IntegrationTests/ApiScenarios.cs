@@ -153,6 +153,76 @@ public sealed class ApiScenarios : IAsyncLifetime
 
         await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
             new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09120000000", IsPrimary: true));
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09350000000"));
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09900000000"));
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactRequest(PartyReferenceKeys.ContactTypes.Email, "owner@example.com",
+                IsPrimary: true));
+
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts/set-primary",
+            new PartyContactSelectorRequest(PartyReferenceKeys.ContactTypes.Mobile, "09350000000"));
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts/set-primary",
+            new PartyContactSelectorRequest(PartyReferenceKeys.ContactTypes.Mobile, "09350000000"));
+        var selectedContacts = (await client!.GetFromJsonAsync<PartyContactResponse[]>(
+            $"/api/v1/parties/{party.Code}/contacts"))!;
+        Assert.False(selectedContacts.Single(x => x.Value == "09120000000").IsPrimary);
+        Assert.True(selectedContacts.Single(x => x.Value == "09350000000").IsPrimary);
+        Assert.False(selectedContacts.Single(x => x.Value == "09900000000").IsPrimary);
+        Assert.True(selectedContacts.Single(x => x.Value == "owner@example.com").IsPrimary);
+
+        using var wrongPartyPrimary = await client!.PostAsJsonAsync(
+            $"/api/v1/parties/{minimalParty.Code}/contacts/set-primary",
+            new PartyContactSelectorRequest(PartyReferenceKeys.ContactTypes.Mobile, "09350000000"));
+        Assert.Equal(HttpStatusCode.NotFound, wrongPartyPrimary.StatusCode);
+
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var partyId = await db.Parties.Where(x => x.Code == party.Code).Select(x => x.Id).SingleAsync();
+            var mobileTypeId = await db.PartyContactTypes
+                .Where(x => x.Key == PartyReferenceKeys.ContactTypes.Mobile).Select(x => x.Id).SingleAsync();
+            var inactive = await db.PartyContacts.SingleAsync(x => x.PartyId == partyId &&
+                x.PartyContactTypeId == mobileTypeId && x.NormalizedValue == "09900000000");
+            inactive.SetActivation(false, DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        using var inactivePrimary = await client!.PostAsJsonAsync(
+            $"/api/v1/parties/{party.Code}/contacts/set-primary",
+            new PartyContactSelectorRequest(PartyReferenceKeys.ContactTypes.Mobile, "09900000000"));
+        Assert.Equal(HttpStatusCode.NotFound, inactivePrimary.StatusCode);
+
+        var updatedContact = await Put<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactUpdateRequest(PartyReferenceKeys.ContactTypes.Mobile, "09120000000",
+                "0912 111 2233", "شماره دوم"));
+        Assert.Equal("0912 111 2233", updatedContact.Value);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            Assert.True(await db.PartyContacts.AnyAsync(x => x.Value == "0912 111 2233" &&
+                x.NormalizedValue == "09121112233"));
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var partyId = await db.Parties.Where(x => x.Code == party.Code).Select(x => x.Id).SingleAsync();
+            var mobileTypeId = await db.PartyContactTypes
+                .Where(x => x.Key == PartyReferenceKeys.ContactTypes.Mobile).Select(x => x.Id).SingleAsync();
+            db.PartyContacts.Add(new PartyContact(partyId, mobileTypeId, "09010000000",
+                "09010000000", null, true, DateTimeOffset.UtcNow));
+            await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        }
+
+        await Post<PartyContactResponse>($"/api/v1/parties/{party.Code}/contacts",
+            new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09020000000",
+                IsPrimary: true));
+        var contactsAfterPrimaryAdd = (await client!.GetFromJsonAsync<PartyContactResponse[]>(
+            $"/api/v1/parties/{party.Code}/contacts"))!;
+        Assert.True(contactsAfterPrimaryAdd.Single(x => x.Value == "09020000000").IsPrimary);
+        Assert.False(contactsAfterPrimaryAdd.Single(x => x.Value == "09350000000").IsPrimary);
+        Assert.True(contactsAfterPrimaryAdd.Single(x => x.Value == "owner@example.com").IsPrimary);
 
         var country = await Post<LocationResponse>("/api/v1/locations",
             new LocationRequest(null, $"Party country {suffix}", ReferenceKeys.LocationTypes.Country));
@@ -313,6 +383,13 @@ public sealed class ApiScenarios : IAsyncLifetime
     private async Task<T> Post<T>(string uri, object value)
     {
         var response = await client!.PostAsJsonAsync(uri, value);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<T>())!;
+    }
+
+    private async Task<T> Put<T>(string uri, object value)
+    {
+        var response = await client!.PutAsJsonAsync(uri, value);
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<T>())!;
     }

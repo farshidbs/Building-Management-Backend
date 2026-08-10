@@ -10,6 +10,11 @@ public sealed record PartyRequest(string PartyTypeKey, string DisplayName, strin
 public sealed record PartyContactRequest(string ContactTypeKey, string Value, string? Label = null,
     bool IsPrimary = false);
 
+public sealed record PartyContactSelectorRequest(string ContactTypeKey, string Value);
+
+public sealed record PartyContactUpdateRequest(string ContactTypeKey, string CurrentValue,
+    string Value, string? Label = null);
+
 public sealed record NewPartyInput(PartyRequest Party,
     IReadOnlyList<PartyContactRequest>? Contacts = null);
 
@@ -123,15 +128,24 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         CancellationToken ct)
     {
         ValidateContact(request);
-        var partyId = await ActivePartyId(partyCode, ct);
-        var type = await Reference(db.PartyContactTypes, request.ContactTypeKey, "party_contact_type", ct);
-        if (request.IsPrimary)
-            await ClearPrimaryContact(partyId, type.Id, ct);
-        var contact = new PartyContact(partyId, type.Id,
-            request.Value, NormalizeContact(type.Key, request.Value), request.Label, request.IsPrimary, Now);
-        db.PartyContacts.Add(contact);
-        await Save(ct);
-        return await ContactProjection(db.PartyContacts.Where(x => x.Id == contact.Id)).SingleAsync(ct);
+        return await db.ExecuteInTransaction(async token =>
+        {
+            var partyId = await ActivePartyId(partyCode, token);
+            var type = await Reference(db.PartyContactTypes, request.ContactTypeKey,
+                "party_contact_type", token);
+            if (request.IsPrimary)
+            {
+                await ClearPrimaryContact(partyId, type.Id, token);
+                await Save(token);
+            }
+            var contact = new PartyContact(partyId, type.Id,
+                request.Value, NormalizeContact(type.Key, request.Value), request.Label,
+                request.IsPrimary, Now);
+            db.PartyContacts.Add(contact);
+            await Save(token);
+            return await ContactProjection(db.PartyContacts.AsNoTracking()
+                .Where(x => x.Id == contact.Id)).SingleAsync(token);
+        }, ct);
     }
 
     public async Task<IReadOnlyList<PartyContactResponse>> GetContacts(string partyCode, CancellationToken ct)
@@ -139,6 +153,52 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         var partyId = await PartyId(partyCode, ct);
         return await ContactProjection(db.PartyContacts.AsNoTracking().Where(x => x.PartyId == partyId))
             .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.IsPrimary).ToListAsync(ct);
+    }
+
+    public async Task<PartyContactResponse> SetPrimaryContact(string partyCode,
+        PartyContactSelectorRequest request, CancellationToken ct)
+    {
+        ValidateContactSelector(request);
+        return await db.ExecuteInTransaction(async token =>
+        {
+            var partyId = await ActivePartyId(partyCode, token);
+            var type = await Reference(db.PartyContactTypes, request.ContactTypeKey,
+                "party_contact_type", token);
+            var target = await FindContact(partyId, type.Id,
+                NormalizeContact(type.Key, request.Value), activeOnly: true, token);
+            if (target.IsPrimary)
+                return await ContactProjection(db.PartyContacts.AsNoTracking()
+                    .Where(x => x.Id == target.Id)).SingleAsync(token);
+
+            var previous = await db.PartyContacts.Where(x => x.PartyId == partyId &&
+                x.PartyContactTypeId == type.Id && x.IsActive && x.IsPrimary && x.Id != target.Id)
+                .ToListAsync(token);
+            foreach (var contact in previous) contact.SetPrimary(false, Now);
+            if (previous.Count > 0) await Save(token);
+            target.SetPrimary(true, Now);
+            await Save(token);
+            return await ContactProjection(db.PartyContacts.AsNoTracking()
+                .Where(x => x.Id == target.Id)).SingleAsync(token);
+        }, ct);
+    }
+
+    public async Task<PartyContactResponse> UpdateContact(string partyCode,
+        PartyContactUpdateRequest request, CancellationToken ct)
+    {
+        ValidateContactUpdate(request);
+        return await db.ExecuteInTransaction(async token =>
+        {
+            var partyId = await ActivePartyId(partyCode, token);
+            var type = await Reference(db.PartyContactTypes, request.ContactTypeKey,
+                "party_contact_type", token);
+            var contact = await FindContact(partyId, type.Id,
+                NormalizeContact(type.Key, request.CurrentValue), activeOnly: true, token);
+            contact.Update(type.Id, request.Value, NormalizeContact(type.Key, request.Value),
+                request.Label, contact.IsPrimary, Now);
+            await Save(token);
+            return await ContactProjection(db.PartyContacts.AsNoTracking()
+                .Where(x => x.Id == contact.Id)).SingleAsync(token);
+        }, ct);
     }
 
     public async Task OnboardUnit(Unit unit, UnitOccupancyRequest request, CancellationToken ct)
@@ -355,8 +415,22 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         var contacts = await db.PartyContacts.Where(x => x.PartyId == partyId &&
             x.PartyContactTypeId == typeId && x.IsActive && x.IsPrimary).ToListAsync(ct);
         foreach (var contact in contacts)
-            contact.Update(contact.PartyContactTypeId, contact.Value, contact.NormalizedValue,
-                contact.Label, false, Now);
+            contact.SetPrimary(false, Now);
+    }
+
+    private async Task<PartyContact> FindContact(long partyId, long typeId, string normalizedValue,
+        bool activeOnly, CancellationToken ct)
+    {
+        var matches = await db.PartyContacts.Where(x => x.PartyId == partyId &&
+            x.PartyContactTypeId == typeId && x.NormalizedValue == normalizedValue &&
+            (!activeOnly || x.IsActive)).Take(2).ToListAsync(ct);
+        return matches.Count switch
+        {
+            0 => throw AppException.NotFound("party_contact"),
+            1 => matches[0],
+            _ => throw AppException.Conflict("party_contact.ambiguous",
+                "More than one contact matches the supplied type and value.")
+        };
     }
 
     private async Task<long> UnitId(string code, CancellationToken ct) =>
@@ -385,6 +459,26 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         if (request is null) throw Validation("contact", "Contact is required.");
         if (string.IsNullOrWhiteSpace(request.ContactTypeKey))
             throw Validation("contactTypeKey", "Contact type is required.");
+        if (string.IsNullOrWhiteSpace(request.Value))
+            throw Validation("value", "Contact value is required.");
+    }
+
+    private static void ValidateContactSelector(PartyContactSelectorRequest request)
+    {
+        if (request is null) throw Validation("contact", "Contact selection is required.");
+        if (string.IsNullOrWhiteSpace(request.ContactTypeKey))
+            throw Validation("contactTypeKey", "Contact type is required.");
+        if (string.IsNullOrWhiteSpace(request.Value))
+            throw Validation("value", "Contact value is required.");
+    }
+
+    private static void ValidateContactUpdate(PartyContactUpdateRequest request)
+    {
+        if (request is null) throw Validation("contact", "Contact update is required.");
+        if (string.IsNullOrWhiteSpace(request.ContactTypeKey))
+            throw Validation("contactTypeKey", "Contact type is required.");
+        if (string.IsNullOrWhiteSpace(request.CurrentValue))
+            throw Validation("currentValue", "Current contact value is required.");
         if (string.IsNullOrWhiteSpace(request.Value))
             throw Validation("value", "Contact value is required.");
     }

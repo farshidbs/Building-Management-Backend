@@ -6,6 +6,9 @@
 - Party and Unit relationship routes use `partyCode`, `unitCode`, and stable relation-type keys;
   numeric identifiers and `IdentityNumber` never appear in routes.
 - Generic Party list/search responses omit `IdentityNumber`.
+- PartyContact has no public Code and internal IDs are not exposed. Contact management selects a
+  child within its Party by `contactTypeKey` plus its current value. Duplicate matches return a
+  conflict instead of selecting an arbitrary row.
 - Read responses embed parent summaries as { code, name }: buildings include location and optional complex; units include building and optional complex. This avoids extra client round trips without exposing internal IDs.
 - Codes are created by the server; create/update bodies never choose or change them.
 - Reference data is read from /api/v1/reference-data. Requests and filters use its stable semantic keys (for example esidential), not numeric IDs or public codes.

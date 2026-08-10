@@ -48,6 +48,12 @@ public static class PartyOccupancyEndpoints
         });
         parties.MapGet("/{partyCode}/contacts", (string partyCode, PartyOccupancyService service,
             CancellationToken ct) => service.GetContacts(partyCode, ct));
+        parties.MapPut("/{partyCode}/contacts", (string partyCode, PartyContactUpdateRequest request,
+            PartyOccupancyService service, CancellationToken ct) =>
+            service.UpdateContact(partyCode, request, ct));
+        parties.MapPost("/{partyCode}/contacts/set-primary", (string partyCode,
+            PartyContactSelectorRequest request, PartyOccupancyService service, CancellationToken ct) =>
+            service.SetPrimaryContact(partyCode, request, ct));
     }
 
     private static void MapUnitOccupancy(RouteGroupBuilder api)

@@ -81,6 +81,20 @@ public sealed class PartyOccupancyDomainTests
     }
 
     [Fact]
+    public void UnverifiedPartyContactCanBecomePrimaryIdempotently()
+    {
+        var contact = new PartyContact(1, 1, "09120000000", "09120000000", null, false, Now);
+
+        contact.SetPrimary(true, Now.AddMinutes(1));
+        var updatedAt = contact.UpdatedAtUtc;
+        contact.SetPrimary(true, Now.AddMinutes(2));
+
+        Assert.True(contact.IsPrimary);
+        Assert.False(contact.IsVerified);
+        Assert.Equal(updatedAt, contact.UpdatedAtUtc);
+    }
+
+    [Fact]
     public void EndingRelationWithoutKnownDateUsesCurrentTimeAndKeepsRecordActive()
     {
         var relation = new UnitPartyRelation(1, 2, 3, null, null, null, Now);

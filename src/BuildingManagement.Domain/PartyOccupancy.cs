@@ -143,6 +143,20 @@ public sealed class PartyContact
         UpdatedAtUtc = now;
     }
 
+    public void SetPrimary(bool isPrimary, DateTimeOffset now)
+    {
+        if (IsPrimary == isPrimary) return;
+        IsPrimary = isPrimary;
+        UpdatedAtUtc = now;
+    }
+
+    public void SetActivation(bool isActive, DateTimeOffset now)
+    {
+        if (IsActive == isActive) return;
+        IsActive = isActive;
+        UpdatedAtUtc = now;
+    }
+
     private static string RequiredValue(string value, string field) =>
         string.IsNullOrWhiteSpace(value)
             ? throw new DomainValidationException(field, "Must not be blank.")
