@@ -184,6 +184,23 @@ public sealed class ApiScenarios : IAsyncLifetime
             $"/api/v1/units/{vacant.Code}/occupancy-history");
         Assert.Null(vacantHistory!.Single(x => x.IsActive).EffectiveFrom);
 
+        await Post<UnitPartyRelationResponse>($"/api/v1/units/{vacant.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(minimalParty.Code, null)));
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var softDeletedRelation = await db.UnitPartyRelations.SingleAsync(relation =>
+                db.Units.Any(unit => unit.Id == relation.UnitId && unit.Code == vacant.Code) &&
+                db.Parties.Any(relatedParty => relatedParty.Id == relation.PartyId &&
+                    relatedParty.Code == minimalParty.Code));
+            softDeletedRelation.SoftDelete(DateTimeOffset.UtcNow);
+            await db.SaveChangesAsync();
+        }
+        var currentAfterSoftDelete = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{vacant.Code}/parties?currentOnly=true");
+        Assert.DoesNotContain(currentAfterSoftDelete!, x => x.PartyCode == minimalParty.Code);
+
         var secondBuildingUnit = await Post<UnitResponse>(
             $"/api/v1/buildings/{secondBuilding.Code}/units",
             new UnitRequest(ReferenceKeys.UnitUsageTypes.Residential,
@@ -227,6 +244,12 @@ public sealed class ApiScenarios : IAsyncLifetime
             $"/api/v1/units/{occupied.Code}/parties?currentOnly=true");
         Assert.Contains(relations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Owner);
         Assert.DoesNotContain(relations!, x => x.RelationType.Key == PartyReferenceKeys.RelationTypes.Resident);
+        var historicalRelations = await client!.GetFromJsonAsync<UnitPartyRelationResponse[]>(
+            $"/api/v1/units/{occupied.Code}/parties?currentOnly=false");
+        var endedResident = historicalRelations!.Single(x =>
+            x.RelationType.Key == PartyReferenceKeys.RelationTypes.Resident);
+        Assert.NotNull(endedResident.EndDate);
+        Assert.True(endedResident.IsActive);
 
         var history = await client!.GetFromJsonAsync<UnitOccupancyHistoryResponse[]>(
             $"/api/v1/units/{occupied.Code}/occupancy-history");

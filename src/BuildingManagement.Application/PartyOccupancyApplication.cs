@@ -16,7 +16,7 @@ public sealed record NewPartyInput(PartyRequest Party,
 public sealed record PartySelectionRequest(string? ExistingPartyCode, NewPartyInput? NewParty);
 
 public sealed record UnitOnboardingRelationRequest(string RelationTypeKey, PartySelectionRequest Party,
-    DateTimeOffset? StartDate = null, bool IsPrimaryContact = false, string? Notes = null);
+    DateTimeOffset? StartDate = null, string? Notes = null);
 
 public sealed record UnitOccupancyRequest(string Status, int OccupantsCount, DateTimeOffset? EffectiveFrom = null,
     IReadOnlyList<UnitOnboardingRelationRequest>? Relations = null, string? Notes = null);
@@ -38,7 +38,7 @@ public sealed record PartyContactResponse(ReferenceValueResponse ContactType, st
 
 public sealed record UnitPartyRelationResponse(string PartyCode, string DisplayName,
     ReferenceValueResponse RelationType, DateTimeOffset? StartDate, DateTimeOffset? EndDate,
-    bool IsPrimaryContact, string? Notes, bool IsActive);
+    string? Notes, bool IsActive);
 
 public sealed record UnitOccupancyHistoryResponse(int OccupantsCount, DateTimeOffset? EffectiveFrom,
     DateTimeOffset? EffectiveTo, string? Notes, bool IsActive);
@@ -211,8 +211,8 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
         long? typeId = string.IsNullOrWhiteSpace(relationTypeKey)
             ? null
             : await ReferenceId(db.UnitPartyRelationTypes, relationTypeKey, "unit_party_relation_type", ct);
-        var query = db.UnitPartyRelations.AsNoTracking().Where(x => x.UnitId == unitId);
-        if (currentOnly) query = query.Where(x => x.IsActive && x.EndDate == null);
+        var query = db.UnitPartyRelations.AsNoTracking().Where(x => x.UnitId == unitId && x.IsActive);
+        if (currentOnly) query = query.Where(x => x.EndDate == null);
         if (typeId.HasValue) query = query.Where(x => x.UnitPartyRelationTypeId == typeId);
         return await RelationProjection(query.OrderByDescending(x => x.StartDate)).ToListAsync(ct);
     }
@@ -249,7 +249,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             "unit_party_relation_type", ct);
         var relation = await db.UnitPartyRelations.SingleOrDefaultAsync(x =>
             x.UnitId == unitId && x.PartyId == partyId &&
-            x.UnitPartyRelationTypeId == relationTypeId && x.IsActive, ct)
+            x.UnitPartyRelationTypeId == relationTypeId && x.IsActive && x.EndDate == null, ct)
             ?? throw AppException.NotFound("unit_party_relation");
         var isOccupancy = await db.UnitPartyRelationTypes.Where(x =>
             x.Id == relation.UnitPartyRelationTypeId).Select(x => x.IsOccupancyRelation).SingleAsync(ct);
@@ -275,7 +275,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             "unit_party_relation_type", ct);
         var partyId = await ResolveParty(request.Party, ct);
         var relation = new UnitPartyRelation(unitId, partyId, type.Id,
-            request.StartDate, null, request.IsPrimaryContact, request.Notes, Now);
+            request.StartDate, null, request.Notes, Now);
         db.UnitPartyRelations.Add(relation);
         return relation;
     }
@@ -334,8 +334,7 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             !current.Any(existing => existing.PartyId == x.PartyId &&
                 existing.UnitPartyRelationTypeId == x.TypeId)))
             db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, item.PartyId, item.TypeId,
-                item.Input.StartDate, null, item.Input.IsPrimaryContact,
-                item.Input.Notes, Now));
+                item.Input.StartDate, null, item.Input.Notes, Now));
     }
 
     private async Task CloseOccupancyRelations(long unitId, DateTimeOffset? endDate, CancellationToken ct)
@@ -478,5 +477,5 @@ public sealed class PartyOccupancyService(IApplicationDbContext db, TimeProvider
             db.Parties.Where(party => party.Id == x.PartyId).Select(party => party.DisplayName).Single(),
             db.UnitPartyRelationTypes.Where(type => type.Id == x.UnitPartyRelationTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
-            x.StartDate, x.EndDate, x.IsPrimaryContact, x.Notes, x.IsActive));
+            x.StartDate, x.EndDate, x.Notes, x.IsActive));
 }

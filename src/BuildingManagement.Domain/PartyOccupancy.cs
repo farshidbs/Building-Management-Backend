@@ -161,7 +161,6 @@ public sealed class UnitPartyRelation
     public long UnitPartyRelationTypeId { get; private set; }
     public DateTimeOffset? StartDate { get; private set; }
     public DateTimeOffset? EndDate { get; private set; }
-    public bool IsPrimaryContact { get; private set; }
     public string? Notes { get; private set; }
     public bool IsActive { get; private set; } = true;
     public DateTimeOffset CreatedAtUtc { get; private set; }
@@ -169,8 +168,7 @@ public sealed class UnitPartyRelation
     public byte[] RowVersion { get; private set; } = [];
 
     public UnitPartyRelation(long unitId, long partyId, long relationTypeId,
-        DateTimeOffset? startDate, DateTimeOffset? endDate, bool isPrimaryContact,
-        string? notes, DateTimeOffset now)
+        DateTimeOffset? startDate, DateTimeOffset? endDate, string? notes, DateTimeOffset now)
     {
         if (unitId <= 0) throw new DomainValidationException("unit", "Unit is required.");
         if (partyId <= 0) throw new DomainValidationException("party", "Party is required.");
@@ -182,15 +180,20 @@ public sealed class UnitPartyRelation
         ValidateDates(startDate, endDate);
         StartDate = startDate?.ToUniversalTime();
         EndDate = endDate?.ToUniversalTime();
-        IsPrimaryContact = isPrimaryContact;
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         CreatedAtUtc = now;
     }
 
     public void End(DateTimeOffset? endDate, DateTimeOffset now)
     {
-        ValidateDates(StartDate, endDate);
-        EndDate = endDate?.ToUniversalTime();
+        var terminationDate = (endDate ?? now).ToUniversalTime();
+        ValidateDates(StartDate, terminationDate);
+        EndDate = terminationDate;
+        UpdatedAtUtc = now;
+    }
+
+    public void SoftDelete(DateTimeOffset now)
+    {
         IsActive = false;
         UpdatedAtUtc = now;
     }

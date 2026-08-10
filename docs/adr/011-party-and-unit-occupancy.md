@@ -20,6 +20,9 @@ while storing residents directly on Unit would lose history and prevent reuse ac
 - IdentityNumber remains optional, is not verified, and never merges Parties.
 - UnitPartyRelation records independent historical facts such as owner,
   tenant, and resident. An owner who resides in a unit has separate owner and resident facts.
+- A relation is current when it is not soft-deleted and `EndDate` is null. Ending a relation sets
+  `EndDate` but keeps `IsActive`; `IsActive = false` is reserved for soft deletion.
+- Preferred contact selection belongs only to `PartyContact.IsPrimary`, not UnitPartyRelation.
 - `Unit.CurrentOccupantsCount` is the fast current snapshot. Zero means vacant and a positive
   value means occupied.
 - `UnitOccupancyHistory` is the historical source of truth. The open history row and Unit

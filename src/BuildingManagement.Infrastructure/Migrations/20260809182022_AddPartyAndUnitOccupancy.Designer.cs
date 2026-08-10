@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    [Migration("20260809173221_AddPartyAndUnitOccupancy")]
+    [Migration("20260809182022_AddPartyAndUnitOccupancy")]
     partial class AddPartyAndUnitOccupancy
     {
         /// <inheritdoc />
@@ -1535,9 +1535,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasColumnType("datetimeoffset(0)");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsPrimaryContact")
                         .HasColumnType("bit");
 
                     b.Property<string>("Notes")

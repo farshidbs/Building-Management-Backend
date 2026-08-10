@@ -43,6 +43,10 @@ restricted deletes; they have no public Code, ownership share, or payment-contac
 Relationship dates may be null when unknown. Occupancy effective dates may likewise be null.
 At most one active open occupancy-history row exists per Unit through a filtered unique index.
 
+For UnitPartyRelation, `EndDate = null` means ongoing and a non-null EndDate means ended.
+`IsActive` is only the soft-delete flag. Preferred contact selection remains on
+`PartyContact.IsPrimary` and is not duplicated on the Unit relation.
+
 `Unit.CurrentOccupantsCount` is non-negative and is the current snapshot. Zero derives
 `vacant`; a positive value derives `occupied`. The snapshot and open history row are written
 in one transaction. An occupied Unit requires an active tenant/resident relation; a vacant

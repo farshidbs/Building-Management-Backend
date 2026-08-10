@@ -61,9 +61,44 @@ public sealed class PartyOccupancyDomainTests
     [Fact]
     public void RelationAllowsUnknownDates()
     {
-        var relation = new UnitPartyRelation(1, 2, 3, null, null, false, null, Now);
+        var relation = new UnitPartyRelation(1, 2, 3, null, null, null, Now);
 
         Assert.Null(relation.StartDate);
+        Assert.Null(relation.EndDate);
+        Assert.True(relation.IsActive);
+    }
+
+    [Fact]
+    public void UnitPartyRelationHasNoPrimaryContactProperty() =>
+        Assert.Null(typeof(UnitPartyRelation).GetProperty("IsPrimaryContact"));
+
+    [Fact]
+    public void PartyContactCanBePrimary()
+    {
+        var contact = new PartyContact(1, 1, "09120000000", "09120000000", null, true, Now);
+
+        Assert.True(contact.IsPrimary);
+    }
+
+    [Fact]
+    public void EndingRelationWithoutKnownDateUsesCurrentTimeAndKeepsRecordActive()
+    {
+        var relation = new UnitPartyRelation(1, 2, 3, null, null, null, Now);
+
+        relation.End(null, Now.AddDays(1));
+
+        Assert.Equal(Now.AddDays(1), relation.EndDate);
+        Assert.True(relation.IsActive);
+    }
+
+    [Fact]
+    public void SoftDeletingRelationOnlyChangesActivation()
+    {
+        var relation = new UnitPartyRelation(1, 2, 3, null, null, null, Now);
+
+        relation.SoftDelete(Now.AddDays(1));
+
+        Assert.False(relation.IsActive);
         Assert.Null(relation.EndDate);
     }
 
