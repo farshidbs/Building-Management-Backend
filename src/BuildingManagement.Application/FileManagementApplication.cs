@@ -375,7 +375,8 @@ public sealed class FileManagementService(
         var content = await storage.OpenReadAsync(stored.StorageKey, ct)
             ?? throw AppException.NotFound("file");
         var inline = await db.BuildingGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
-                     await db.ComplexGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct);
+                     await db.ComplexGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
+                     await db.AssetGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct);
         return new(content, stored.ContentType,
             FileStoragePolicy.SanitizeDownloadName(stored.OriginalFileName, stored.FileExtension), inline);
     }
@@ -520,6 +521,10 @@ public sealed class FileManagementService(
             await db.ComplexGalleryFiles.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct) ||
             await db.BuildingDocuments.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct) ||
             await db.ComplexDocuments.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct);
+        referenced = referenced ||
+            await db.AssetGalleryFiles.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct) ||
+            await db.AssetDocuments.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct) ||
+            await db.AssetEventFiles.AnyAsync(x => x.StoredFileId == storedFileId && x.IsActive, ct);
         if (referenced) return;
 
         var stored = await db.StoredFiles.SingleOrDefaultAsync(x => x.Id == storedFileId, ct);

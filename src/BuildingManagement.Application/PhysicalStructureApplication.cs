@@ -26,6 +26,13 @@ public interface IApplicationDbContext
     DbSet<PartyContact> PartyContacts { get; }
     DbSet<UnitPartyRelation> UnitPartyRelations { get; }
     DbSet<UnitOccupancyHistory> UnitOccupancyHistories { get; }
+    DbSet<AssetType> AssetTypes { get; }
+    DbSet<AssetEventType> AssetEventTypes { get; }
+    DbSet<Asset> Assets { get; }
+    DbSet<AssetEvent> AssetEvents { get; }
+    DbSet<AssetGalleryFile> AssetGalleryFiles { get; }
+    DbSet<AssetDocument> AssetDocuments { get; }
+    DbSet<AssetEventFile> AssetEventFiles { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken);

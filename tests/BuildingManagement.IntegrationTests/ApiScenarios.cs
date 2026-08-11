@@ -380,6 +380,64 @@ public sealed class ApiScenarios : IAsyncLifetime
         using var missing = await client.GetAsync($"/api/v1/files/{gallery.File.Code}/content");
         Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
     }
+
+    [Fact]
+    public async Task AssetScopeEventsDerivedReviewAndGalleryCoverWork()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var country = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(null, $"کشور دارایی {suffix}", ReferenceKeys.LocationTypes.Country));
+        var city = await Post<LocationResponse>("/api/v1/locations",
+            new LocationRequest(country.Code, $"شهر دارایی {suffix}", ReferenceKeys.LocationTypes.City));
+        var complex = await Post<ComplexResponse>("/api/v1/complexes",
+            new ComplexRequest(city.Code, $"مجتمع دارایی {suffix}", "نشانی", suffix, null, null, null));
+        var building = await Post<BuildingResponse>("/api/v1/buildings",
+            new BuildingRequest(complex.Code, city.Code, ReferenceKeys.BuildingTypes.Residential,
+                $"ساختمان دارایی {suffix}", "نشانی", suffix, null, null, 5, 2024, null));
+
+        var buildingAsset = await Post<AssetResponse>("/api/v1/assets", new AssetRequest(
+            AssetReferenceKeys.Types.Elevator, null, building.Code, "آسانسور تست", null, null, null,
+            null, null, 30, null));
+        Assert.Equal(building.Code, buildingAsset.Building!.Code);
+        Assert.Null(buildingAsset.Complex);
+        var complexAsset = await Post<AssetResponse>("/api/v1/assets", new AssetRequest(
+            AssetReferenceKeys.Types.Generator, complex.Code, null, "ژنراتور تست", null, null, null,
+            null, null, null, null));
+        Assert.Equal(complex.Code, complexAsset.Complex!.Code);
+
+        using var noScope = await client!.PostAsJsonAsync("/api/v1/assets", new AssetRequest(
+            AssetReferenceKeys.Types.Other, null, null, "نامعتبر", null, null, null, null, null, null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, noScope.StatusCode);
+        using var bothScopes = await client!.PostAsJsonAsync("/api/v1/assets", new AssetRequest(
+            AssetReferenceKeys.Types.Other, complex.Code, building.Code, "نامعتبر", null, null, null, null, null, null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, bothScopes.StatusCode);
+
+        var eventDate = DateTimeOffset.UtcNow.AddDays(-2);
+        var next = eventDate.AddDays(45);
+        await Post<AssetEventResponse>($"/api/v1/assets/{buildingAsset.Code}/events", new AssetEventRequest(
+            AssetReferenceKeys.EventTypes.Maintenance, eventDate, "سرویس کامل", null, next, null, null));
+        var detail = await client!.GetFromJsonAsync<AssetResponse>($"/api/v1/assets/{buildingAsset.Code}");
+        Assert.Equal(next.ToUnixTimeSeconds(), detail!.SuggestedNextReviewDate!.Value.ToUnixTimeSeconds());
+
+        async Task<AssetGalleryResponse> Upload(string name, bool cover)
+        {
+            using var form = new MultipartFormDataContent(); using var bytes = new ByteArrayContent([0x89, 0x50, 0x4e, 0x47]);
+            bytes.Headers.ContentType = new("image/png"); form.Add(bytes, "file", name); form.Add(new StringContent(cover.ToString()), "isCover");
+            using var response = await client!.PostAsync($"/api/v1/assets/{buildingAsset.Code}/gallery", form);
+            response.EnsureSuccessStatusCode(); return (await response.Content.ReadFromJsonAsync<AssetGalleryResponse>())!;
+        }
+        var first = await Upload("اول.png", true); var second = await Upload("دوم.png", true);
+        var gallery = await client!.GetFromJsonAsync<AssetGalleryResponse[]>($"/api/v1/assets/{buildingAsset.Code}/gallery");
+        Assert.False(gallery!.Single(x => x.File.Code == first.File.Code).IsCover);
+        Assert.True(gallery!.Single(x => x.File.Code == second.File.Code).IsCover);
+
+        using var scope = factory!.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        await Assert.ThrowsAsync<DbUpdateException>(async () =>
+            await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO [bms].[Assets] ([AssetTypeId],[ComplexId],[BuildingId],[Name],[Code],[IsActive],[CreatedAtUtc]) VALUES (1,NULL,NULL,N'نامعتبر','Z9X8Y',1,SYSUTCDATETIME())"));
+    }
     private async Task<T> Post<T>(string uri, object value)
     {
         var response = await client!.PostAsJsonAsync(uri, value);

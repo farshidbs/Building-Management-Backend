@@ -30,6 +30,13 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<PartyContact> PartyContacts => Set<PartyContact>();
     public DbSet<UnitPartyRelation> UnitPartyRelations => Set<UnitPartyRelation>();
     public DbSet<UnitOccupancyHistory> UnitOccupancyHistories => Set<UnitOccupancyHistory>();
+    public DbSet<AssetType> AssetTypes => Set<AssetType>();
+    public DbSet<AssetEventType> AssetEventTypes => Set<AssetEventType>();
+    public DbSet<Asset> Assets => Set<Asset>();
+    public DbSet<AssetEvent> AssetEvents => Set<AssetEvent>();
+    public DbSet<AssetGalleryFile> AssetGalleryFiles => Set<AssetGalleryFile>();
+    public DbSet<AssetDocument> AssetDocuments => Set<AssetDocument>();
+    public DbSet<AssetEventFile> AssetEventFiles => Set<AssetEventFile>();
 
     public async Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)

@@ -30,6 +30,7 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<PhysicalStructureService>();
 builder.Services.AddScoped<PartyOccupancyService>();
 builder.Services.AddScoped<FileManagementService>();
+builder.Services.AddScoped<AssetManagementService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 
@@ -63,6 +64,7 @@ app.MapHealthChecks("/health");
 app.MapPhysicalStructureEndpoints();
 app.MapFileManagementEndpoints();
 app.MapPartyOccupancyEndpoints();
+app.MapAssetEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedDevelopmentData"))
 {
@@ -70,6 +72,7 @@ if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("See
     var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
     await db.Database.MigrateAsync();
     await DevelopmentSeeder.SeedAsync(db, CancellationToken.None);
+    await AssetDevelopmentSeeder.SeedAsync(db, CancellationToken.None);
 }
 app.Run();
 
