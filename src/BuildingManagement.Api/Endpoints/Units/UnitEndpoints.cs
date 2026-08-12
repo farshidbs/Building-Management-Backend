@@ -2,9 +2,9 @@ using BuildingManagement.Application;
 
 namespace BuildingManagement.Api;
 
-public static partial class Endpoints
+internal static class UnitEndpoints
 {
-    private static void MapUnits(RouteGroupBuilder api)
+    internal static void MapUnitEndpoints(this RouteGroupBuilder api)
     {
         api.MapPost("/buildings/{buildingCode}/units",
             async (string buildingCode, UnitRequest request, PhysicalStructureService service, CancellationToken ct) =>
@@ -17,7 +17,7 @@ public static partial class Endpoints
         api.MapGet("/buildings/{buildingCode}/units", (string buildingCode, int? floorNumber,
             string? usageTypeKey, string? statusKey, string? search, bool? isActive, int? pageNumber,
             int? pageSize, string? sortBy, string? sortDirection, PhysicalStructureService service, CancellationToken ct) =>
-            service.GetUnits(buildingCode, Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection),
+            service.GetUnits(buildingCode, EndpointRegistration.Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection),
                 floorNumber, usageTypeKey, statusKey, ct)).WithTags("Units");
         api.MapPut("/units/{code}", (string code, UnitUpdateRequest request, PhysicalStructureService service, CancellationToken ct) =>
             service.UpdateUnit(code, request, ct)).WithTags("Units");

@@ -1,0 +1,53 @@
+using BuildingManagement.Domain;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace BuildingManagement.Application;
+
+public sealed partial class AssetManagementService
+{
+    public async Task<AssetResponse> Create(AssetRequest request, CancellationToken ct)
+    {
+        Validate(request);
+        var typeId = await RefId(db.AssetTypes, request.AssetTypeKey, "asset_type", ct);
+        var complexId = await ComplexId(request.ComplexCode, true, ct);
+        var buildingId = await BuildingId(request.BuildingCode, true, ct);
+        var asset = new Asset(await UniqueCode(db.Assets, ct), typeId, complexId, buildingId, request.Name,
+            request.Brand, request.Model, request.SerialNumber, request.InstallationDate, request.PurchaseDate,
+            request.SuggestedReviewIntervalDays, request.Description, Now);
+        db.Assets.Add(asset); await Save(ct); return await Get(asset.Code, ct);
+    }
+
+    public async Task<AssetResponse> Get(string code, CancellationToken ct) =>
+        await Projection(db.Assets.AsNoTracking().Where(x => x.Code == Normalize(code))).SingleOrDefaultAsync(ct)
+        ?? throw AppException.NotFound("asset");
+
+    public async Task<Page<AssetResponse>> List(PageQuery query, string? complexCode, string? buildingCode,
+        string? assetTypeKey, CancellationToken ct)
+    {
+        var (number, size) = query.Validated();
+        var complexId = await ComplexId(complexCode, false, ct); var buildingId = await BuildingId(buildingCode, false, ct);
+        long? typeId = string.IsNullOrWhiteSpace(assetTypeKey) ? null : await RefId(db.AssetTypes, assetTypeKey, "asset_type", ct);
+        var source = db.Assets.AsNoTracking().Where(x => (!query.IsActive.HasValue || x.IsActive == query.IsActive) &&
+            (!complexId.HasValue || x.ComplexId == complexId) && (!buildingId.HasValue || x.BuildingId == buildingId) &&
+            (!typeId.HasValue || x.AssetTypeId == typeId) && (string.IsNullOrWhiteSpace(query.Search) || x.Name.Contains(query.Search)));
+        var total = await source.CountAsync(ct);
+        source = query.SortDirection.Equals("desc", StringComparison.OrdinalIgnoreCase)
+            ? source.OrderByDescending(x => x.Name).ThenByDescending(x => x.Id) : source.OrderBy(x => x.Name).ThenBy(x => x.Id);
+        return new(await Projection(source.Skip((number - 1) * size).Take(size)).ToListAsync(ct), number, size, total);
+    }
+
+    public async Task<AssetResponse> Update(string code, AssetRequest request, CancellationToken ct)
+    {
+        Validate(request); var asset = await Entity(code, ct);
+        var typeId = await RefId(db.AssetTypes, request.AssetTypeKey, "asset_type", ct);
+        asset.Update(typeId, await ComplexId(request.ComplexCode, true, ct), await BuildingId(request.BuildingCode, true, ct),
+            request.Name, request.Brand, request.Model, request.SerialNumber, request.InstallationDate, request.PurchaseDate,
+            request.SuggestedReviewIntervalDays, request.Description, Now);
+        await Save(ct); return await Get(asset.Code, ct);
+    }
+
+    public async Task Activate(string code, bool active, CancellationToken ct)
+    { var asset = await Entity(code, ct); asset.SetActivation(active, Now); await Save(ct); }
+
+}

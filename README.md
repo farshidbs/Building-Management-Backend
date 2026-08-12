@@ -5,7 +5,7 @@
 The solution keeps its existing layered modular-monolith boundaries while grouping source files by feature:
 
 - `BuildingManagement.Domain`: shared primitives in `Common`, with entities grouped under `Locations`, `Complexes`, `Buildings`, `Units`, `Parties`, `Assets`, and `Files`.
-- `BuildingManagement.Application`: shared application primitives in `Common`, with feature contracts and services grouped under `PhysicalStructure`, `Parties`, `Assets`, and `Files`.
+- `BuildingManagement.Application`: shared application primitives in `Common`, with feature contracts and service responsibilities discoverable under `Locations`, `Complexes`, `Buildings`, `Units`, `Parties`, `Assets`, and `Files`.
 - `BuildingManagement.Infrastructure`: EF Core context and one configuration class per file under `Persistence`, deterministic seeds under `Persistence/Seeds`, and concrete local storage under `FileStorage`.
 - `BuildingManagement.Api`: Minimal API mappings under `Endpoints`, grouped by feature, with error handling kept separate.
 - Unit tests are grouped by feature; integration tests retain their shared SQL Server fixture and lifecycle.

@@ -2,9 +2,9 @@ using BuildingManagement.Application;
 
 namespace BuildingManagement.Api;
 
-public static partial class Endpoints
+internal static class ComplexEndpoints
 {
-    private static void MapComplexes(RouteGroupBuilder api)
+    internal static void MapComplexEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/complexes").WithTags("Complexes");
         group.MapPost("/", async (ComplexRequest request, PhysicalStructureService service, CancellationToken ct) =>
@@ -16,7 +16,7 @@ public static partial class Endpoints
             service.GetComplex(code, ct));
         group.MapGet("/", (string? locationCode, string? search, bool? isActive, int? pageNumber,
             int? pageSize, string? sortBy, string? sortDirection, PhysicalStructureService service, CancellationToken ct) =>
-            service.GetComplexes(Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection), locationCode, ct));
+            service.GetComplexes(EndpointRegistration.Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection), locationCode, ct));
         group.MapPut("/{code}", (string code, ComplexRequest request, PhysicalStructureService service, CancellationToken ct) =>
             service.UpdateComplex(code, request, ct));
         group.MapPatch("/{code}/activation", async (string code, ActivationRequest request, PhysicalStructureService service, CancellationToken ct) =>

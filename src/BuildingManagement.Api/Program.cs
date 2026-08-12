@@ -61,10 +61,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 app.MapHealthChecks("/health");
-app.MapPhysicalStructureEndpoints();
-app.MapFileManagementEndpoints();
-app.MapPartyOccupancyEndpoints();
-app.MapAssetEndpoints();
+app.MapApiEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedDevelopmentData"))
 {

@@ -2,9 +2,9 @@ using BuildingManagement.Application;
 
 namespace BuildingManagement.Api;
 
-public static partial class Endpoints
+internal static class LocationEndpoints
 {
-    private static void MapLocations(RouteGroupBuilder api)
+    internal static void MapLocationEndpoints(this RouteGroupBuilder api)
     {
         var group = api.MapGroup("/locations").WithTags("Locations");
         group.MapPost("/", async (LocationRequest request, PhysicalStructureService service, CancellationToken ct) =>
@@ -17,7 +17,7 @@ public static partial class Endpoints
         group.MapGet("/", (string? parentCode, string? locationTypeKey, string? search, bool? isActive,
             int? pageNumber, int? pageSize, string? sortBy, string? sortDirection,
             PhysicalStructureService service, CancellationToken ct) =>
-            service.GetLocations(Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection),
+            service.GetLocations(EndpointRegistration.Query(pageNumber, pageSize, search, isActive, sortBy, sortDirection),
                 parentCode, locationTypeKey, ct));
         group.MapPut("/{code}", (string code, LocationRequest request, PhysicalStructureService service, CancellationToken ct) =>
             service.UpdateLocation(code, request, ct));
