@@ -391,7 +391,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_AssetGalleryFiles_AssetId",
+                name: "UX_AssetGalleryFiles_ActiveCover",
                 schema: "bms",
                 table: "AssetGalleryFiles",
                 column: "AssetId",

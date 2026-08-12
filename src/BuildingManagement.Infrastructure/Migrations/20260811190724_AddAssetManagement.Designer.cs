@@ -487,7 +487,8 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("AssetId")
                         .IsUnique()
-                        .HasFilter("[IsActive] = CAST(1 AS bit) AND [IsCover] = CAST(1 AS bit)");
+                        .HasFilter("[IsActive] = CAST(1 AS bit) AND [IsCover] = CAST(1 AS bit)")
+                        .HasDatabaseName("UX_AssetGalleryFiles_ActiveCover");
 
                     b.HasIndex("IsActive");
 

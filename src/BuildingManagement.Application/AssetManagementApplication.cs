@@ -300,7 +300,15 @@ public sealed class AssetManagementService(IApplicationDbContext db, IFileStorag
     private static async Task<string> UniqueCode<T>(IQueryable<T> set, CancellationToken ct) where T : Entity { for (var i = 0; i < 20; i++) { var code = PublicCode.Create(); if (!await set.AnyAsync(x => x.Code == code, ct)) return code; } throw new AppException(500, "code.generation_failed", "A unique public code could not be generated."); }
     private async Task Save(CancellationToken ct) { try { await db.SaveChangesAsync(ct); } catch (DbUpdateConcurrencyException) { throw AppException.Conflict("concurrency.conflict", "The resource changed since it was read."); } catch (DbUpdateException) { throw AppException.Conflict("persistence.conflict", "The change conflicts with existing data."); } }
     private static void Validate(AssetRequest? r) { if (r is null) throw Validation("request", "A request body is required."); if (string.IsNullOrWhiteSpace(r.AssetTypeKey)) throw Validation("assetTypeKey", "Asset type is required."); if (string.IsNullOrWhiteSpace(r.Name)) throw Validation("name", "Name is required."); if (string.IsNullOrWhiteSpace(r.ComplexCode) == string.IsNullOrWhiteSpace(r.BuildingCode)) throw Validation("scope", "Exactly one of complexCode or buildingCode is required."); }
-    private static void Validate(AssetEventRequest? r) { if (r is null) throw Validation("request", "A request body is required."); if (string.IsNullOrWhiteSpace(r.EventTypeKey)) throw Validation("eventTypeKey", "Event type is required."); if (string.IsNullOrWhiteSpace(r.Title)) throw Validation("title", "Title is required."); }
+    private static void Validate(AssetEventRequest? r)
+    {
+        if (r is null) throw Validation("request", "A request body is required.");
+        if (string.IsNullOrWhiteSpace(r.EventTypeKey))
+            throw Validation("eventTypeKey", "Event type is required.");
+        if (r.EventDate == default)
+            throw Validation("eventDate", "Event date is required.");
+        if (string.IsNullOrWhiteSpace(r.Title)) throw Validation("title", "Title is required.");
+    }
     private static AppException Validation(string field, string message) => new(400, "validation.failed", "One or more validation errors occurred.", new Dictionary<string, string[]> { [field] = [message] });
 
     private IQueryable<AssetResponse> Projection(IQueryable<Asset> q) => q.Select(x => new AssetResponse(x.Code,

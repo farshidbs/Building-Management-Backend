@@ -52,7 +52,7 @@ For UnitPartyRelation, `EndDate = null` means ongoing and a non-null EndDate mea
 in one transaction. An occupied Unit requires an active tenant/resident relation; a vacant
 Unit has no active occupancy relation but may retain ownership.
 
-Deletes are restricted. Future names, schemas not final: Party, User, UnitPartyRelation, BuildingRole, AssetType, BuildingAsset, BuildingAssetEvent, BuildingAssetSchedule, BuildingAssetScheduleNotificationRecipient, BuildingPeriod, ExpenseType, BuildingExpenseTypeSetting, BuildingPeriodExpenseDetail, ExpenseDistribution, BuildingPeriodCharge, UnitAccount, LedgerTransaction, Payment, Notification, Attachment.
+Deletes are restricted. Future names and schemas for unrelated domains are not final. The approved Asset design does not include AssetSchedule, schedule-notification recipients, reminders, or notifications; suggested review dates remain derived data only.
 
 ## Migration baseline
 

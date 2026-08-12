@@ -496,6 +496,11 @@ public sealed class ApiScenarios : IAsyncLifetime
                 AssetReferenceKeys.EventTypes.Maintenance, eventDate, "نامعتبر", null, null,
                 "ZZZZZ", null));
         Assert.Equal(HttpStatusCode.NotFound, missingProvider.StatusCode);
+        using var defaultEventDate = await client.PostAsJsonAsync(
+            $"/api/v1/assets/{buildingAsset.Code}/events", new AssetEventRequest(
+                AssetReferenceKeys.EventTypes.Inspection, default, "تاریخ نامعتبر", null,
+                null, null, null));
+        Assert.Equal(HttpStatusCode.BadRequest, defaultEventDate.StatusCode);
 
         var changedScope = await Put<AssetResponse>($"/api/v1/assets/{buildingAsset.Code}", new AssetRequest(
             AssetReferenceKeys.Types.Elevator, complex.Code, null, "آسانسور ویرایش‌شده", "برند جدید",

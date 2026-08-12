@@ -92,7 +92,10 @@ internal sealed class AssetGalleryFileConfiguration : IEntityTypeConfiguration<A
         builder.Property(x => x.AltText).HasMaxLength(300);
         builder.HasOne<Asset>().WithMany().HasForeignKey(x => x.AssetId).OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => new { x.AssetId, x.SortOrder });
-        builder.HasIndex(x => x.AssetId).IsUnique().HasFilter("[IsActive] = CAST(1 AS bit) AND [IsCover] = CAST(1 AS bit)");
+        builder.HasIndex(x => x.AssetId)
+            .HasDatabaseName("UX_AssetGalleryFiles_ActiveCover")
+            .IsUnique()
+            .HasFilter("[IsActive] = CAST(1 AS bit) AND [IsCover] = CAST(1 AS bit)");
     }
 }
 
