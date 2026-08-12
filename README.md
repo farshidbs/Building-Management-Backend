@@ -1,5 +1,17 @@
 # Building Management Backend
 
+## Project structure
+
+The solution keeps its existing layered modular-monolith boundaries while grouping source files by feature:
+
+- `BuildingManagement.Domain`: shared primitives in `Common`, with entities grouped under `Locations`, `Complexes`, `Buildings`, `Units`, `Parties`, `Assets`, and `Files`.
+- `BuildingManagement.Application`: shared application primitives in `Common`, with feature contracts and services grouped under `PhysicalStructure`, `Parties`, `Assets`, and `Files`.
+- `BuildingManagement.Infrastructure`: EF Core context and one configuration class per file under `Persistence`, deterministic seeds under `Persistence/Seeds`, and concrete local storage under `FileStorage`.
+- `BuildingManagement.Api`: Minimal API mappings under `Endpoints`, grouped by feature, with error handling kept separate.
+- Unit tests are grouped by feature; integration tests retain their shared SQL Server fixture and lifecycle.
+
+Namespaces and public contracts intentionally remain unchanged. Folder organization is for navigation and does not alter API or persistence behavior.
+
 Production-oriented .NET 10 modular monolith implementing hierarchical physical structure,
 file management, reusable Parties, historical Unit relationships, and transactional occupancy.
 

@@ -1,0 +1,67 @@
+using BuildingManagement.Domain;
+using Microsoft.EntityFrameworkCore;
+
+namespace BuildingManagement.Application;
+
+public interface IApplicationDbContext
+{
+    DbSet<LocationType> LocationTypes { get; }
+    DbSet<BuildingType> BuildingTypes { get; }
+    DbSet<UnitUsageType> UnitUsageTypes { get; }
+    DbSet<UnitStatus> UnitStatuses { get; }
+    DbSet<DocumentType> DocumentTypes { get; }
+    DbSet<PartyType> PartyTypes { get; }
+    DbSet<PartyContactType> PartyContactTypes { get; }
+    DbSet<UnitPartyRelationType> UnitPartyRelationTypes { get; }
+    DbSet<Location> Locations { get; }
+    DbSet<Complex> Complexes { get; }
+    DbSet<Building> Buildings { get; }
+    DbSet<Unit> Units { get; }
+    DbSet<StoredFile> StoredFiles { get; }
+    DbSet<BuildingGalleryFile> BuildingGalleryFiles { get; }
+    DbSet<ComplexGalleryFile> ComplexGalleryFiles { get; }
+    DbSet<BuildingDocument> BuildingDocuments { get; }
+    DbSet<ComplexDocument> ComplexDocuments { get; }
+    DbSet<Party> Parties { get; }
+    DbSet<PartyContact> PartyContacts { get; }
+    DbSet<UnitPartyRelation> UnitPartyRelations { get; }
+    DbSet<UnitOccupancyHistory> UnitOccupancyHistories { get; }
+    DbSet<AssetType> AssetTypes { get; }
+    DbSet<AssetEventType> AssetEventTypes { get; }
+    DbSet<Asset> Assets { get; }
+    DbSet<AssetEvent> AssetEvents { get; }
+    DbSet<AssetGalleryFile> AssetGalleryFiles { get; }
+    DbSet<AssetDocument> AssetDocuments { get; }
+    DbSet<AssetEventFile> AssetEventFiles { get; }
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    void Detach(object entity);
+    Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
+        CancellationToken cancellationToken);
+}
+
+public sealed class AppException(int status, string code, string message, IDictionary<string, string[]>? errors = null) : Exception(message)
+{
+    public int Status { get; } = status;
+    public string Code { get; } = code;
+    public IDictionary<string, string[]>? Errors { get; } = errors;
+    public static AppException NotFound(string resource) => new(404, $"{resource}.not_found", $"{resource} was not found.");
+    public static AppException Conflict(string code, string message) => new(409, code, message);
+}
+
+public sealed record Page<T>(IReadOnlyList<T> Items, int PageNumber, int PageSize, int TotalCount)
+{
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
+
+public sealed record PageQuery(int PageNumber = 1, int PageSize = 20, string? Search = null,
+    bool? IsActive = null, string SortBy = "name", string SortDirection = "asc")
+{
+    public (int Number, int Size) Validated() =>
+        PageNumber < 1 || PageSize is < 1 or > 100
+            ? throw new AppException(400, "validation.failed", "Pagination values are invalid.",
+                new Dictionary<string, string[]> { ["pagination"] = ["pageNumber must be at least 1 and pageSize must be between 1 and 100."] })
+            : (PageNumber, PageSize);
+}
+
+public sealed record ReferenceValueResponse(string Key, string Title);
+public sealed record ResourceReferenceResponse(string Code, string Name);
