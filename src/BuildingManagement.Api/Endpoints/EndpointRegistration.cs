@@ -7,7 +7,7 @@ public static class EndpointRegistration
     public static void MapApiEndpoints(this WebApplication app)
     {
         var api = app.MapGroup("/api/v1");
-        api.MapGet("/reference-data", (PhysicalStructureService service, CancellationToken ct) =>
+        api.MapGet("/reference-data", (ReferenceDataService service, CancellationToken ct) =>
             service.GetReferenceData(ct)).WithTags("Reference Data");
         api.MapLocationEndpoints();
         api.MapComplexEndpoints();

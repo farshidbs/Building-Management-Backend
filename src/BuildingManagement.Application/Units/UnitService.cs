@@ -3,46 +3,49 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class PhysicalStructureService
+public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, UnitOccupancyService occupancyService) : PhysicalStructureServiceBase(db, clock)
 {
+    public Task Activate(string code, bool active, CancellationToken ct) => Activate("unit", code, active, ct);
+    public Task Delete(string code, CancellationToken ct) => Delete("unit", code, ct);
+
     public async Task<UnitResponse> CreateUnit(string buildingCode, UnitRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
-        var buildingId = await db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
+        var buildingId = await Db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
-        var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
-        var statusId = await ReferenceId(db.UnitStatuses, request.StatusKey, "unit_status", ct);
+        var usageTypeId = await ReferenceId(Db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
+        var statusId = await ReferenceId(Db.UnitStatuses, request.StatusKey, "unit_status", ct);
         RejectOccupancyStatus(request.StatusKey);
-        var entity = new Unit(await UniqueCode(db.Units, ct), buildingId, usageTypeId, statusId,
+        var entity = new Unit(await UniqueCode(Db.Units, ct), buildingId, usageTypeId, statusId,
             request.UnitNumber, request.FloorNumber, request.Area, request.RoomsCount, request.ParkingCount,
             request.StorageCount, request.Description, Now);
         await EnsureUnitNumber(entity, null, ct);
-        await db.ExecuteInTransaction(async token =>
+        await Db.ExecuteInTransaction(async token =>
         {
-            db.Units.Add(entity);
-            await partyOccupancy.OnboardUnit(entity, request.Occupancy!, token);
+            Db.Units.Add(entity);
+            await occupancyService.OnboardUnit(entity, request.Occupancy!, token);
             return entity.Code;
         }, ct);
         return await GetUnit(entity.Code, ct);
     }
 
     public async Task<UnitResponse> GetUnit(string code, CancellationToken ct) =>
-        await UnitProjection(db.Units.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
+        await UnitProjection(Db.Units.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
         ?? throw AppException.NotFound("unit");
 
     public async Task<Page<UnitResponse>> GetUnits(string buildingCode, PageQuery page, int? floor,
         string? usageTypeKey, string? statusKey, CancellationToken ct)
     {
         var (number, size) = page.Validated();
-        var buildingId = await db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
+        var buildingId = await Db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
         long? usageTypeId = string.IsNullOrWhiteSpace(usageTypeKey)
             ? null
-            : await ReferenceId(db.UnitUsageTypes, usageTypeKey, "unit_usage_type", ct);
+            : await ReferenceId(Db.UnitUsageTypes, usageTypeKey, "unit_usage_type", ct);
         long? statusId = string.IsNullOrWhiteSpace(statusKey)
             ? null
-            : await ReferenceId(db.UnitStatuses, statusKey, "unit_status", ct);
-        var query = db.Units.AsNoTracking().Where(x => x.BuildingId == buildingId);
+            : await ReferenceId(Db.UnitStatuses, statusKey, "unit_status", ct);
+        var query = Db.Units.AsNoTracking().Where(x => x.BuildingId == buildingId);
         if (floor.HasValue) query = query.Where(x => x.FloorNumber == floor);
         if (usageTypeId.HasValue) query = query.Where(x => x.UsageTypeId == usageTypeId);
         if (statusId.HasValue) query = query.Where(x => x.StatusId == statusId);
@@ -54,10 +57,10 @@ public sealed partial class PhysicalStructureService
     public async Task<UnitResponse> UpdateUnit(string code, UnitUpdateRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
-        var entity = await db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
+        var entity = await Db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("unit");
-        var usageTypeId = await ReferenceId(db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
-        var statusId = await ReferenceId(db.UnitStatuses, request.StatusKey, "unit_status", ct);
+        var usageTypeId = await ReferenceId(Db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
+        var statusId = await ReferenceId(Db.UnitStatuses, request.StatusKey, "unit_status", ct);
         RejectOccupancyStatus(request.StatusKey);
         entity.Update(usageTypeId, statusId, request.UnitNumber, request.FloorNumber, request.Area,
             request.RoomsCount, request.ParkingCount, request.StorageCount, request.Description, Now);

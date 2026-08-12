@@ -3,14 +3,24 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class PartyOccupancyService
+public sealed class UnitOccupancyService(IApplicationDbContext db, TimeProvider clock) : PartyOccupancyServiceBase(db, clock)
 {
+    public async Task<IReadOnlyList<UnitOccupancyHistoryResponse>> GetOccupancyHistory(
+        string unitCode, CancellationToken ct)
+    {
+        var unitId = await UnitId(unitCode, ct);
+        return await Db.UnitOccupancyHistories.AsNoTracking().Where(x => x.UnitId == unitId)
+            .OrderByDescending(x => x.EffectiveFrom)
+            .Select(x => new UnitOccupancyHistoryResponse(x.OccupantsCount, x.EffectiveFrom,
+                x.EffectiveTo, x.Notes, x.IsActive)).ToListAsync(ct);
+    }
+
     public async Task OnboardUnit(Unit unit, UnitOccupancyRequest request, CancellationToken ct)
     {
         ValidateOccupancy(request);
         await Save(ct);
         unit.ChangeOccupancy(request.OccupantsCount, Now);
-        db.UnitOccupancyHistories.Add(new UnitOccupancyHistory(unit.Id, request.OccupantsCount,
+        Db.UnitOccupancyHistories.Add(new UnitOccupancyHistory(unit.Id, request.OccupantsCount,
             request.EffectiveFrom, request.Notes, Now));
         var relations = request.Relations ?? [];
         foreach (var input in relations)
@@ -29,11 +39,11 @@ public sealed partial class PartyOccupancyService
         if (request is null) throw Validation("request", "A request body is required.");
         if (request.OccupantsCount < 0)
             throw Validation("occupantsCount", "Must not be negative.");
-        return await db.ExecuteInTransaction(async token =>
+        return await Db.ExecuteInTransaction(async token =>
         {
-            var unit = await db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(unitCode), token)
+            var unit = await Db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(unitCode), token)
                 ?? throw AppException.NotFound("unit");
-            var current = await db.UnitOccupancyHistories.SingleOrDefaultAsync(x =>
+            var current = await Db.UnitOccupancyHistories.SingleOrDefaultAsync(x =>
                 x.UnitId == unit.Id && x.IsActive && x.EffectiveTo == null, token)
                 ?? throw AppException.Conflict("occupancy.history_missing",
                     "The unit has no current occupancy history.");
@@ -51,7 +61,7 @@ public sealed partial class PartyOccupancyService
                 throw Validation("occupancyRelations",
                     "An occupied unit requires at least one active tenant or resident relation.");
             unit.ChangeOccupancy(request.OccupantsCount, Now);
-            db.UnitOccupancyHistories.Add(new UnitOccupancyHistory(unit.Id, request.OccupantsCount,
+            Db.UnitOccupancyHistories.Add(new UnitOccupancyHistory(unit.Id, request.OccupantsCount,
                 request.EffectiveFrom, request.Notes, Now));
             await Save(token);
             return Current(unit.CurrentOccupantsCount);

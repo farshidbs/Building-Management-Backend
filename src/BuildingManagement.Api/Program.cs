@@ -27,10 +27,21 @@ var fileStorageOptions = builder.Configuration.GetSection("FileStorage").Get<Fil
 builder.Services.AddSingleton(fileStorageOptions);
 builder.Services.AddSingleton<IFileStorage>(new LocalFileStorage(fileStorageOptions, builder.Environment.ContentRootPath));
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddScoped<PhysicalStructureService>();
-builder.Services.AddScoped<PartyOccupancyService>();
-builder.Services.AddScoped<FileManagementService>();
-builder.Services.AddScoped<AssetManagementService>();
+builder.Services.AddScoped<ReferenceDataService>();
+builder.Services.AddScoped<LocationService>();
+builder.Services.AddScoped<ComplexService>();
+builder.Services.AddScoped<BuildingService>();
+builder.Services.AddScoped<UnitService>();
+builder.Services.AddScoped<PartyService>();
+builder.Services.AddScoped<PartyContactService>();
+builder.Services.AddScoped<UnitPartyRelationService>();
+builder.Services.AddScoped<UnitOccupancyService>();
+builder.Services.AddScoped<StoredFileService>();
+builder.Services.AddScoped<BuildingComplexGalleryService>();
+builder.Services.AddScoped<BuildingComplexDocumentService>();
+builder.Services.AddScoped<AssetService>();
+builder.Services.AddScoped<AssetEventService>();
+builder.Services.AddScoped<AssetFileService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 

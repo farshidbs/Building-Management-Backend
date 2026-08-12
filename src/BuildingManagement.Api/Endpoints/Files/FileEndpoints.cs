@@ -1,4 +1,4 @@
-﻿using BuildingManagement.Application;
+using BuildingManagement.Application;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BuildingManagement.Api;
@@ -14,7 +14,7 @@ public static class FileEndpoints
         var api = app.MapGroup("/api/v1");
         MapBuildingFiles(api);
         MapComplexFiles(api);
-        api.MapGet("/files/{fileCode}/content", async (string fileCode, FileManagementService service, CancellationToken ct) =>
+        api.MapGet("/files/{fileCode}/content", async (string fileCode, StoredFileService service, CancellationToken ct) =>
         {
             var file = await service.GetContent(fileCode, ct);
             return Results.File(file.Content, file.ContentType, file.Inline ? null : file.OriginalFileName, enableRangeProcessing: true);
@@ -25,7 +25,7 @@ public static class FileEndpoints
     {
         var gallery = api.MapGroup("/buildings/{buildingCode}/gallery").WithTags("Building Gallery");
         gallery.MapPost("/", async ([FromRoute] string buildingCode, [FromForm] GalleryUploadForm form,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
         {
             var (incoming, stream) = Open(form.File);
             await using (stream)
@@ -35,13 +35,13 @@ public static class FileEndpoints
                 return Results.Created($"/api/v1/buildings/{buildingCode}/gallery/{response.Code}", response);
             }
         }).DisableAntiforgery();
-        gallery.MapGet("/", (string buildingCode, FileManagementService service, CancellationToken ct) =>
+        gallery.MapGet("/", (string buildingCode, BuildingComplexGalleryService service, CancellationToken ct) =>
             service.GetBuildingGallery(buildingCode, ct));
         gallery.MapPut("/{galleryCode}", (string buildingCode, string galleryCode, GalleryMetadataRequest request,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
             service.UpdateBuildingGallery(buildingCode, galleryCode, request, ct));
         gallery.MapDelete("/{galleryCode}", async (string buildingCode, string galleryCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
         {
             await service.DeleteBuildingGallery(buildingCode, galleryCode, ct);
             return Results.NoContent();
@@ -49,7 +49,7 @@ public static class FileEndpoints
 
         var documents = api.MapGroup("/buildings/{buildingCode}/documents").WithTags("Building Documents");
         documents.MapPost("/", async ([FromRoute] string buildingCode, [FromForm] DocumentUploadForm form,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
         {
             var (incoming, stream) = Open(form.File);
             await using (stream)
@@ -59,16 +59,16 @@ public static class FileEndpoints
                 return Results.Created($"/api/v1/buildings/{buildingCode}/documents/{response.Code}", response);
             }
         }).DisableAntiforgery();
-        documents.MapGet("/", (string buildingCode, FileManagementService service, CancellationToken ct) =>
+        documents.MapGet("/", (string buildingCode, BuildingComplexDocumentService service, CancellationToken ct) =>
             service.GetBuildingDocuments(buildingCode, ct));
         documents.MapGet("/{documentCode}", (string buildingCode, string documentCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
             service.GetBuildingDocument(buildingCode, documentCode, ct));
         documents.MapPut("/{documentCode}", (string buildingCode, string documentCode, DocumentMetadataRequest request,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
             service.UpdateBuildingDocument(buildingCode, documentCode, request, ct));
         documents.MapDelete("/{documentCode}", async (string buildingCode, string documentCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
         {
             await service.DeleteBuildingDocument(buildingCode, documentCode, ct);
             return Results.NoContent();
@@ -79,7 +79,7 @@ public static class FileEndpoints
     {
         var gallery = api.MapGroup("/complexes/{complexCode}/gallery").WithTags("Complex Gallery");
         gallery.MapPost("/", async ([FromRoute] string complexCode, [FromForm] GalleryUploadForm form,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
         {
             var (incoming, stream) = Open(form.File);
             await using (stream)
@@ -89,13 +89,13 @@ public static class FileEndpoints
                 return Results.Created($"/api/v1/complexes/{complexCode}/gallery/{response.Code}", response);
             }
         }).DisableAntiforgery();
-        gallery.MapGet("/", (string complexCode, FileManagementService service, CancellationToken ct) =>
+        gallery.MapGet("/", (string complexCode, BuildingComplexGalleryService service, CancellationToken ct) =>
             service.GetComplexGallery(complexCode, ct));
         gallery.MapPut("/{galleryCode}", (string complexCode, string galleryCode, GalleryMetadataRequest request,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
             service.UpdateComplexGallery(complexCode, galleryCode, request, ct));
         gallery.MapDelete("/{galleryCode}", async (string complexCode, string galleryCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexGalleryService service, CancellationToken ct) =>
         {
             await service.DeleteComplexGallery(complexCode, galleryCode, ct);
             return Results.NoContent();
@@ -103,7 +103,7 @@ public static class FileEndpoints
 
         var documents = api.MapGroup("/complexes/{complexCode}/documents").WithTags("Complex Documents");
         documents.MapPost("/", async ([FromRoute] string complexCode, [FromForm] DocumentUploadForm form,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
         {
             var (incoming, stream) = Open(form.File);
             await using (stream)
@@ -113,16 +113,16 @@ public static class FileEndpoints
                 return Results.Created($"/api/v1/complexes/{complexCode}/documents/{response.Code}", response);
             }
         }).DisableAntiforgery();
-        documents.MapGet("/", (string complexCode, FileManagementService service, CancellationToken ct) =>
+        documents.MapGet("/", (string complexCode, BuildingComplexDocumentService service, CancellationToken ct) =>
             service.GetComplexDocuments(complexCode, ct));
         documents.MapGet("/{documentCode}", (string complexCode, string documentCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
             service.GetComplexDocument(complexCode, documentCode, ct));
         documents.MapPut("/{documentCode}", (string complexCode, string documentCode, DocumentMetadataRequest request,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
             service.UpdateComplexDocument(complexCode, documentCode, request, ct));
         documents.MapDelete("/{documentCode}", async (string complexCode, string documentCode,
-            FileManagementService service, CancellationToken ct) =>
+            BuildingComplexDocumentService service, CancellationToken ct) =>
         {
             await service.DeleteComplexDocument(complexCode, documentCode, ct);
             return Results.NoContent();

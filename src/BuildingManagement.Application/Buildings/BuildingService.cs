@@ -3,23 +3,26 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class PhysicalStructureService
+public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock) : PhysicalStructureServiceBase(db, clock)
 {
+    public Task Activate(string code, bool active, CancellationToken ct) => Activate("building", code, active, ct);
+    public Task Delete(string code, CancellationToken ct) => Delete("building", code, ct);
+
     public async Task<BuildingResponse> CreateBuilding(BuildingRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
-        var typeId = await ReferenceId(db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
-        var entity = new Building(await UniqueCode(db.Buildings, ct), parents.ComplexId, parents.LocationId,
+        var typeId = await ReferenceId(Db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
+        var entity = new Building(await UniqueCode(Db.Buildings, ct), parents.ComplexId, parents.LocationId,
             typeId, request.Name, request.Address, request.PostalCode, request.Latitude, request.Longitude,
             request.FloorsCount, request.ConstructionYear, request.Description, Now);
-        db.Buildings.Add(entity);
+        Db.Buildings.Add(entity);
         await Save(ct);
         return await GetBuilding(entity.Code, ct);
     }
 
     public async Task<BuildingResponse> GetBuilding(string code, CancellationToken ct) =>
-        await BuildingProjection(db.Buildings.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
+        await BuildingProjection(Db.Buildings.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
         ?? throw AppException.NotFound("building");
 
     public async Task<Page<BuildingResponse>> GetBuildings(PageQuery page, string? complexCode,
@@ -30,8 +33,8 @@ public sealed partial class PhysicalStructureService
         var locationId = await LocationId(locationCode, false, ct);
         long? typeId = string.IsNullOrWhiteSpace(buildingTypeKey)
             ? null
-            : await ReferenceId(db.BuildingTypes, buildingTypeKey, "building_type", ct);
-        var query = db.Buildings.AsNoTracking();
+            : await ReferenceId(Db.BuildingTypes, buildingTypeKey, "building_type", ct);
+        var query = Db.Buildings.AsNoTracking();
         if (!string.IsNullOrWhiteSpace(complexCode)) query = query.Where(x => x.ComplexId == complexId);
         if (!string.IsNullOrWhiteSpace(locationCode)) query = query.Where(x => x.LocationId == locationId);
         if (typeId.HasValue) query = query.Where(x => x.BuildingTypeId == typeId);
@@ -43,10 +46,10 @@ public sealed partial class PhysicalStructureService
     public async Task<BuildingResponse> UpdateBuilding(string code, BuildingRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
-        var entity = await db.Buildings.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
+        var entity = await Db.Buildings.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("building");
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
-        var typeId = await ReferenceId(db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
+        var typeId = await ReferenceId(Db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
         entity.Update(parents.ComplexId, parents.LocationId, typeId, request.Name, request.Address,
             request.PostalCode, request.Latitude, request.Longitude, request.FloorsCount,
             request.ConstructionYear, request.Description, Now);

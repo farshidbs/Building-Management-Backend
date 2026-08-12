@@ -4,21 +4,21 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class FileManagementService
+public sealed class StoredFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock) : FileManagementServiceBase(db, storage, options, clock)
 {
     public async Task<FileContentResponse> GetContent(string fileCode, CancellationToken ct)
     {
         var code = NormalizeCode(fileCode);
-        var stored = await db.StoredFiles.AsNoTracking()
+        var stored = await Db.StoredFiles.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Code == code && x.IsActive, ct)
             ?? throw AppException.NotFound("file");
-        if (!await storage.ExistsAsync(stored.StorageKey, ct))
+        if (!await Storage.ExistsAsync(stored.StorageKey, ct))
             throw AppException.NotFound("file");
-        var content = await storage.OpenReadAsync(stored.StorageKey, ct)
+        var content = await Storage.OpenReadAsync(stored.StorageKey, ct)
             ?? throw AppException.NotFound("file");
-        var inline = await db.BuildingGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
-                     await db.ComplexGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
-                     await db.AssetGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct);
+        var inline = await Db.BuildingGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
+                     await Db.ComplexGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct) ||
+                     await Db.AssetGalleryFiles.AnyAsync(x => x.StoredFileId == stored.Id && x.IsActive, ct);
         return new(content, stored.ContentType,
             FileStoragePolicy.SanitizeDownloadName(stored.OriginalFileName, stored.FileExtension), inline);
     }

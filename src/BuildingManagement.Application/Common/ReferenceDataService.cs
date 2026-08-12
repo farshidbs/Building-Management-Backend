@@ -3,17 +3,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class PhysicalStructureService
+public sealed class ReferenceDataService(IApplicationDbContext db, TimeProvider clock) : PhysicalStructureServiceBase(db, clock)
 {
     public async Task<ReferenceDataResponse> GetReferenceData(CancellationToken ct) =>
         new(
-            await ReferenceList(db.LocationTypes, ct),
-            await ReferenceList(db.BuildingTypes, ct),
-            await ReferenceList(db.UnitUsageTypes, ct),
-            await ReferenceList(db.UnitStatuses, ct),
-            await ReferenceList(db.DocumentTypes, ct),
-            await ReferenceList(db.PartyTypes, ct),
-            await ReferenceList(db.PartyContactTypes, ct),
-            await ReferenceList(db.UnitPartyRelationTypes, ct));
+            await ReferenceList(Db.LocationTypes, ct),
+            await ReferenceList(Db.BuildingTypes, ct),
+            await ReferenceList(Db.UnitUsageTypes, ct),
+            await ReferenceList(Db.UnitStatuses, ct),
+            await ReferenceList(Db.DocumentTypes, ct),
+            await ReferenceList(Db.PartyTypes, ct),
+            await ReferenceList(Db.PartyContactTypes, ct),
+            await ReferenceList(Db.UnitPartyRelationTypes, ct));
 
 }

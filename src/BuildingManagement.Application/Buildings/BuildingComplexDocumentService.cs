@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed partial class FileManagementService
+public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock) : FileManagementServiceBase(db, storage, options, clock)
 {
     public Task<DocumentFileResponse> UploadBuildingDocument(
         string buildingCode, IncomingFile incoming, DocumentMetadataRequest metadata, CancellationToken ct) =>
@@ -18,7 +18,7 @@ public sealed partial class FileManagementService
         string buildingCode, CancellationToken ct)
     {
         var buildingId = await BuildingId(buildingCode, false, ct);
-        return await BuildingDocumentProjection(db.BuildingDocuments.AsNoTracking()
+        return await BuildingDocumentProjection(Db.BuildingDocuments.AsNoTracking()
             .Where(x => x.BuildingId == buildingId && x.IsActive)
             .OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAtUtc)).ToListAsync(ct);
     }
@@ -27,7 +27,7 @@ public sealed partial class FileManagementService
         string complexCode, CancellationToken ct)
     {
         var complexId = await ComplexId(complexCode, false, ct);
-        return await ComplexDocumentProjection(db.ComplexDocuments.AsNoTracking()
+        return await ComplexDocumentProjection(Db.ComplexDocuments.AsNoTracking()
             .Where(x => x.ComplexId == complexId && x.IsActive)
             .OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAtUtc)).ToListAsync(ct);
     }
@@ -36,7 +36,7 @@ public sealed partial class FileManagementService
         string buildingCode, string documentCode, CancellationToken ct)
     {
         var buildingId = await BuildingId(buildingCode, false, ct);
-        return await BuildingDocumentProjection(db.BuildingDocuments.AsNoTracking().Where(x =>
+        return await BuildingDocumentProjection(Db.BuildingDocuments.AsNoTracking().Where(x =>
             x.BuildingId == buildingId && x.Code == NormalizeCode(documentCode) && x.IsActive))
             .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building_document");
     }
@@ -45,7 +45,7 @@ public sealed partial class FileManagementService
         string complexCode, string documentCode, CancellationToken ct)
     {
         var complexId = await ComplexId(complexCode, false, ct);
-        return await ComplexDocumentProjection(db.ComplexDocuments.AsNoTracking().Where(x =>
+        return await ComplexDocumentProjection(Db.ComplexDocuments.AsNoTracking().Where(x =>
             x.ComplexId == complexId && x.Code == NormalizeCode(documentCode) && x.IsActive))
             .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex_document");
     }

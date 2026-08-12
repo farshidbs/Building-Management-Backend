@@ -59,55 +59,53 @@ internal static class RequestValidation
             throw new AppException(400, "validation.failed", "One or more validation errors occurred.", errors);
     }
 }
-public sealed partial class PhysicalStructureService(
-    IApplicationDbContext db,
-    TimeProvider clock,
-    PartyOccupancyService partyOccupancy)
+public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, TimeProvider clock)
 {
-    private DateTimeOffset Now => clock.GetUtcNow();
+    protected IApplicationDbContext Db { get; } = db;
+    protected DateTimeOffset Now => clock.GetUtcNow();
 
-    public async Task Activate(string resource, string code, bool active, CancellationToken ct)
+    protected async Task Activate(string resource, string code, bool active, CancellationToken ct)
     {
         var normalized = NormalizeCode(code);
         Entity entity = resource switch
         {
-            "location" => await db.Locations.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
-            "complex" => await db.Complexes.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
-            "building" => await db.Buildings.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
-            "unit" => await db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
+            "location" => await Db.Locations.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
+            "complex" => await Db.Complexes.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
+            "building" => await Db.Buildings.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
+            "unit" => await Db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
             _ => throw new InvalidOperationException()
         };
         entity.SetActivation(active, Now);
         await Save(ct);
     }
 
-    public async Task Delete(string resource, string code, CancellationToken ct)
+    protected async Task Delete(string resource, string code, CancellationToken ct)
     {
         var normalized = NormalizeCode(code);
         switch (resource)
         {
             case "location":
-                var location = await db.Locations.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
-                if (await db.Locations.AnyAsync(x => x.ParentId == location.Id, ct) ||
-                    await db.Complexes.AnyAsync(x => x.LocationId == location.Id, ct) ||
-                    await db.Buildings.AnyAsync(x => x.LocationId == location.Id, ct))
+                var location = await Db.Locations.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                if (await Db.Locations.AnyAsync(x => x.ParentId == location.Id, ct) ||
+                    await Db.Complexes.AnyAsync(x => x.LocationId == location.Id, ct) ||
+                    await Db.Buildings.AnyAsync(x => x.LocationId == location.Id, ct))
                     throw AppException.Conflict("location.has_dependents", "Location has dependent records.");
-                db.Locations.Remove(location);
+                Db.Locations.Remove(location);
                 break;
             case "complex":
-                var complex = await db.Complexes.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
-                if (await db.Buildings.AnyAsync(x => x.ComplexId == complex.Id, ct))
+                var complex = await Db.Complexes.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                if (await Db.Buildings.AnyAsync(x => x.ComplexId == complex.Id, ct))
                     throw AppException.Conflict("complex.has_buildings", "Complex has buildings.");
-                db.Complexes.Remove(complex);
+                Db.Complexes.Remove(complex);
                 break;
             case "building":
-                var building = await db.Buildings.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
-                if (await db.Units.AnyAsync(x => x.BuildingId == building.Id, ct))
+                var building = await Db.Buildings.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                if (await Db.Units.AnyAsync(x => x.BuildingId == building.Id, ct))
                     throw AppException.Conflict("building.has_units", "Building has units.");
-                db.Buildings.Remove(building);
+                Db.Buildings.Remove(building);
                 break;
             case "unit":
-                db.Units.Remove(await db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource));
+                Db.Units.Remove(await Db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource));
                 break;
             default:
                 throw new InvalidOperationException();
@@ -115,15 +113,15 @@ public sealed partial class PhysicalStructureService(
         await Save(ct);
     }
 
-    private async Task Save(CancellationToken ct)
+    protected async Task Save(CancellationToken ct)
     {
-        try { await db.SaveChangesAsync(ct); }
+        try { await Db.SaveChangesAsync(ct); }
         catch (DbUpdateConcurrencyException) { throw AppException.Conflict("concurrency.conflict", "The resource changed since it was read."); }
         catch (DbUpdateException) { throw AppException.Conflict("persistence.conflict", "The change conflicts with existing data."); }
     }
 
-    private static string NormalizeCode(string code) => PublicCode.Normalize(code);
-    private static void RejectOccupancyStatus(string statusKey)
+    protected static string NormalizeCode(string code) => PublicCode.Normalize(code);
+    protected static void RejectOccupancyStatus(string statusKey)
     {
         var normalized = NormalizeKey(statusKey);
         if (normalized is ReferenceKeys.UnitStatuses.Occupied or ReferenceKeys.UnitStatuses.Vacant)
@@ -134,12 +132,12 @@ public sealed partial class PhysicalStructureService(
                     ["statusKey"] = ["Use an operational status; occupancy is supplied separately."]
                 });
     }
-    private static string NormalizeKey(string? key) =>
+    protected static string NormalizeKey(string? key) =>
         string.IsNullOrWhiteSpace(key)
             ? throw new AppException(400, "validation.failed", "Reference key is required.")
             : key.Trim().ToLowerInvariant();
 
-    private static async Task<string> UniqueCode<T>(IQueryable<T> set, CancellationToken ct) where T : Entity
+    protected static async Task<string> UniqueCode<T>(IQueryable<T> set, CancellationToken ct) where T : Entity
     {
         for (var attempt = 0; attempt < 20; attempt++)
         {
@@ -149,35 +147,35 @@ public sealed partial class PhysicalStructureService(
         throw new AppException(500, "code.generation_failed", "A unique public code could not be generated.");
     }
 
-    private static async Task<long> ReferenceId<T>(IQueryable<T> set, string key, string resource, CancellationToken ct)
+    protected static async Task<long> ReferenceId<T>(IQueryable<T> set, string key, string resource, CancellationToken ct)
         where T : ReferenceDataItem =>
         await set.Where(x => x.Key == NormalizeKey(key) && x.IsActive).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
         ?? throw AppException.NotFound(resource);
 
-    private static Task<List<ReferenceValueResponse>> ReferenceList<T>(IQueryable<T> set, CancellationToken ct)
+    protected static Task<List<ReferenceValueResponse>> ReferenceList<T>(IQueryable<T> set, CancellationToken ct)
         where T : ReferenceDataItem =>
         set.AsNoTracking().Where(x => x.IsActive).OrderBy(x => x.SortOrder)
             .Select(x => new ReferenceValueResponse(x.Key, x.Title)).ToListAsync(ct);
 
-    private async Task<long?> LocationId(string? code, bool required, CancellationToken ct)
+    protected async Task<long?> LocationId(string? code, bool required, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(code))
         {
             if (required) throw new AppException(400, "validation.failed", "Location code is required.");
             return null;
         }
-        return await db.Locations.Where(x => x.Code == NormalizeCode(code)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
+        return await Db.Locations.Where(x => x.Code == NormalizeCode(code)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
             ?? throw AppException.NotFound("location");
     }
 
-    private async Task<long?> ComplexId(string? code, CancellationToken ct)
+    protected async Task<long?> ComplexId(string? code, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(code)) return null;
-        return await db.Complexes.Where(x => x.Code == NormalizeCode(code)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
+        return await Db.Complexes.Where(x => x.Code == NormalizeCode(code)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
             ?? throw AppException.NotFound("complex");
     }
 
-    private async Task<(long LocationId, long? ComplexId)> BuildingParents(string locationCode, string? complexCode, CancellationToken ct)
+    protected async Task<(long LocationId, long? ComplexId)> BuildingParents(string locationCode, string? complexCode, CancellationToken ct)
     {
         var locationId = (await LocationId(locationCode, true, ct))!.Value;
         var complexId = await ComplexId(complexCode, ct);
@@ -187,21 +185,21 @@ public sealed partial class PhysicalStructureService(
         return (locationId, complexId);
     }
 
-    private async Task EnsureSiblingName(Location entity, CancellationToken ct)
+    protected async Task EnsureSiblingName(Location entity, CancellationToken ct)
     {
-        if (await db.Locations.AnyAsync(x => x.Id != entity.Id && x.ParentId == entity.ParentId &&
+        if (await Db.Locations.AnyAsync(x => x.Id != entity.Id && x.ParentId == entity.ParentId &&
             x.LocationTypeId == entity.LocationTypeId && x.NormalizedName == entity.NormalizedName, ct))
             throw AppException.Conflict("location.name_conflict", "A sibling location with this name and type already exists.");
     }
 
-    private async Task EnsureUnitNumber(Unit entity, long? id, CancellationToken ct)
+    protected async Task EnsureUnitNumber(Unit entity, long? id, CancellationToken ct)
     {
-        if (await db.Units.AnyAsync(x => x.Id != id && x.BuildingId == entity.BuildingId &&
+        if (await Db.Units.AnyAsync(x => x.Id != id && x.BuildingId == entity.BuildingId &&
             x.NormalizedUnitNumber == entity.NormalizedUnitNumber, ct))
             throw AppException.Conflict("unit.number_conflict", "Unit number already exists in this building.");
     }
 
-    private static IQueryable<T> Order<T>(IQueryable<T> query, PageQuery page,
+    protected static IQueryable<T> Order<T>(IQueryable<T> query, PageQuery page,
         System.Linq.Expressions.Expression<Func<T, string>> name) where T : Entity =>
         (page.SortBy.ToLowerInvariant(), page.SortDirection.ToLowerInvariant()) switch
         {
@@ -213,55 +211,55 @@ public sealed partial class PhysicalStructureService(
             _ => query.OrderBy(name)
         };
 
-    private static async Task<Page<T>> Page<T>(IQueryable<T> query, int number, int size, CancellationToken ct)
+    protected static async Task<Page<T>> Page<T>(IQueryable<T> query, int number, int size, CancellationToken ct)
     {
         var count = await query.CountAsync(ct);
         var items = await query.Skip((number - 1) * size).Take(size).ToListAsync(ct);
         return new(items, number, size, count);
     }
 
-    private IQueryable<LocationResponse> LocationProjection(IQueryable<Location> query) =>
+    protected IQueryable<LocationResponse> LocationProjection(IQueryable<Location> query) =>
         query.Select(x => new LocationResponse(
             x.Code,
-            db.Locations.Where(parent => parent.Id == x.ParentId)
+            Db.Locations.Where(parent => parent.Id == x.ParentId)
                 .Select(parent => new ResourceReferenceResponse(parent.Code, parent.Name)).SingleOrDefault(),
             x.Name,
-            db.LocationTypes.Where(type => type.Id == x.LocationTypeId)
+            Db.LocationTypes.Where(type => type.Id == x.LocationTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
             x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 
-    private IQueryable<ComplexResponse> ComplexProjection(IQueryable<Complex> query) =>
+    protected IQueryable<ComplexResponse> ComplexProjection(IQueryable<Complex> query) =>
         query.Select(x => new ComplexResponse(
             x.Code,
-            db.Locations.Where(location => location.Id == x.LocationId)
+            Db.Locations.Where(location => location.Id == x.LocationId)
                 .Select(location => new ResourceReferenceResponse(location.Code, location.Name)).Single(),
             x.Name, x.Address, x.PostalCode, x.Latitude, x.Longitude, x.Description,
             x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 
-    private IQueryable<BuildingResponse> BuildingProjection(IQueryable<Building> query) =>
+    protected IQueryable<BuildingResponse> BuildingProjection(IQueryable<Building> query) =>
         query.Select(x => new BuildingResponse(
             x.Code,
-            db.Complexes.Where(complex => complex.Id == x.ComplexId)
+            Db.Complexes.Where(complex => complex.Id == x.ComplexId)
                 .Select(complex => new ResourceReferenceResponse(complex.Code, complex.Name)).SingleOrDefault(),
-            db.Locations.Where(location => location.Id == x.LocationId)
+            Db.Locations.Where(location => location.Id == x.LocationId)
                 .Select(location => new ResourceReferenceResponse(location.Code, location.Name)).Single(),
-            db.BuildingTypes.Where(type => type.Id == x.BuildingTypeId)
+            Db.BuildingTypes.Where(type => type.Id == x.BuildingTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
             x.Name, x.Address, x.PostalCode, x.Latitude, x.Longitude, x.FloorsCount,
             x.ConstructionYear, x.Description, x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 
-    private IQueryable<UnitResponse> UnitProjection(IQueryable<Unit> query) =>
+    protected IQueryable<UnitResponse> UnitProjection(IQueryable<Unit> query) =>
         query.Select(x => new UnitResponse(
             x.Code,
-            db.Buildings.Where(building => building.Id == x.BuildingId)
+            Db.Buildings.Where(building => building.Id == x.BuildingId)
                 .Select(building => new ResourceReferenceResponse(building.Code, building.Name)).Single(),
-            (from building in db.Buildings
-             join complex in db.Complexes on building.ComplexId equals complex.Id
+            (from building in Db.Buildings
+             join complex in Db.Complexes on building.ComplexId equals complex.Id
              where building.Id == x.BuildingId
              select new ResourceReferenceResponse(complex.Code, complex.Name)).SingleOrDefault(),
-            db.UnitUsageTypes.Where(type => type.Id == x.UsageTypeId)
+            Db.UnitUsageTypes.Where(type => type.Id == x.UsageTypeId)
                 .Select(type => new ReferenceValueResponse(type.Key, type.Title)).Single(),
-            db.UnitStatuses.Where(status => status.Id == x.StatusId)
+            Db.UnitStatuses.Where(status => status.Id == x.StatusId)
                 .Select(status => new ReferenceValueResponse(status.Key, status.Title)).Single(),
             x.UnitNumber, x.FloorNumber, x.Area, x.RoomsCount, x.ParkingCount, x.StorageCount,
             x.Description, new CurrentOccupancyResponse(
@@ -269,3 +267,4 @@ public sealed partial class PhysicalStructureService(
                 x.CurrentOccupantsCount),
             x.IsActive, x.CreatedAtUtc, x.UpdatedAtUtc));
 }
+
