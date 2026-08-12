@@ -38,6 +38,8 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<AssetDocument> AssetDocuments => Set<AssetDocument>();
     public DbSet<AssetEventFile> AssetEventFiles => Set<AssetEventFile>();
 
+    public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
+
     public async Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)
     {

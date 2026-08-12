@@ -111,6 +111,17 @@ public static class FileStoragePolicy
         return $"{ownerFolder}/{ownerCode}/{category}/{storedFileName}";
     }
 
+    public static string CreateStorageKey(string ownerFolder, string ownerCode, string category,
+        string childFolder, string storedFileName)
+    {
+        ownerCode = PublicCode.Normalize(ownerCode);
+        ValidateSegment(ownerFolder, nameof(ownerFolder));
+        ValidateSegment(category, nameof(category));
+        ValidateSegment(childFolder, nameof(childFolder));
+        ValidateSegment(storedFileName, nameof(storedFileName));
+        return $"{ownerFolder}/{ownerCode}/{category}/{childFolder}/{storedFileName}";
+    }
+
     public static ValidatedFile ValidateImage(IncomingFile file, FileStorageOptions options) =>
         Validate(file, options.MaximumImageFileSizeBytes, options.AllowedImageExtensions, true);
 

@@ -34,6 +34,7 @@ public interface IApplicationDbContext
     DbSet<AssetDocument> AssetDocuments { get; }
     DbSet<AssetEventFile> AssetEventFiles { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken);
 }

@@ -39,6 +39,16 @@ public sealed class AssetManagementDomainTests
     }
 
     [Fact]
+    public void Event_cost_is_optional_non_negative_informational_data()
+    {
+        Assert.Null(new AssetEvent(1, 1, Now, "بازرسی", null, null, null, null, Now).Cost);
+        Assert.Equal(0, new AssetEvent(1, 1, Now, "بازرسی", null, null, null, 0, Now).Cost);
+        Assert.Equal(125_000, new AssetEvent(1, 1, Now, "تعمیر", null, null, null, 125_000, Now).Cost);
+        Assert.Throws<DomainValidationException>(() =>
+            new AssetEvent(1, 1, Now, "تعمیر", null, null, null, -1, Now));
+    }
+
+    [Fact]
     public void Gallery_cover_can_be_removed()
     {
         var gallery = new AssetGalleryFile(1, 1, null, null, null, 0, true, Now);

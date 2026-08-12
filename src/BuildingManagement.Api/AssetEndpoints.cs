@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Api;
 
-public sealed record AssetEventFileUploadForm(IFormFile File, string? Title, string? Description);
+public sealed record AssetEventFileUploadForm(IFormFile File, string? Title = null, string? Description = null);
 
 public static class AssetEndpoints
 {
@@ -30,8 +30,13 @@ public static class AssetEndpoints
         assets.MapPatch("/{assetCode}/activation", async (string assetCode, ActivationRequest request, AssetManagementService service, CancellationToken ct) => { await service.Activate(assetCode, request.IsActive, ct); return Results.NoContent(); });
 
         assets.MapPost("/{assetCode}/events", async (string assetCode, AssetEventRequest request, AssetManagementService service, CancellationToken ct) =>
-        { var result = await service.CreateEvent(assetCode, request, ct); return Results.Created($"/api/v1/assets/{assetCode}/events", result); });
+        { var result = await service.CreateEvent(assetCode, request, ct); return Results.Created($"/api/v1/assets/{assetCode}/events/{result.Id}", result); });
         assets.MapGet("/{assetCode}/events", (string assetCode, AssetManagementService service, CancellationToken ct) => service.Events(assetCode, ct));
+        assets.MapGet("/{assetCode}/events/{eventId:long}", (string assetCode, long eventId,
+            AssetManagementService service, CancellationToken ct) => service.GetEvent(assetCode, eventId, ct));
+        assets.MapPut("/{assetCode}/events/{eventId:long}", (string assetCode, long eventId,
+            AssetEventRequest request, AssetManagementService service, CancellationToken ct) =>
+            service.UpdateEvent(assetCode, eventId, request, ct));
 
         assets.MapPost("/{assetCode}/gallery", async ([FromRoute] string assetCode, [FromForm] GalleryUploadForm form, AssetManagementService service, CancellationToken ct) =>
         { var (incoming, stream) = Open(form.File); await using (stream) return Results.Created($"/api/v1/assets/{assetCode}/gallery", await service.UploadGallery(assetCode, incoming, new(form.Title, form.Description, form.AltText, form.SortOrder, form.IsCover), ct)); }).DisableAntiforgery();
@@ -45,10 +50,15 @@ public static class AssetEndpoints
         assets.MapGet("/{assetCode}/documents/{fileCode}", (string assetCode, string fileCode, AssetManagementService service, CancellationToken ct) => service.Document(assetCode, fileCode, ct));
         assets.MapDelete("/{assetCode}/documents/{fileCode}", async (string assetCode, string fileCode, AssetManagementService service, CancellationToken ct) => { await service.RemoveFile(assetCode, "document", fileCode, ct); return Results.NoContent(); });
 
-        assets.MapPost("/{assetCode}/events/{eventDate}/files", async ([FromRoute] string assetCode, [FromRoute] DateTimeOffset eventDate, [FromForm] AssetEventFileUploadForm form, AssetManagementService service, CancellationToken ct) =>
-        { var (incoming, stream) = Open(form.File); await using (stream) return Results.Created($"/api/v1/assets/{assetCode}/events/{eventDate:O}/files", await service.UploadEventFile(assetCode, eventDate, incoming, new(form.Title, form.Description), ct)); }).DisableAntiforgery();
-        assets.MapGet("/{assetCode}/events/{eventDate}/files", (string assetCode, DateTimeOffset eventDate, AssetManagementService service, CancellationToken ct) => service.EventFiles(assetCode, eventDate, ct));
-        assets.MapDelete("/{assetCode}/events/files/{fileCode}", async (string assetCode, string fileCode, AssetManagementService service, CancellationToken ct) => { await service.RemoveFile(assetCode, "event", fileCode, ct); return Results.NoContent(); });
+        assets.MapPost("/{assetCode}/events/{eventId:long}/files", async ([FromRoute] string assetCode,
+            [FromRoute] long eventId, [FromForm] AssetEventFileUploadForm form,
+            AssetManagementService service, CancellationToken ct) =>
+        { var (incoming, stream) = Open(form.File); await using (stream) return Results.Created($"/api/v1/assets/{assetCode}/events/{eventId}/files", await service.UploadEventFile(assetCode, eventId, incoming, new(form.Title, form.Description), ct)); }).DisableAntiforgery();
+        assets.MapGet("/{assetCode}/events/{eventId:long}/files", (string assetCode, long eventId,
+            AssetManagementService service, CancellationToken ct) => service.EventFiles(assetCode, eventId, ct));
+        assets.MapDelete("/{assetCode}/events/{eventId:long}/files/{fileCode}", async (string assetCode,
+            long eventId, string fileCode, AssetManagementService service, CancellationToken ct) =>
+        { await service.RemoveEventFile(assetCode, eventId, fileCode, ct); return Results.NoContent(); });
     }
 
     private static (IncomingFile Incoming, Stream Stream) Open(IFormFile? file)
