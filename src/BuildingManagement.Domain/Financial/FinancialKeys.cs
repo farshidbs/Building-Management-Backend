@@ -9,7 +9,7 @@ public static class FinancialKeys
     public static class TransactionTypes { public const string Demand = "demand"; public const string Payment = "payment"; public const string ExpenseDisbursement = "expense_disbursement"; public const string AccountAdjustment = "account_adjustment"; }
     public static class AllocationMethods { public const string Equal = "equal"; public const string Occupants = "occupants"; public const string Area = "area"; public const string Custom = "custom"; }
     public static class AmountModes { public const string Total = "total_amount"; public const string PerUnit = "per_unit"; public const string PerPerson = "per_person"; public const string PerArea = "per_area"; }
-    public static class Redistribution { public const string None = "no_redistribution"; public const string ToOthers = "redistribute_to_others"; }
+    public static class Redistribution { public const string None = "no_redistribution"; public const string ToOthers = "redistribute_to_others"; public static string RequireValid(string? value) => value is None or ToOthers ? value : throw new DomainValidationException("redistributionPolicyKey", "Redistribution policy is invalid."); }
     public static class ResponsibleParties
     {
         public const string Owner = "owner";

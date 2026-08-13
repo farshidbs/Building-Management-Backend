@@ -124,8 +124,11 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
                 .Select(t => t.TransactionTypeKey).Single(), x.EffectKey, x.Amount, x.BalanceAfter,
             Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId)
                 .Select(t => t.OccurredAtUtc).Single(),
-            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId)
-                .Select(t => t.Description).Single())).ToListAsync(ct);
+            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId).Select(t => t.Description).Single(),
+            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId).Select(t => t.DemandId == null ? null : Db.Demands.Where(d => d.Id == t.DemandId).Select(d => d.Code).Single()).Single(),
+            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId).Select(t => t.PaymentId == null ? null : Db.Payments.Where(p => p.Id == t.PaymentId).Select(p => p.Code).Single()).Single(),
+            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId).Select(t => t.ExpenseDisbursementId == null ? null : Db.ExpenseDisbursements.Where(d => d.Id == t.ExpenseDisbursementId).Select(d => d.Code).Single()).Single(),
+            Db.FinancialTransactions.Where(t => t.Id == x.FinancialTransactionId).Select(t => t.AccountAdjustmentId == null ? null : Db.AccountAdjustments.Where(a => a.Id == t.AccountAdjustmentId).Select(a => a.Code).Single()).Single())).ToListAsync(ct);
 
     private async Task<bool> FundMatchesUnit(FinancialAccount fund, long unitId, CancellationToken ct) =>
         fund.BuildingId != null

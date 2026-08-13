@@ -56,7 +56,7 @@ public sealed class DemandAllocationRule
         RateAmount = rate;
         IncludeVacantUnits = includeVacant;
         ResponsiblePartyTypeKey = FinancialKeys.ResponsibleParties.RequireValid(responsible);
-        RedistributionPolicyKey = redistribution;
+        RedistributionPolicyKey = FinancialKeys.Redistribution.RequireValid(redistribution);
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
     }
     public void Update(string method, string mode, decimal? total, decimal? rate, bool? includeVacant,

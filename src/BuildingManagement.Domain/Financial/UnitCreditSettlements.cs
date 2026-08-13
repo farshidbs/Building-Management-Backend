@@ -5,7 +5,8 @@ public sealed class UnitCreditSettlement : Entity
     private UnitCreditSettlement() { }
     public long UnitAccountId { get; private set; }
     public Guid RequestId { get; private set; }
-    public UnitCreditSettlement(string code, long unitAccountId, Guid requestId, DateTimeOffset now) { if (unitAccountId <= 0) throw new DomainValidationException("unitAccount", "Required."); if (requestId == Guid.Empty) throw new DomainValidationException("requestId", "Required."); Initialize(code, now); UnitAccountId = unitAccountId; RequestId = requestId; }
+    public decimal AvailableCreditAfter { get; private set; }
+    public UnitCreditSettlement(string code, long unitAccountId, Guid requestId, decimal availableCreditAfter, DateTimeOffset now) { if (unitAccountId <= 0) throw new DomainValidationException("unitAccount", "Required."); if (requestId == Guid.Empty) throw new DomainValidationException("requestId", "Required."); if (availableCreditAfter < 0) throw new DomainValidationException("availableCreditAfter", "Must not be negative."); Initialize(code, now); UnitAccountId = unitAccountId; RequestId = requestId; AvailableCreditAfter = availableCreditAfter; }
 }
 
 public sealed class UnitCreditSettlementAllocation

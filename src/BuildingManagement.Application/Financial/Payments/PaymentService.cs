@@ -12,8 +12,8 @@ public interface ITrustedPaymentResultProcessor
 public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock)
     : FinancialServiceBase(db, clock), ITrustedPaymentResultProcessor
 {
-    public async Task<PaymentResponse> Get(string code, CancellationToken ct) =>
-        await Response(await Db.Payments.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct)
+    public async Task<PaymentDetailResponse> Get(string code, CancellationToken ct) =>
+        await Detail(await Db.Payments.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct)
             ?? throw AppException.NotFound("payment"), ct);
 
     public Task<PaymentResponse> Create(PaymentRequest request, CancellationToken ct) =>
@@ -33,8 +33,10 @@ public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock)
             var method = await Db.PaymentMethods.SingleOrDefaultAsync(
                 x => x.Key == request.PaymentMethodKey && x.IsActive, token)
                 ?? throw AppException.NotFound("payment_method");
+            if (method.Key is "card_to_card" or "bank_transfer" && string.IsNullOrWhiteSpace(request.BankTrackingCode))
+                throw Validation("bankTrackingCode", "Bank tracking code is required for bank-originated offline payments.");
             var payment = new Payment(await Unique(Db.Payments, token), unitAccount.Id, fund.Id, payerId,
-                method.Id, request.Amount, null, request.BankTrackingCode, request.Notes, Now);
+                method.Id, request.Amount, null, request.BankTrackingCode, request.PaidAtUtc, request.Notes, Now);
             Db.Payments.Add(payment);
             await Save(token);
             foreach (var item in request.Allocations)
@@ -93,7 +95,7 @@ public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock)
             if (await Db.FinancialTransactions.AnyAsync(x => x.PaymentId == payment.Id, token))
                 return await Response(payment, token);
             if (trustedGateway) payment.ConfirmGateway(providerReference!, paidAtUtc!.Value, Now);
-            else payment.ConfirmManual(Now, Now);
+            else payment.ConfirmManual(payment.PaidAtUtc ?? Now, Now);
             var allocations = await Db.PaymentAllocations.Where(x => x.PaymentId == payment.Id).ToListAsync(token);
             foreach (var allocation in allocations)
             {
@@ -137,4 +139,10 @@ public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock)
         new(payment.Code, payment.Amount, payment.Status, payment.PayerPartyId == null ? null :
             await Db.Parties.Where(x => x.Id == payment.PayerPartyId).Select(x => x.Code).SingleAsync(ct),
             payment.ConfirmedAtUtc);
+
+    public async Task<Page<PaymentDetailResponse>> History(string unitCode, PageQuery query, CancellationToken ct)
+    { var (number, size) = query.Validated(); var account = await UnitAccount(unitCode, ct); var source = Db.Payments.AsNoTracking().Where(x => x.UnitAccountId == account.Id); var total = await source.CountAsync(ct); var rows = await source.OrderByDescending(x => x.PaidAtUtc ?? x.SubmittedAtUtc).ThenByDescending(x => x.Id).Skip((number - 1) * size).Take(size).ToListAsync(ct); var items = new List<PaymentDetailResponse>(); foreach (var row in rows) items.Add(await Detail(row, ct)); return new(items, number, size, total); }
+
+    private async Task<PaymentDetailResponse> Detail(Payment payment, CancellationToken ct)
+    { var unitCode = await Db.FinancialAccounts.Where(x => x.Id == payment.UnitAccountId).Select(x => Db.Units.Where(u => u.Id == x.UnitId).Select(u => u.Code).Single()).SingleAsync(ct); var fund = await Db.FinancialAccounts.Where(x => x.Id == payment.ReceivingFundAccountId).Select(x => new { x.AccountKindKey, OwnerCode = x.BuildingId != null ? Db.Buildings.Where(b => b.Id == x.BuildingId).Select(b => b.Code).Single() : Db.Complexes.Where(c => c.Id == x.ComplexId).Select(c => c.Code).Single() }).SingleAsync(ct); var method = await Db.PaymentMethods.Where(x => x.Id == payment.PaymentMethodId).Select(x => x.Key).SingleAsync(ct); var allocations = await Db.PaymentAllocations.AsNoTracking().Where(x => x.PaymentId == payment.Id).Select(x => new PaymentAllocationResponse(Db.UnitReceivables.Where(r => r.Id == x.UnitReceivableId).Select(r => r.Code).Single(), x.Amount, Db.UnitReceivables.Where(r => r.Id == x.UnitReceivableId).Select(r => r.DemandAllocationId == null ? null : Db.DemandAllocations.Where(a => a.Id == r.DemandAllocationId).Select(a => Db.Demands.Where(d => d.Id == a.DemandId).Select(d => d.Code).Single()).Single()).Single(), Db.UnitReceivables.Where(r => r.Id == x.UnitReceivableId).Select(r => r.AccountAdjustmentId == null ? null : Db.AccountAdjustments.Where(a => a.Id == r.AccountAdjustmentId).Select(a => a.Code).Single()).Single())).ToListAsync(ct); var evidence = await Db.PaymentEvidenceFiles.AsNoTracking().Where(x => x.PaymentId == payment.Id && x.IsActive).Select(x => new FinancialFileResponse(Db.StoredFiles.Where(f => f.Id == x.StoredFileId).Select(f => new StoredFileResponse(f.Code, "/api/v1/files/" + f.Code + "/content", f.OriginalFileName, f.ContentType, f.FileExtension, f.FileSizeBytes)).Single(), x.Title, x.Description)).ToListAsync(ct); return new(payment.Code, payment.Amount, payment.Status, method, unitCode, fund.OwnerCode, fund.AccountKindKey, payment.PayerPartyId == null ? null : await Db.Parties.Where(x => x.Id == payment.PayerPartyId).Select(x => x.Code).SingleAsync(ct), payment.PaidAtUtc, payment.SubmittedAtUtc, payment.ConfirmedAtUtc, payment.BankTrackingCode, payment.GatewayReference, allocations, evidence); }
 }

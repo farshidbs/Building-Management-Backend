@@ -64,3 +64,19 @@ the settlement code, request identity, timestamp, total, and allocation details.
 
 Private landlord/tenant settlement, automatic credit consumption, a general Fund-to-Unit cash
 refund, and credit creation from future Demand cancellation/reversal remain outside this scope.
+
+## Operational audit and timing
+
+Offline `card_to_card` and `bank_transfer` payments require a bank tracking code. It is trimmed,
+upper-cased, and uniquely indexed within the receiving Fund; `cash` and `manual` do not require
+one. `PaidAtUtc` is the actual business payment time and is preserved when a manager confirms the
+record. `ConfirmedAtUtc` remains the separate confirmation timestamp. Expense disbursements use
+the same actual-time rule.
+
+Every credit settlement stores `AvailableCreditAfter`, so history and exact idempotent replay
+show the original post-settlement snapshot rather than the Unit account's current credit.
+
+Expense detail exposes disbursements and evidence, documents, explicit asset/event and scope
+links, and linked Demands. Draft expenses may be updated through `PUT /financial/expenses/{code}`;
+finalized or cancelled expenses cannot. Unit payment history is paginated, payment details expose
+allocations and evidence, and account statement rows contain explicit source codes for drill-down.

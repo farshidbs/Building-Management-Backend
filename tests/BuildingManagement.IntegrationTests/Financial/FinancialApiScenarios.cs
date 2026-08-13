@@ -12,6 +12,28 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task ConcurrentDisbursementsCannotOverpayExpense()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var building = await db.Buildings.AsNoTracking().OrderBy(x => x.Id).FirstAsync();
+        var typeId = await db.ExpenseTypes.Where(x => x.Key == "electricity").Select(x => x.Id).SingleAsync();
+        await Post<FinancialAccountResponse>("/api/v1/financial/accounts", new FinancialAccountRequest(null, building.Code, null, FinancialKeys.AccountKinds.CurrentFund));
+        await Post<FinancialAccountResponse>("/api/v1/financial/accounts", new FinancialAccountRequest(null, building.Code, null, FinancialKeys.AccountKinds.ReserveFund));
+        var expense = await Post<ExpenseResponse>("/api/v1/financial/expenses", new ExpenseRequest(building.Code, null, typeId, null, "آزمون همزمانی", 100m, DateTimeOffset.UtcNow, null, null));
+        (await client!.PostAsync($"/api/v1/financial/expenses/{expense.Code}/finalize", null)).EnsureSuccessStatusCode();
+        var first = await Post<ExpenseDisbursementResponse>($"/api/v1/financial/expenses/{expense.Code}/disbursements", new ExpenseDisbursementRequest(building.Code, null, FinancialKeys.AccountKinds.CurrentFund, null, 60m, "cash", null));
+        var second = await Post<ExpenseDisbursementResponse>($"/api/v1/financial/expenses/{expense.Code}/disbursements", new ExpenseDisbursementRequest(building.Code, null, FinancialKeys.AccountKinds.ReserveFund, null, 60m, "cash", null));
+
+        var results = await Task.WhenAll(client.PostAsync($"/api/v1/financial/expenses/{expense.Code}/disbursements/{first.Code}/finalize", null), client.PostAsync($"/api/v1/financial/expenses/{expense.Code}/disbursements/{second.Code}/finalize", null));
+        Assert.Single(results, x => x.IsSuccessStatusCode);
+        db.ChangeTracker.Clear();
+        Assert.Equal(60m, await db.ExpenseDisbursements.Where(x => x.ExpenseId == db.Expenses.Where(e => e.Code == expense.Code).Select(e => e.Id).Single() && x.Status == FinancialKeys.Statuses.Finalized).SumAsync(x => x.Amount));
+        Assert.Single(await db.FinancialTransactions.Where(x => x.ExpenseDisbursementId != null).ToListAsync());
+    }
+
+    [Fact]
     public async Task ExpenseDisbursementPreservesTransactionIntegrityAndAllowsNegativeFund()
     {
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
@@ -32,19 +54,28 @@ public sealed partial class ApiScenarios
         var expense = await Post<ExpenseResponse>("/api/v1/financial/expenses",
             new ExpenseRequest(building.Code, null, expenseTypeId, null, "قبض برق", 20_000_000m,
                 DateTimeOffset.UtcNow, null, null));
+        var updated = await Put<ExpenseResponse>($"/api/v1/financial/expenses/{expense.Code}",
+            new UpdateExpenseDraftRequest(expenseTypeId, null, "قبض برق اصلاح‌شده", 20_000_000m,
+                DateTimeOffset.UtcNow.AddDays(-1), null, "نسخه نهایی"));
+        Assert.Equal("قبض برق اصلاح‌شده", updated.Title);
         using var finalizeExpense = await client.PostAsync(
             $"/api/v1/financial/expenses/{expense.Code}/finalize", null);
         finalizeExpense.EnsureSuccessStatusCode();
+        using (var rejectedUpdate = await client.PutAsJsonAsync($"/api/v1/financial/expenses/{expense.Code}",
+            new UpdateExpenseDraftRequest(expenseTypeId, null, "غیرمجاز", 1m, DateTimeOffset.UtcNow, null, null)))
+            Assert.Equal(HttpStatusCode.BadRequest, rejectedUpdate.StatusCode);
         Assert.Equal(12_000_000m, await db.FinancialAccounts.Where(x => x.BuildingId == building.Id &&
             x.AccountKindKey == FinancialKeys.AccountKinds.CurrentFund).Select(x => x.CurrentBalance).SingleAsync());
 
+        var actualPaidAt = DateTimeOffset.UtcNow.AddHours(-2);
         var disbursement = await Post<ExpenseDisbursementResponse>(
             $"/api/v1/financial/expenses/{expense.Code}/disbursements",
             new ExpenseDisbursementRequest(building.Code, null, FinancialKeys.AccountKinds.CurrentFund,
-                null, 20_000_000m, "bank_transfer", null));
+                null, 20_000_000m, "bank_transfer", null, actualPaidAt));
         using var finalizeDisbursement = await client.PostAsync(
             $"/api/v1/financial/expenses/{expense.Code}/disbursements/{disbursement.Code}/finalize", null);
         finalizeDisbursement.EnsureSuccessStatusCode();
+        Assert.Equal(actualPaidAt.ToUnixTimeSeconds(), (await db.ExpenseDisbursements.Where(x => x.Code == disbursement.Code).Select(x => x.PaidAtUtc).SingleAsync())!.Value.ToUnixTimeSeconds());
         var filesBeforeFailure = Directory.Exists(fileRoot!)
             ? Directory.GetFiles(fileRoot!, "*", SearchOption.AllDirectories).Length : 0;
         var metadataBeforeFailure = await db.StoredFiles.CountAsync();
@@ -117,10 +148,16 @@ public sealed partial class ApiScenarios
 
         var first = await Post<PaymentResponse>("/api/v1/financial/payments", new PaymentRequest(unit.Code,
             building.Code, null, FinancialKeys.AccountKinds.ReserveFund, null, "card_to_card", 3_000_000m,
-            null, null, [new(receivable.Code, 3_000_000m)]));
+            "BANK-TRACK-001", null, [new(receivable.Code, 3_000_000m)], DateTimeOffset.UtcNow.AddHours(-10)));
         using var confirmFirst = await client.PostAsync(
             $"/api/v1/financial/payments/{first.Code}/manager-confirm", null);
         confirmFirst.EnsureSuccessStatusCode();
+        var confirmedFirst = await db.Payments.SingleAsync(x => x.Code == first.Code);
+        Assert.True(confirmedFirst.PaidAtUtc < confirmedFirst.ConfirmedAtUtc);
+        using (var duplicate = await client.PostAsJsonAsync("/api/v1/financial/payments", new PaymentRequest(unit.Code,
+            building.Code, null, FinancialKeys.AccountKinds.ReserveFund, null, "card_to_card", 3_000_000m,
+            " bank-track-001 ", null, [], DateTimeOffset.UtcNow.AddHours(-10))))
+            Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
         using (var form = Pdf("فیش-واریز.pdf"))
         using (var upload = await client.PostAsync($"/api/v1/financial/payments/{first.Code}/evidence", form))
             upload.EnsureSuccessStatusCode();
@@ -129,7 +166,7 @@ public sealed partial class ApiScenarios
 
         var second = await Post<PaymentResponse>("/api/v1/financial/payments", new PaymentRequest(unit.Code,
             building.Code, null, FinancialKeys.AccountKinds.ReserveFund, null, "card_to_card", 7_000_000m,
-            null, null, [new(receivable.Code, 5_000_000m)]));
+            "BANK-TRACK-002", null, [new(receivable.Code, 5_000_000m)]));
         using var confirmSecond = await client.PostAsync(
             $"/api/v1/financial/payments/{second.Code}/manager-confirm", null);
         confirmSecond.EnsureSuccessStatusCode();
@@ -185,7 +222,7 @@ public sealed partial class ApiScenarios
             $"/api/v1/financial/units/{unit.Code}/credit-settlements", settlementRequest);
         Assert.Equal(creditSettlement.Code, replay.Code);
         db.ChangeTracker.Clear();
-        Assert.Equal(1_700_000m, creditSettlement.AvailableCredit);
+        Assert.Equal(1_700_000m, creditSettlement.AvailableCreditAfter);
         Assert.Equal(600_000m, await db.UnitReceivables.Where(x => x.Id == laterReceivable.Id)
             .Select(x => x.OutstandingAmount).SingleAsync());
         Assert.Equal(balanceBeforeCredit, await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
@@ -205,7 +242,7 @@ public sealed partial class ApiScenarios
         var history = await client.GetFromJsonAsync<Page<UnitCreditSettlementResponse>>(
             $"/api/v1/financial/units/{unit.Code}/credit-settlements?pageNumber=1&pageSize=20");
         Assert.Contains(history!.Items, x => x.Code == creditSettlement.Code &&
-            x.Allocations.Single().ReceivableCode == laterReceivable.Code);
+            x.AvailableCreditAfter == 1_700_000m && x.Allocations.Single().ReceivableCode == laterReceivable.Code);
     }
 
     [Fact]

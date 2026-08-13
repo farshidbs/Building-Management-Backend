@@ -197,6 +197,30 @@ public sealed class FinancialDomainTests
             FinancialKeys.Adjustments.OpeningDebt, 1_000m, Now, "opening", responsiblePartyType, null, Now));
     }
 
+    [Fact]
+    public void AllocationRuleRejectsUnknownRedistributionPolicy()
+    {
+        Assert.Throws<DomainValidationException>(() => new DemandAllocationRule(1,
+            FinancialKeys.AllocationMethods.Equal, FinancialKeys.AmountModes.Total, 1_000m, null,
+            true, FinancialKeys.ResponsibleParties.Owner, "redistribute_typo", null));
+    }
+
+    [Fact]
+    public void PaymentAndDisbursementPreserveActualBusinessTime()
+    {
+        var actual = Now.AddHours(-4);
+        var payment = new Payment("P1A2D", 1, 2, null, 1, 100m, null, " tx-1 ", actual, null, Now);
+        payment.Submit(true, Now);
+        payment.ConfirmManual(Now, Now.AddHours(1));
+        var disbursement = new ExpenseDisbursement("D1A2E", 1, 2, null, 100m, "cash", actual, null, Now);
+        disbursement.Finalize(Now.AddHours(1));
+
+        Assert.Equal(actual, payment.PaidAtUtc);
+        Assert.Equal(Now.AddHours(1), payment.ConfirmedAtUtc);
+        Assert.Equal("TX-1", payment.BankTrackingCode);
+        Assert.Equal(actual, disbursement.PaidAtUtc);
+    }
+
     private static List<AllocationInput> FourEqualUnits() =>
     [
         new("U0001", 1, true, "owner", null),
