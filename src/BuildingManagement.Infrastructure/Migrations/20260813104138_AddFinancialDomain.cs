@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-#pragma warning disable CA1861 // EF Core generates repeated array arguments in migrations.
-
 #pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
+#pragma warning disable CA1861 // EF Core generates constant arrays for migration index definitions.
 
 namespace BuildingManagement.Infrastructure.Migrations
 {
@@ -94,6 +94,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_FinancialAccounts", x => x.Id);
+                    table.CheckConstraint("CK_FinancialAccounts_KindOwner", "([UnitId] IS NOT NULL AND [AccountKindKey] = 'unit_account') OR ([UnitId] IS NULL AND [AccountKindKey] IN ('current_fund','reserve_fund'))");
                     table.CheckConstraint("CK_FinancialAccounts_OneOwner", "(CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END) = 1");
                     table.ForeignKey(
                         name: "FK_FinancialAccounts_Buildings_BuildingId",
@@ -209,6 +210,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     FinancialAccountId = table.Column<long>(type: "bigint", nullable: false),
+                    FundAccountId = table.Column<long>(type: "bigint", nullable: true),
+                    ResponsiblePartyTypeKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ResponsiblePartyId = table.Column<long>(type: "bigint", nullable: true),
                     AdjustmentTypeKey = table.Column<string>(type: "varchar(30)", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
                     EffectiveDate = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
@@ -225,11 +229,26 @@ namespace BuildingManagement.Infrastructure.Migrations
                     table.PrimaryKey("PK_AccountAdjustments", x => x.Id);
                     table.CheckConstraint("CK_AccountAdjustments_Amount", "[Amount] > 0");
                     table.CheckConstraint("CK_AccountAdjustments_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.CheckConstraint("CK_AccountAdjustments_Fund", "([AdjustmentTypeKey] = 'opening_debt' AND [FundAccountId] IS NOT NULL) OR ([AdjustmentTypeKey] <> 'opening_debt' AND [FundAccountId] IS NULL)");
                     table.ForeignKey(
                         name: "FK_AccountAdjustments_FinancialAccounts_FinancialAccountId",
                         column: x => x.FinancialAccountId,
                         principalSchema: "bms",
                         principalTable: "FinancialAccounts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccountAdjustments_FinancialAccounts_FundAccountId",
+                        column: x => x.FundAccountId,
+                        principalSchema: "bms",
+                        principalTable: "FinancialAccounts",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccountAdjustments_Parties_ResponsiblePartyId",
+                        column: x => x.ResponsiblePartyId,
+                        principalSchema: "bms",
+                        principalTable: "Parties",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -828,6 +847,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_FinancialTransactions", x => x.Id);
                     table.CheckConstraint("CK_FinancialTransactions_OneSource", "(CASE WHEN [DemandId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [PaymentId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ExpenseDisbursementId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountAdjustmentId] IS NULL THEN 0 ELSE 1 END) = 1");
+                    table.CheckConstraint("CK_FinancialTransactions_TypeSource", "([TransactionTypeKey] = 'demand' AND [DemandId] IS NOT NULL) OR ([TransactionTypeKey] = 'payment' AND [PaymentId] IS NOT NULL) OR ([TransactionTypeKey] = 'expense_disbursement' AND [ExpenseDisbursementId] IS NOT NULL) OR ([TransactionTypeKey] = 'account_adjustment' AND [AccountAdjustmentId] IS NOT NULL)");
                     table.ForeignKey(
                         name: "FK_FinancialTransactions_AccountAdjustments_AccountAdjustmentId",
                         column: x => x.AccountAdjustmentId,
@@ -875,6 +895,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                     ResponsiblePartyId = table.Column<long>(type: "bigint", nullable: true),
                     DueDate = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
                     Status = table.Column<string>(type: "varchar(20)", nullable: false),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
                     UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
@@ -884,6 +905,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_UnitReceivables", x => x.Id);
                     table.CheckConstraint("CK_UnitReceivables_Amounts", "[OriginalAmount] > 0 AND [OutstandingAmount] >= 0 AND [OutstandingAmount] <= [OriginalAmount]");
+                    table.CheckConstraint("CK_UnitReceivables_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                     table.CheckConstraint("CK_UnitReceivables_Origin", "(CASE WHEN [DemandAllocationId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountAdjustmentId] IS NULL THEN 0 ELSE 1 END) = 1");
                     table.ForeignKey(
                         name: "FK_UnitReceivables_AccountAdjustments_AccountAdjustmentId",
@@ -940,6 +962,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_FinancialTransactionEntries", x => x.Id);
                     table.CheckConstraint("CK_FinancialTransactionEntries_Amount", "[Amount] > 0");
+                    table.CheckConstraint("CK_FinancialTransactionEntries_Effect", "[EffectKey] IN ('increase','decrease')");
                     table.ForeignKey(
                         name: "FK_FinancialTransactionEntries_FinancialAccounts_FinancialAccountId",
                         column: x => x.FinancialAccountId,
@@ -1041,10 +1064,22 @@ namespace BuildingManagement.Infrastructure.Migrations
                 columns: new[] { "FinancialAccountId", "Status" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AccountAdjustments_FundAccountId",
+                schema: "bms",
+                table: "AccountAdjustments",
+                column: "FundAccountId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AccountAdjustments_IsActive",
                 schema: "bms",
                 table: "AccountAdjustments",
                 column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccountAdjustments_ResponsiblePartyId",
+                schema: "bms",
+                table: "AccountAdjustments",
+                column: "ResponsiblePartyId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_DemandAllocationRules_DemandId",
@@ -1462,7 +1497,16 @@ namespace BuildingManagement.Infrastructure.Migrations
                 name: "IX_UnitReceivables_AccountAdjustmentId",
                 schema: "bms",
                 table: "UnitReceivables",
-                column: "AccountAdjustmentId");
+                column: "AccountAdjustmentId",
+                unique: true,
+                filter: "[AccountAdjustmentId] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UnitReceivables_Code",
+                schema: "bms",
+                table: "UnitReceivables",
+                column: "Code",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_UnitReceivables_DemandAllocationId",

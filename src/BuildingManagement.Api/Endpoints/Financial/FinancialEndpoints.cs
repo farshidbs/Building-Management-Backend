@@ -9,8 +9,10 @@ internal static class FinancialEndpoints
     {
         var accounts = api.MapGroup("/financial/accounts").WithTags("Financial Accounts");
         accounts.MapPost("/", async (FinancialAccountRequest request, FinancialAccountService service, CancellationToken ct) => Results.Created("/api/v1/financial/accounts", await service.Create(request, ct)));
-        accounts.MapGet("/{ownerCode}/{accountKindKey}", (string ownerCode, string accountKindKey, FinancialAccountService service, CancellationToken ct) => service.Get(ownerCode, accountKindKey, ct));
-        accounts.MapGet("/{ownerCode}/{accountKindKey}/statement", (string ownerCode, string accountKindKey, FinancialAccountService service, CancellationToken ct) => service.Statement(ownerCode, accountKindKey, ct));
+        accounts.MapGet("/units/{unitCode}", (string unitCode, FinancialAccountService service, CancellationToken ct) => service.GetUnit(unitCode, ct));
+        accounts.MapGet("/units/{unitCode}/statement", (string unitCode, FinancialAccountService service, CancellationToken ct) => service.UnitStatement(unitCode, ct));
+        accounts.MapGet("/funds", (string? buildingCode, string? complexCode, string accountKindKey, FinancialAccountService service, CancellationToken ct) => service.GetFund(buildingCode, complexCode, accountKindKey, ct));
+        accounts.MapGet("/funds/statement", (string? buildingCode, string? complexCode, string accountKindKey, FinancialAccountService service, CancellationToken ct) => service.FundStatement(buildingCode, complexCode, accountKindKey, ct));
         accounts.MapPost("/adjustments", async (AccountAdjustmentRequest request, FinancialAccountService service, CancellationToken ct) => Results.Created("/api/v1/financial/accounts/adjustments", await service.CreateAdjustment(request, ct)));
         accounts.MapPost("/adjustments/{code}/finalize", (string code, FinancialAccountService service, CancellationToken ct) => service.FinalizeAdjustment(code, ct));
 
@@ -31,14 +33,14 @@ internal static class FinancialEndpoints
         demands.MapGet("/", ([AsParameters] PageQuery query, string? status, DemandService service, CancellationToken ct) => service.List(query, status, ct));
         demands.MapGet("/{demandCode}", (string demandCode, DemandService service, CancellationToken ct) => service.Get(demandCode, ct));
         demands.MapPost("/", async (DemandRequest request, DemandService service, CancellationToken ct) => { var result = await service.Create(request, ct); return Results.Created($"/api/v1/financial/demands/{result.Code}", result); });
+        demands.MapPut("/{demandCode}", (string demandCode, DemandRequest request, DemandService service, CancellationToken ct) => service.Update(demandCode, request, ct));
         demands.MapPost("/{demandCode}/preview", (string demandCode, DemandPreviewRequest request, DemandService service, CancellationToken ct) => service.Preview(demandCode, request, ct));
         demands.MapPost("/{demandCode}/finalize", (string demandCode, DemandPreviewRequest request, DemandService service, CancellationToken ct) => service.Finalize(demandCode, request, ct));
 
         var payments = api.MapGroup("/financial/payments").WithTags("Financial Payments");
         payments.MapGet("/{paymentCode}", (string paymentCode, PaymentService service, CancellationToken ct) => service.Get(paymentCode, ct));
         payments.MapPost("/", async (PaymentRequest request, PaymentService service, CancellationToken ct) => { var result = await service.Create(request, ct); return Results.Created($"/api/v1/financial/payments/{result.Code}", result); });
-        payments.MapPost("/{paymentCode}/confirm", (string paymentCode, PaymentService service, CancellationToken ct) => service.Confirm(paymentCode, ct));
-        payments.MapPost("/gateway/{gatewayReference}/confirm", (string gatewayReference, PaymentService service, CancellationToken ct) => service.ConfirmGateway(gatewayReference, ct));
+        payments.MapPost("/{paymentCode}/manager-confirm", (string paymentCode, PaymentService service, CancellationToken ct) => service.ConfirmManual(paymentCode, ct));
         payments.MapPost("/{paymentCode}/reject", (string paymentCode, PaymentService service, CancellationToken ct) => service.Reject(paymentCode, ct));
         payments.MapPost("/{paymentCode}/evidence", async ([FromRoute] string paymentCode, [FromForm] FinancialUploadForm form, FinancialFileService service, CancellationToken ct) => Results.Created($"/api/v1/financial/payments/{paymentCode}/evidence", await service.UploadPayment(paymentCode, new(form.File.OpenReadStream(), form.File.FileName, form.File.ContentType, form.File.Length), form.Title, form.Description, ct))).DisableAntiforgery();
         payments.MapGet("/{paymentCode}/evidence", (string paymentCode, FinancialFileService service, CancellationToken ct) => service.PaymentEvidence(paymentCode, ct));

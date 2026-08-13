@@ -53,6 +53,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<long>("FinancialAccountId")
                         .HasColumnType("bigint");
 
+                    b.Property<long?>("FundAccountId")
+                        .HasColumnType("bigint");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -60,6 +63,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<long?>("ResponsiblePartyId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ResponsiblePartyTypeKey")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()
@@ -80,7 +89,11 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("FundAccountId");
+
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("ResponsiblePartyId");
 
                     b.HasIndex("FinancialAccountId", "Status");
 
@@ -89,6 +102,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                             t.HasCheckConstraint("CK_AccountAdjustments_Amount", "[Amount] > 0");
 
                             t.HasCheckConstraint("CK_AccountAdjustments_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+
+                            t.HasCheckConstraint("CK_AccountAdjustments_Fund", "([AdjustmentTypeKey] = 'opening_debt' AND [FundAccountId] IS NOT NULL) OR ([AdjustmentTypeKey] <> 'opening_debt' AND [FundAccountId] IS NULL)");
                         });
                 });
 
@@ -2345,6 +2360,8 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.ToTable("FinancialAccounts", "bms", t =>
                         {
+                            t.HasCheckConstraint("CK_FinancialAccounts_KindOwner", "([UnitId] IS NOT NULL AND [AccountKindKey] = 'unit_account') OR ([UnitId] IS NULL AND [AccountKindKey] IN ('current_fund','reserve_fund'))");
+
                             t.HasCheckConstraint("CK_FinancialAccounts_OneOwner", "(CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END) = 1");
                         });
                 });
@@ -2406,6 +2423,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.ToTable("FinancialTransactions", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_FinancialTransactions_OneSource", "(CASE WHEN [DemandId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [PaymentId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [ExpenseDisbursementId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountAdjustmentId] IS NULL THEN 0 ELSE 1 END) = 1");
+
+                            t.HasCheckConstraint("CK_FinancialTransactions_TypeSource", "([TransactionTypeKey] = 'demand' AND [DemandId] IS NOT NULL) OR ([TransactionTypeKey] = 'payment' AND [PaymentId] IS NOT NULL) OR ([TransactionTypeKey] = 'expense_disbursement' AND [ExpenseDisbursementId] IS NOT NULL) OR ([TransactionTypeKey] = 'account_adjustment' AND [AccountAdjustmentId] IS NOT NULL)");
                         });
                 });
 
@@ -2448,6 +2467,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.ToTable("FinancialTransactionEntries", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_FinancialTransactionEntries_Amount", "[Amount] > 0");
+
+                            t.HasCheckConstraint("CK_FinancialTransactionEntries_Effect", "[EffectKey] IN ('increase','decrease')");
                         });
                 });
 
@@ -3671,6 +3692,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<long?>("AccountAdjustmentId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("varchar(5)");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
@@ -3722,7 +3747,12 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountAdjustmentId");
+                    b.HasIndex("AccountAdjustmentId")
+                        .IsUnique()
+                        .HasFilter("[AccountAdjustmentId] IS NOT NULL");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
 
                     b.HasIndex("DemandAllocationId")
                         .IsUnique()
@@ -3739,6 +3769,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.ToTable("UnitReceivables", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_UnitReceivables_Amounts", "[OriginalAmount] > 0 AND [OutstandingAmount] >= 0 AND [OutstandingAmount] <= [OriginalAmount]");
+
+                            t.HasCheckConstraint("CK_UnitReceivables_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
 
                             t.HasCheckConstraint("CK_UnitReceivables_Origin", "(CASE WHEN [DemandAllocationId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [AccountAdjustmentId] IS NULL THEN 0 ELSE 1 END) = 1");
                         });
@@ -3945,6 +3977,16 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasForeignKey("FinancialAccountId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.FinancialAccount", null)
+                        .WithMany()
+                        .HasForeignKey("FundAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Party", null)
+                        .WithMany()
+                        .HasForeignKey("ResponsiblePartyId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.Asset", b =>

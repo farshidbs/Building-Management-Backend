@@ -10,6 +10,9 @@ public static class DemandAllocationCalculator
     {
         Validate(rule, overrides);
         if (units.Count == 0) return new([], 0, 0, 0);
+        var unitCodes = units.Select(x => x.UnitCode).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if ((overrides ?? []).Any(x => !unitCodes.Contains(x.UnitCode)))
+            throw Validation("overrides", "An override references a Unit outside the Demand scope.");
 
         var eligible = units.Where(x => x.Eligible).ToList();
         var calculated = CalculateAmounts(eligible, rule);
@@ -100,6 +103,22 @@ public static class DemandAllocationCalculator
         if (rule.RedistributionPolicyKey is not (BuildingManagement.Domain.FinancialKeys.Redistribution.None or
             BuildingManagement.Domain.FinancialKeys.Redistribution.ToOthers))
             throw Validation("redistributionPolicyKey", "Redistribution policy is invalid.");
+        var validCombination = rule.AllocationMethodKey switch
+        {
+            BuildingManagement.Domain.FinancialKeys.AllocationMethods.Equal =>
+                rule.AmountModeKey is BuildingManagement.Domain.FinancialKeys.AmountModes.Total or BuildingManagement.Domain.FinancialKeys.AmountModes.PerUnit,
+            BuildingManagement.Domain.FinancialKeys.AllocationMethods.Occupants =>
+                rule.AmountModeKey is BuildingManagement.Domain.FinancialKeys.AmountModes.Total or BuildingManagement.Domain.FinancialKeys.AmountModes.PerPerson,
+            BuildingManagement.Domain.FinancialKeys.AllocationMethods.Area =>
+                rule.AmountModeKey is BuildingManagement.Domain.FinancialKeys.AmountModes.Total or BuildingManagement.Domain.FinancialKeys.AmountModes.PerArea,
+            BuildingManagement.Domain.FinancialKeys.AllocationMethods.Custom =>
+                rule.AmountModeKey == BuildingManagement.Domain.FinancialKeys.AmountModes.Total,
+            _ => false
+        };
+        if (!validCombination) throw Validation("amountModeKey", "Amount mode is not supported for the selected allocation method.");
+        if (rule.RedistributionPolicyKey == BuildingManagement.Domain.FinancialKeys.Redistribution.ToOthers &&
+            rule.AmountModeKey != BuildingManagement.Domain.FinancialKeys.AmountModes.Total)
+            throw Validation("redistributionPolicyKey", "Redistribution is only supported for fixed-total allocation.");
         if ((overrides ?? []).GroupBy(x => x.UnitCode, StringComparer.OrdinalIgnoreCase).Any(x => x.Count() > 1))
             throw Validation("overrides", "Each Unit may be overridden once.");
     }

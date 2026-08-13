@@ -36,7 +36,7 @@ public sealed class FinancialDomainTests
     {
         var payment = new Payment("P1A2Y", 10, 20, 999, 1, 800_000m, null, null, null, Now);
         payment.Submit(false, Now);
-        payment.Confirm(Now, Now);
+        payment.ConfirmGateway("provider-1", Now, Now);
 
         Assert.Equal(999, payment.PayerPartyId);
         Assert.Equal(FinancialKeys.Statuses.Confirmed, payment.Status);
@@ -47,7 +47,39 @@ public sealed class FinancialDomainTests
     {
         var payment = new Payment("P1A2Y", 10, 20, null, 1, 800_000m, null, null, null, Now);
 
-        Assert.Throws<DomainValidationException>(() => payment.Confirm(Now, Now));
+        Assert.Throws<DomainValidationException>(() => payment.ConfirmManual(Now, Now));
+    }
+
+    [Fact]
+    public void ManualAndGatewayConfirmationPathsCannotCross()
+    {
+        var manual = new Payment("M1A2N", 1, 2, null, 1, 100m, null, null, null, Now);
+        manual.Submit(true, Now);
+        Assert.Throws<DomainValidationException>(() => manual.ConfirmGateway("provider", Now, Now));
+        manual.ConfirmManual(Now, Now);
+
+        var online = new Payment("O1N2L", 1, 2, null, 1, 100m, null, null, null, Now);
+        online.Submit(false, Now);
+        Assert.Throws<DomainValidationException>(() => online.ConfirmManual(Now, Now));
+        online.ConfirmGateway("provider", Now, Now);
+    }
+
+    [Fact]
+    public void AccountKindMustMatchOwnerKind()
+    {
+        Assert.Throws<DomainValidationException>(() =>
+            new FinancialAccount(1, null, null, FinancialKeys.AccountKinds.ReserveFund, Now));
+        Assert.Throws<DomainValidationException>(() =>
+            new FinancialAccount(null, 1, null, FinancialKeys.AccountKinds.Unit, Now));
+    }
+
+    [Fact]
+    public void TransactionTypeMustMatchExplicitSource()
+    {
+        Assert.Throws<DomainValidationException>(() => new FinancialTransaction(
+            FinancialKeys.TransactionTypes.Payment, 1, null, null, null, Now, null, Now));
+        Assert.Throws<DomainValidationException>(() =>
+            new FinancialTransactionEntry(1, 1, "invalid", 10, 10, Now));
     }
 
     [Fact]
@@ -111,7 +143,7 @@ public sealed class FinancialDomainTests
     [Fact]
     public void ReceivableAllowsPartialButNotExcessAllocation()
     {
-        var receivable = new UnitReceivable(1, 2, 3, null, 790_000m, "owner", null, null, Now);
+        var receivable = new UnitReceivable("R1A2B", 1, 2, 3, null, 790_000m, "owner", null, null, Now);
         receivable.ApplyPayment(780_000m, Now);
 
         Assert.Equal(10_000m, receivable.OutstandingAmount);

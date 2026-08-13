@@ -34,7 +34,8 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
         {
             if (request is null) throw Validation("request", "Required.");
             if (request.Rule is null) throw Validation("rule", "Required.");
-            var fund = await AccountByOwner(request.FundOwnerCode, request.FundAccountKindKey, token);
+            var fund = await FundAccount(request.FundBuildingCode, request.FundComplexCode,
+                request.FundAccountKindKey, token);
             if (fund.UnitId != null) throw Validation("fundAccount", "A building or complex fund is required.");
             var typeId = await Db.DemandTypes.Where(x => x.Key == request.DemandTypeKey && x.IsActive)
                 .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("demand_type");
@@ -50,7 +51,29 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
             await Save(token);
             return new(demand.Code, demand.Title, demand.Status, demand.DemandDate, demand.DueDate, null);
         }, ct);
-    public async Task<DemandPreviewResponse> Preview(string code, DemandPreviewRequest request, CancellationToken ct) { var demand = await Db.Demands.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("demand"); var rule = await Db.DemandAllocationRules.AsNoTracking().SingleAsync(x => x.DemandId == demand.Id, ct); var dto = new DemandRuleRequest(rule.AllocationMethodKey, rule.AmountModeKey, rule.TotalAmount, rule.RateAmount, rule.IncludeVacantUnits, rule.ResponsiblePartyTypeKey, rule.RedistributionPolicyKey, rule.Notes); return DemandAllocationCalculator.Calculate(await Inputs(demand, rule, ct), dto, request?.Overrides); }
+    public async Task<DemandPreviewResponse> Preview(string code, DemandPreviewRequest request, CancellationToken ct) { var demand = await Db.Demands.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("demand"); if (demand.Status != FinancialKeys.Statuses.Draft) throw AppException.Conflict("demand.preview_not_draft", "Preview is only available for a Draft Demand; read finalized allocations from Demand details."); var rule = await Db.DemandAllocationRules.AsNoTracking().SingleAsync(x => x.DemandId == demand.Id, ct); var dto = new DemandRuleRequest(rule.AllocationMethodKey, rule.AmountModeKey, rule.TotalAmount, rule.RateAmount, rule.IncludeVacantUnits, rule.ResponsiblePartyTypeKey, rule.RedistributionPolicyKey, rule.Notes); return DemandAllocationCalculator.Calculate(await Inputs(demand, rule, ct), dto, request?.Overrides); }
+    public async Task<DemandResponse> Update(string code, DemandRequest request, CancellationToken ct)
+    {
+        var demand = await Db.Demands.SingleOrDefaultAsync(x => x.Code == Code(code), ct)
+            ?? throw AppException.NotFound("demand");
+        if (demand.Status != FinancialKeys.Statuses.Draft)
+            throw AppException.Conflict("demand.not_draft", "Only a Draft Demand can be updated.");
+        var requestedFund = await FundAccount(request.FundBuildingCode, request.FundComplexCode,
+            request.FundAccountKindKey, ct);
+        if (requestedFund.Id != demand.FundAccountId)
+            throw Validation("fundScope", "A Draft Demand cannot be moved to another Fund.");
+        var requestedTypeId = await Db.DemandTypes.Where(x => x.Key == request.DemandTypeKey && x.IsActive)
+            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("demand_type");
+        if (requestedTypeId != demand.DemandTypeId)
+            throw Validation("demandTypeKey", "Demand type cannot be changed by this update.");
+        demand.UpdateDraft(request.Title, request.Description, request.DemandDate, request.DueDate, Now);
+        var rule = await Db.DemandAllocationRules.SingleAsync(x => x.DemandId == demand.Id, ct);
+        rule.Update(request.Rule.AllocationMethodKey, request.Rule.AmountModeKey, request.Rule.TotalAmount,
+            request.Rule.RateAmount, request.Rule.IncludeVacantUnits, request.Rule.ResponsiblePartyTypeKey,
+            request.Rule.RedistributionPolicyKey, request.Rule.Notes);
+        await Save(ct);
+        return new(demand.Code, demand.Title, demand.Status, demand.DemandDate, demand.DueDate, null);
+    }
     public async Task<DemandResponse> Finalize(string code, DemandPreviewRequest request, CancellationToken ct) =>
         await Db.ExecuteInTransaction<DemandResponse>(async token =>
         {
@@ -93,7 +116,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
                     Db.FinancialAccounts.Add(unitAccount);
                     await Save(token);
                 }
-                Db.UnitReceivables.Add(new UnitReceivable(unitAccount.Id, fund.Id, allocation.Id, null,
+                Db.UnitReceivables.Add(new UnitReceivable(await Unique(Db.UnitReceivables, token), unitAccount.Id, fund.Id, allocation.Id, null,
                     item.FinalAmount, item.ResponsiblePartyTypeKey, partyId, demand.DueDate, Now));
                 await Apply(unitAccount, FinancialKeys.Effects.Decrease, item.FinalAmount, transaction, token);
             }

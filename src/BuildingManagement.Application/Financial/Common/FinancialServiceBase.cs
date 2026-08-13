@@ -12,5 +12,17 @@ public abstract class FinancialServiceBase(IApplicationDbContext db, TimeProvide
     protected async Task Save(CancellationToken ct) { try { await Db.SaveChangesAsync(ct); } catch (DbUpdateConcurrencyException) { throw AppException.Conflict("concurrency.conflict", "The financial resource changed concurrently."); } catch (DbUpdateException) { throw AppException.Conflict("persistence.conflict", "The financial change conflicts with existing data."); } }
     protected static async Task<string> Unique<T>(IQueryable<T> set, CancellationToken ct) where T : Entity { for (var i = 0; i < 20; i++) { var code = PublicCode.Create(); if (!await set.AnyAsync(x => x.Code == code, ct)) return code; } throw new AppException(500, "code.generation_failed", "A unique code could not be generated."); }
     protected async Task<FinancialTransactionEntry> Apply(FinancialAccount account, string effect, decimal amount, FinancialTransaction transaction, CancellationToken ct) { await Save(ct); var balance = account.Apply(effect, amount, Now); var entry = new FinancialTransactionEntry(transaction.Id, account.Id, effect, amount, balance, Now); Db.FinancialTransactionEntries.Add(entry); return entry; }
-    protected async Task<FinancialAccount> AccountByOwner(string ownerCode, string kind, CancellationToken ct) { var normalized = Code(ownerCode); var account = await Db.FinancialAccounts.SingleOrDefaultAsync(x => x.AccountKindKey == kind && ((x.UnitId != null && Db.Units.Any(u => u.Id == x.UnitId && u.Code == normalized)) || (x.BuildingId != null && Db.Buildings.Any(b => b.Id == x.BuildingId && b.Code == normalized)) || (x.ComplexId != null && Db.Complexes.Any(c => c.Id == x.ComplexId && c.Code == normalized))), ct); return account ?? throw AppException.NotFound("financial_account"); }
+    protected async Task<FinancialAccount> UnitAccount(string unitCode, CancellationToken ct)
+    { var normalized = Code(unitCode); return await Db.FinancialAccounts.SingleOrDefaultAsync(x => x.UnitId != null && x.AccountKindKey == FinancialKeys.AccountKinds.Unit && Db.Units.Any(u => u.Id == x.UnitId && u.Code == normalized), ct) ?? throw AppException.NotFound("financial_account"); }
+    protected async Task<FinancialAccount> FundAccount(string? buildingCode, string? complexCode, string kind, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(buildingCode) == string.IsNullOrWhiteSpace(complexCode)) throw Validation("fundScope", "Exactly one Fund buildingCode or complexCode is required.");
+        if (kind is not (FinancialKeys.AccountKinds.CurrentFund or FinancialKeys.AccountKinds.ReserveFund)) throw Validation("fundAccountKindKey", "A Fund kind is required.");
+        var building = string.IsNullOrWhiteSpace(buildingCode) ? null : Code(buildingCode);
+        var complex = string.IsNullOrWhiteSpace(complexCode) ? null : Code(complexCode);
+        return await Db.FinancialAccounts.SingleOrDefaultAsync(x => x.AccountKindKey == kind &&
+            (building != null && x.BuildingId != null && Db.Buildings.Any(b => b.Id == x.BuildingId && b.Code == building) ||
+             complex != null && x.ComplexId != null && Db.Complexes.Any(c => c.Id == x.ComplexId && c.Code == complex)), ct)
+            ?? throw AppException.NotFound("financial_account");
+    }
 }

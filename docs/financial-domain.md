@@ -15,10 +15,15 @@ from current occupancy data.
 
 The financial account belongs to a Unit, Building, or Complex—not to a Party. The responsible
 Party is a historical responsibility snapshot and is independent from the Party who later pays.
-A confirmed Payment may partially settle one or more Receivables, may be made by any Party, and
+A Receivable has its own public Code and may originate from either a finalized Demand allocation
+or an opening-debt AccountAdjustment. A confirmed Payment may partially settle one or more
+Receivables, may be made by any Party, and
 may exceed selected debt; the excess remains Unit credit. Payment confirmation increases both
 the Unit account and the receiving Fund. Gateway callbacks resolve a Payment by its unique
-`GatewayReference`; repeated callbacks are idempotent.
+`GatewayReference`; repeated callbacks are idempotent. An ordinary Payment request cannot submit
+a GatewayReference. Manual confirmation accepts only `waiting_for_approval`; trusted online
+confirmation is an application-only `ITrustedPaymentResultProcessor` capability with no public
+HTTP endpoint until a real provider adapter exists.
 
 Every finalized balance mutation updates `FinancialAccount.CurrentBalance` and creates a
 `FinancialTransaction` plus one or more immutable `FinancialTransactionEntries` atomically.
@@ -30,9 +35,10 @@ All Financial-domain tables use the `bms` schema. Financial document relations r
 existing `base.StoredFiles` table. Foreign-key deletes are restricted to protect history, money
 uses `decimal(18,2)`, and aggregate mutations use SQL Server rowversion concurrency.
 
-Opening debt and credit use `AccountAdjustment`. In this release opening debt is represented by
-the Unit account balance adjustment; it does not create a Receivable because an adjustment has
-no receiving Fund in its approved contract. Advanced reversal/correction workflows, personal
+Opening debt and credit use `AccountAdjustment`. Opening debt requires an explicit compatible
+Building/Complex destination Fund and atomically decreases the Unit account while creating a
+payable `UnitReceivable` whose origin is `AccountAdjustmentId`. Partial payment, full payment and
+overpayment use the same Payment flow as Demand debt. Advanced reversal/correction workflows, personal
 manager advances or Party funding of a Fund, and a real payment-gateway provider integration
 are intentionally deferred. Demand types remain system reference data; scoped custom Demand
 types are a possible future extension.

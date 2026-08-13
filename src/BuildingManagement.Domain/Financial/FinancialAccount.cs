@@ -13,6 +13,10 @@ public sealed class FinancialAccount : FinancialRecord
     {
         if ((unitId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (complexId.HasValue ? 1 : 0) != 1)
             throw new DomainValidationException("owner", "Exactly one account owner is required.");
+        if (unitId.HasValue && kind != FinancialKeys.AccountKinds.Unit)
+            throw new DomainValidationException("accountKindKey", "A Unit account must use unit_account.");
+        if (!unitId.HasValue && kind is not (FinancialKeys.AccountKinds.CurrentFund or FinancialKeys.AccountKinds.ReserveFund))
+            throw new DomainValidationException("accountKindKey", "A Building or Complex account must use a Fund kind.");
         UnitId = unitId; BuildingId = buildingId; ComplexId = complexId;
         AccountKindKey = Required(kind, "accountKindKey"); CreatedAtUtc = now;
     }
@@ -47,6 +51,15 @@ public sealed class FinancialTransaction
     {
         if ((demandId.HasValue ? 1 : 0) + (paymentId.HasValue ? 1 : 0) + (disbursementId.HasValue ? 1 : 0) + (adjustmentId.HasValue ? 1 : 0) != 1)
             throw new DomainValidationException("source", "Exactly one transaction source is required.");
+        var sourceMatchesType = type switch
+        {
+            FinancialKeys.TransactionTypes.Demand => demandId.HasValue,
+            FinancialKeys.TransactionTypes.Payment => paymentId.HasValue,
+            FinancialKeys.TransactionTypes.ExpenseDisbursement => disbursementId.HasValue,
+            FinancialKeys.TransactionTypes.AccountAdjustment => adjustmentId.HasValue,
+            _ => false
+        };
+        if (!sourceMatchesType) throw new DomainValidationException("transactionTypeKey", "Transaction type must match its source.");
         TransactionTypeKey = string.IsNullOrWhiteSpace(type) ? throw new DomainValidationException("transactionTypeKey", "Required.") : type;
         DemandId = demandId; PaymentId = paymentId; ExpenseDisbursementId = disbursementId; AccountAdjustmentId = adjustmentId;
         OccurredAtUtc = occurredAtUtc.ToUniversalTime(); Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim(); CreatedAtUtc = now;
@@ -64,5 +77,5 @@ public sealed class FinancialTransactionEntry
     public decimal BalanceAfter { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
     public FinancialTransactionEntry(long transactionId, long accountId, string effect, decimal amount, decimal balanceAfter, DateTimeOffset now)
-    { if (transactionId <= 0 || accountId <= 0) throw new DomainValidationException("entry", "Transaction and account are required."); if (amount <= 0) throw new DomainValidationException("amount", "Must be greater than zero."); FinancialTransactionId = transactionId; FinancialAccountId = accountId; EffectKey = effect; Amount = amount; BalanceAfter = balanceAfter; CreatedAtUtc = now; }
+    { if (transactionId <= 0 || accountId <= 0) throw new DomainValidationException("entry", "Transaction and account are required."); if (amount <= 0) throw new DomainValidationException("amount", "Must be greater than zero."); if (effect is not (FinancialKeys.Effects.Increase or FinancialKeys.Effects.Decrease)) throw new DomainValidationException("effectKey", "Effect is invalid."); FinancialTransactionId = transactionId; FinancialAccountId = accountId; EffectKey = effect; Amount = amount; BalanceAfter = balanceAfter; CreatedAtUtc = now; }
 }
