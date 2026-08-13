@@ -38,7 +38,7 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
         var account = new FinancialAccount(unitId, buildingId, complexId, request.AccountKindKey, Now);
         Db.FinancialAccounts.Add(account);
         await Save(ct);
-        return new(ownerCode, account.AccountKindKey, account.CurrentBalance, account.IsActive);
+        return new(ownerCode, account.AccountKindKey, account.CurrentBalance, account.AvailableCredit, account.IsActive);
     }
 
     public async Task<FinancialAccountResponse> GetUnit(string unitCode, CancellationToken ct)
@@ -102,6 +102,8 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
                 null, null, null, adjustment.Id, adjustment.EffectiveDate, adjustment.Reason, Now);
             Db.FinancialTransactions.Add(transaction);
             await Apply(account, effect, adjustment.Amount, transaction, token);
+            if (adjustment.AdjustmentTypeKey == FinancialKeys.Adjustments.OpeningCredit && account.UnitId != null)
+                account.AddAvailableCredit(adjustment.Amount, Now);
             if (adjustment.AdjustmentTypeKey == FinancialKeys.Adjustments.OpeningDebt)
             {
                 var receivable = new UnitReceivable(await Unique(Db.UnitReceivables, token), account.Id,
@@ -132,5 +134,5 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
                 b.Id == x.BuildingId && b.ComplexId == fund.ComplexId), ct);
 
     private static FinancialAccountResponse Response(string code, FinancialAccount account) =>
-        new(code, account.AccountKindKey, account.CurrentBalance, account.IsActive);
+        new(code, account.AccountKindKey, account.CurrentBalance, account.AvailableCredit, account.IsActive);
 }

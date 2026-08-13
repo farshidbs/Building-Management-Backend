@@ -42,3 +42,21 @@ overpayment use the same Payment flow as Demand debt. Advanced reversal/correcti
 manager advances or Party funding of a Fund, and a real payment-gateway provider integration
 are intentionally deferred. Demand types remain system reference data; scoped custom Demand
 types are a possible future extension.
+
+## Unit credit
+
+`CurrentBalance` is the Unit's net financial position; `AvailableCredit` is money already
+received or credited to the Unit but not assigned to a Receivable. It is produced by the
+unallocated part of a confirmed Payment or a finalized Unit opening credit, and is never
+derived from `CurrentBalance`. Demand finalization creates the full Receivable and does not
+automatically consume available credit.
+
+Credit belongs to the Unit, not to an owner, tenant, occupant, or payer. Fund money is pooled:
+available Unit credit does not reserve cash in a Fund. A caller may explicitly create a
+`UnitCreditSettlement` across one or more Receivables belonging to that Unit. The settlement
+reduces `AvailableCredit` and Receivable outstanding amounts only; it changes neither Unit
+`CurrentBalance` nor any Fund balance and therefore creates no fake
+`FinancialTransactionEntry`. The settlement header and allocations provide its audit trail.
+
+Private landlord/tenant settlement, automatic credit consumption, a general Fund-to-Unit cash
+refund, and credit creation from future Demand cancellation/reversal remain outside this scope.

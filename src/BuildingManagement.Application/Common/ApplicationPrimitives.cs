@@ -60,6 +60,8 @@ public interface IApplicationDbContext
     DbSet<PaymentAllocation> PaymentAllocations { get; }
     DbSet<PaymentEvidenceFile> PaymentEvidenceFiles { get; }
     DbSet<AccountAdjustment> AccountAdjustments { get; }
+    DbSet<UnitCreditSettlement> UnitCreditSettlements { get; }
+    DbSet<UnitCreditSettlementAllocation> UnitCreditSettlementAllocations { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,

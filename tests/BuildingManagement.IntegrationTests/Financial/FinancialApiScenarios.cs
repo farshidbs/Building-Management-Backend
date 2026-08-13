@@ -141,6 +141,7 @@ public sealed partial class ApiScenarios
         Assert.Equal(0, settled.OutstandingAmount);
         Assert.Equal(FinancialKeys.ReceivableStatuses.Paid, settled.Status);
         Assert.Equal(2_000_000m, unitAccount.CurrentBalance);
+        Assert.Equal(2_000_000m, unitAccount.AvailableCredit);
         Assert.Equal(10_000_000m, fund.CurrentBalance);
         Assert.Equal(1, await db.PaymentEvidenceFiles.CountAsync(x => x.PaymentId ==
             db.Payments.Where(p => p.Code == first.Code).Select(p => p.Id).Single()));
@@ -159,6 +160,37 @@ public sealed partial class ApiScenarios
         db.ChangeTracker.Clear();
         Assert.Equal(1, await db.FinancialTransactions.CountAsync(x => x.PaymentId ==
             db.Payments.Where(p => p.Code == online.Code).Select(p => p.Id).Single()));
+        Assert.Equal(2_100_000m, await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
+            .Select(x => x.AvailableCredit).SingleAsync());
+        var laterDebt = await Post<AccountAdjustmentResponse>("/api/v1/financial/accounts/adjustments",
+            new AccountAdjustmentRequest(unit.Code, null, null, FinancialKeys.AccountKinds.Unit,
+                building.Code, null, FinancialKeys.AccountKinds.ReserveFund,
+                FinancialKeys.Adjustments.OpeningDebt, 1_000_000m, DateTimeOffset.UtcNow,
+                "بدهی بعدی مالک", FinancialKeys.ResponsibleParties.Owner));
+        using (var finalizeLaterDebt = await client.PostAsync(
+            $"/api/v1/financial/accounts/adjustments/{laterDebt.Code}/finalize", null))
+            finalizeLaterDebt.EnsureSuccessStatusCode();
+        var laterReceivable = await db.UnitReceivables.SingleAsync(x => x.AccountAdjustmentId ==
+            db.AccountAdjustments.Where(a => a.Code == laterDebt.Code).Select(a => a.Id).Single());
+        var balanceBeforeCredit = await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
+            .Select(x => x.CurrentBalance).SingleAsync();
+        var fundBeforeCredit = await db.FinancialAccounts.Where(x => x.Id == fund.Id)
+            .Select(x => x.CurrentBalance).SingleAsync();
+        var creditSettlement = await Post<UnitCreditSettlementResponse>(
+            $"/api/v1/financial/units/{unit.Code}/credit-settlements",
+            new UnitCreditSettlementRequest([new(laterReceivable.Code, 400_000m)]));
+        db.ChangeTracker.Clear();
+        Assert.Equal(1_700_000m, creditSettlement.AvailableCredit);
+        Assert.Equal(600_000m, await db.UnitReceivables.Where(x => x.Id == laterReceivable.Id)
+            .Select(x => x.OutstandingAmount).SingleAsync());
+        Assert.Equal(balanceBeforeCredit, await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
+            .Select(x => x.CurrentBalance).SingleAsync());
+        Assert.Equal(fundBeforeCredit, await db.FinancialAccounts.Where(x => x.Id == fund.Id)
+            .Select(x => x.CurrentBalance).SingleAsync());
+        Assert.Equal(1, await db.UnitCreditSettlements.CountAsync(x => x.Code == creditSettlement.Code));
+        Assert.Equal(1, await db.UnitCreditSettlementAllocations.CountAsync(x =>
+            x.UnitCreditSettlementId == db.UnitCreditSettlements.Where(s => s.Code == creditSettlement.Code)
+                .Select(s => s.Id).Single()));
     }
 
     [Fact]

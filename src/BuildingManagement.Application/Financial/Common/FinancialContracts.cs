@@ -1,7 +1,7 @@
 namespace BuildingManagement.Application;
 
 public sealed record FinancialAccountRequest(string? UnitCode, string? BuildingCode, string? ComplexCode, string AccountKindKey);
-public sealed record FinancialAccountResponse(string OwnerCode, string AccountKindKey, decimal CurrentBalance, bool IsActive);
+public sealed record FinancialAccountResponse(string OwnerCode, string AccountKindKey, decimal CurrentBalance, decimal AvailableCredit, bool IsActive);
 public sealed record FinancialEntryResponse(string TransactionTypeKey, string EffectKey, decimal Amount, decimal BalanceAfter, DateTimeOffset OccurredAtUtc, string? Description);
 public sealed record AccountAdjustmentRequest(string? AccountUnitCode, string? AccountBuildingCode,
     string? AccountComplexCode, string AccountKindKey, string? FundBuildingCode,
@@ -51,3 +51,6 @@ public sealed record ReceivableResponse(string Code, string? DemandCode, string?
     decimal OutstandingAmount, string Status, string ResponsiblePartyTypeKey,
     string? ResponsiblePartyCode, DateTimeOffset? DueDate);
 public sealed record FinancialFileResponse(StoredFileResponse File, string? Title, string? Description);
+public sealed record UnitCreditSettlementAllocationRequest(string ReceivableCode, decimal Amount);
+public sealed record UnitCreditSettlementRequest(IReadOnlyList<UnitCreditSettlementAllocationRequest> Allocations);
+public sealed record UnitCreditSettlementResponse(string Code, string UnitCode, decimal Amount, decimal AvailableCredit);

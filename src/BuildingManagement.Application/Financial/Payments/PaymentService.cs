@@ -108,6 +108,8 @@ public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock)
                 payment.Id, null, null, paidAtUtc ?? Now, $"Payment {payment.Code}", Now);
             Db.FinancialTransactions.Add(transaction);
             await Apply(unit, FinancialKeys.Effects.Increase, payment.Amount, transaction, token);
+            var unappliedAmount = payment.Amount - allocations.Sum(x => x.Amount);
+            if (unappliedAmount > 0) unit.AddAvailableCredit(unappliedAmount, Now);
             await Apply(fund, FinancialKeys.Effects.Increase, payment.Amount, transaction, token);
             await Save(token);
             return await Response(payment, token);

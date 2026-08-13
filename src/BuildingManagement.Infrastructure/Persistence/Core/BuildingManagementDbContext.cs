@@ -64,6 +64,8 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<PaymentEvidenceFile> PaymentEvidenceFiles => Set<PaymentEvidenceFile>();
     public DbSet<AccountAdjustment> AccountAdjustments => Set<AccountAdjustment>();
+    public DbSet<UnitCreditSettlement> UnitCreditSettlements => Set<UnitCreditSettlement>();
+    public DbSet<UnitCreditSettlementAllocation> UnitCreditSettlementAllocations => Set<UnitCreditSettlementAllocation>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

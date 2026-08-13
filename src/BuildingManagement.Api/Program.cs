@@ -48,6 +48,7 @@ builder.Services.AddScoped<DemandService>();
 builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<ITrustedPaymentResultProcessor>(sp => sp.GetRequiredService<PaymentService>());
 builder.Services.AddScoped<FinancialFileService>();
+builder.Services.AddScoped<UnitCreditSettlementService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 

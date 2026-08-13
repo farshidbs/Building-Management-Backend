@@ -21,6 +21,22 @@ public sealed class FinancialDomainTests
     }
 
     [Fact]
+    public void AvailableCreditIsUnitOnlyAndCannotBecomeNegative()
+    {
+        var unit = new FinancialAccount(1, null, null, FinancialKeys.AccountKinds.Unit, Now);
+        unit.AddAvailableCredit(700m, Now);
+        unit.Apply(FinancialKeys.Effects.Decrease, 500m, Now);
+        Assert.Equal(700m, unit.AvailableCredit);
+        Assert.Equal(-500m, unit.CurrentBalance);
+        unit.ConsumeAvailableCredit(400m, Now);
+        Assert.Equal(300m, unit.AvailableCredit);
+        Assert.Equal(-500m, unit.CurrentBalance);
+        Assert.Throws<DomainValidationException>(() => unit.ConsumeAvailableCredit(301m, Now));
+        var fund = new FinancialAccount(null, 1, null, FinancialKeys.AccountKinds.CurrentFund, Now);
+        Assert.Throws<DomainValidationException>(() => fund.AddAvailableCredit(1m, Now));
+    }
+
+    [Fact]
     public void ExpenseFinalizationDoesNotMoveMoney()
     {
         var expense = new Expense("A1B2C", 1, null, 1, null, "قبض برق", 20_000_000m,

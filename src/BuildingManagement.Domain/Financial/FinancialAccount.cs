@@ -8,6 +8,7 @@ public sealed class FinancialAccount : FinancialRecord
     public long? ComplexId { get; private set; }
     public string AccountKindKey { get; private set; } = "";
     public decimal CurrentBalance { get; private set; }
+    public decimal AvailableCredit { get; private set; }
 
     public FinancialAccount(long? unitId, long? buildingId, long? complexId, string kind, DateTimeOffset now)
     {
@@ -20,6 +21,9 @@ public sealed class FinancialAccount : FinancialRecord
         UnitId = unitId; BuildingId = buildingId; ComplexId = complexId;
         AccountKindKey = Required(kind, "accountKindKey"); CreatedAtUtc = now;
     }
+
+    public void AddAvailableCredit(decimal amount, DateTimeOffset now) { Positive(amount); if (UnitId is null) throw new DomainValidationException("availableCredit", "Only Unit accounts may hold available credit."); AvailableCredit += amount; Touch(now); }
+    public void ConsumeAvailableCredit(decimal amount, DateTimeOffset now) { Positive(amount); if (UnitId is null || amount > AvailableCredit) throw new DomainValidationException("availableCredit", "Insufficient Unit available credit."); AvailableCredit -= amount; Touch(now); }
 
     public decimal Apply(string effect, decimal amount, DateTimeOffset now)
     {
