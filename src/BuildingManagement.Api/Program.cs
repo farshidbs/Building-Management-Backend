@@ -42,6 +42,11 @@ builder.Services.AddScoped<BuildingComplexDocumentService>();
 builder.Services.AddScoped<AssetService>();
 builder.Services.AddScoped<AssetEventService>();
 builder.Services.AddScoped<AssetFileService>();
+builder.Services.AddScoped<FinancialAccountService>();
+builder.Services.AddScoped<ExpenseService>();
+builder.Services.AddScoped<DemandService>();
+builder.Services.AddScoped<PaymentService>();
+builder.Services.AddScoped<FinancialFileService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 

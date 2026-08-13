@@ -15,6 +15,7 @@ public static class EndpointRegistration
         api.MapUnitEndpoints();
         api.MapPartyEndpoints();
         api.MapUnitPartyOccupancyEndpoints();
+        api.MapFinancialEndpoints();
         app.MapFileManagementEndpoints();
         app.MapAssetEndpoints();
     }

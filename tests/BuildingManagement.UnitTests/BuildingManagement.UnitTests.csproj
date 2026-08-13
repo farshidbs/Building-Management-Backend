@@ -2,6 +2,7 @@
   <PropertyGroup><IsTestProject>true</IsTestProject><NoWarn>$(NoWarn);CA1707</NoWarn></PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/BuildingManagement.Domain/BuildingManagement.Domain.csproj" />
+    <ProjectReference Include="../../src/BuildingManagement.Application/BuildingManagement.Application.csproj" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />

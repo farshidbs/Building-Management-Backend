@@ -37,6 +37,33 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<AssetGalleryFile> AssetGalleryFiles => Set<AssetGalleryFile>();
     public DbSet<AssetDocument> AssetDocuments => Set<AssetDocument>();
     public DbSet<AssetEventFile> AssetEventFiles => Set<AssetEventFile>();
+    public DbSet<FinancialAccount> FinancialAccounts => Set<FinancialAccount>();
+    public DbSet<FinancialTransaction> FinancialTransactions => Set<FinancialTransaction>();
+    public DbSet<FinancialTransactionEntry> FinancialTransactionEntries => Set<FinancialTransactionEntry>();
+    public DbSet<ExpenseType> ExpenseTypes => Set<ExpenseType>();
+    public DbSet<Expense> Expenses => Set<Expense>();
+    public DbSet<ExpenseDocument> ExpenseDocuments => Set<ExpenseDocument>();
+    public DbSet<ExpenseDisbursement> ExpenseDisbursements => Set<ExpenseDisbursement>();
+    public DbSet<ExpenseDisbursementFile> ExpenseDisbursementFiles => Set<ExpenseDisbursementFile>();
+    public DbSet<ExpenseAsset> ExpenseAssets => Set<ExpenseAsset>();
+    public DbSet<ExpenseAssetEvent> ExpenseAssetEvents => Set<ExpenseAssetEvent>();
+    public DbSet<ExpenseBuilding> ExpenseBuildings => Set<ExpenseBuilding>();
+    public DbSet<ExpenseComplex> ExpenseComplexes => Set<ExpenseComplex>();
+    public DbSet<DemandType> DemandTypes => Set<DemandType>();
+    public DbSet<Demand> Demands => Set<Demand>();
+    public DbSet<DemandAllocationRule> DemandAllocationRules => Set<DemandAllocationRule>();
+    public DbSet<DemandAllocation> DemandAllocations => Set<DemandAllocation>();
+    public DbSet<DemandExpense> DemandExpenses => Set<DemandExpense>();
+    public DbSet<DemandAsset> DemandAssets => Set<DemandAsset>();
+    public DbSet<DemandAssetEvent> DemandAssetEvents => Set<DemandAssetEvent>();
+    public DbSet<DemandBuilding> DemandBuildings => Set<DemandBuilding>();
+    public DbSet<DemandComplex> DemandComplexes => Set<DemandComplex>();
+    public DbSet<UnitReceivable> UnitReceivables => Set<UnitReceivable>();
+    public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
+    public DbSet<PaymentEvidenceFile> PaymentEvidenceFiles => Set<PaymentEvidenceFile>();
+    public DbSet<AccountAdjustment> AccountAdjustments => Set<AccountAdjustment>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

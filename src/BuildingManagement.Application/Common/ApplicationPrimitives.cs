@@ -33,6 +33,33 @@ public interface IApplicationDbContext
     DbSet<AssetGalleryFile> AssetGalleryFiles { get; }
     DbSet<AssetDocument> AssetDocuments { get; }
     DbSet<AssetEventFile> AssetEventFiles { get; }
+    DbSet<FinancialAccount> FinancialAccounts { get; }
+    DbSet<FinancialTransaction> FinancialTransactions { get; }
+    DbSet<FinancialTransactionEntry> FinancialTransactionEntries { get; }
+    DbSet<ExpenseType> ExpenseTypes { get; }
+    DbSet<Expense> Expenses { get; }
+    DbSet<ExpenseDocument> ExpenseDocuments { get; }
+    DbSet<ExpenseDisbursement> ExpenseDisbursements { get; }
+    DbSet<ExpenseDisbursementFile> ExpenseDisbursementFiles { get; }
+    DbSet<ExpenseAsset> ExpenseAssets { get; }
+    DbSet<ExpenseAssetEvent> ExpenseAssetEvents { get; }
+    DbSet<ExpenseBuilding> ExpenseBuildings { get; }
+    DbSet<ExpenseComplex> ExpenseComplexes { get; }
+    DbSet<DemandType> DemandTypes { get; }
+    DbSet<Demand> Demands { get; }
+    DbSet<DemandAllocationRule> DemandAllocationRules { get; }
+    DbSet<DemandAllocation> DemandAllocations { get; }
+    DbSet<DemandExpense> DemandExpenses { get; }
+    DbSet<DemandAsset> DemandAssets { get; }
+    DbSet<DemandAssetEvent> DemandAssetEvents { get; }
+    DbSet<DemandBuilding> DemandBuildings { get; }
+    DbSet<DemandComplex> DemandComplexes { get; }
+    DbSet<UnitReceivable> UnitReceivables { get; }
+    DbSet<PaymentMethod> PaymentMethods { get; }
+    DbSet<Payment> Payments { get; }
+    DbSet<PaymentAllocation> PaymentAllocations { get; }
+    DbSet<PaymentEvidenceFile> PaymentEvidenceFiles { get; }
+    DbSet<AccountAdjustment> AccountAdjustments { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
