@@ -37,26 +37,35 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
 
     public async Task<IReadOnlyList<ExpenseTypeResponse>> Types(string? buildingCode, string? complexCode, CancellationToken ct)
     {
+        if (!string.IsNullOrWhiteSpace(buildingCode) && !string.IsNullOrWhiteSpace(complexCode))
+            throw Validation("scope", "Supply either buildingCode or complexCode, not both.");
         long? building = null, complex = null;
         if (!string.IsNullOrWhiteSpace(buildingCode)) { var row = await Db.Buildings.Where(x => x.Code == Code(buildingCode)).Select(x => new { x.Id, x.ComplexId }).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building"); building = row.Id; complex = row.ComplexId; }
         else if (!string.IsNullOrWhiteSpace(complexCode)) complex = await Db.Complexes.Where(x => x.Code == Code(complexCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
-        return await Db.ExpenseTypes.AsNoTracking().Where(x => x.IsActive && ((x.BuildingId == null && x.ComplexId == null) || x.BuildingId == building || x.ComplexId == complex)).OrderBy(x => x.SortOrder).ThenBy(x => x.Title).Select(x => new ExpenseTypeResponse(x.Id, x.Key, x.Title, x.BuildingId == null ? null : Db.Buildings.Where(b => b.Id == x.BuildingId).Select(b => b.Code).Single(), x.ComplexId == null ? null : Db.Complexes.Where(c => c.Id == x.ComplexId).Select(c => c.Code).Single(), x.IsActive)).ToListAsync(ct);
+        return await AvailableTypes(building, complex).AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).Select(x => new ExpenseTypeResponse(x.Id, x.Key, x.Title, x.BuildingId == null ? null : Db.Buildings.Where(b => b.Id == x.BuildingId).Select(b => b.Code).Single(), x.ComplexId == null ? null : Db.Complexes.Where(c => c.Id == x.ComplexId).Select(c => c.Code).Single(), x.IsActive)).ToListAsync(ct);
     }
     public async Task<ExpenseResponse> Create(ExpenseRequest request, CancellationToken ct) =>
         await Db.ExecuteInTransaction(async token =>
         {
             if (request is null) throw Validation("request", "Required.");
-            long? buildingId = string.IsNullOrWhiteSpace(request.BuildingCode)
-                ? null
-                : await Db.Buildings.Where(x => x.Code == Code(request.BuildingCode))
-                    .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("building");
+            if (!string.IsNullOrWhiteSpace(request.BuildingCode) && !string.IsNullOrWhiteSpace(request.ComplexCode))
+                throw Validation("scope", "Supply either BuildingCode or ComplexCode, not both.");
+            long? parentComplexId = null;
+            long? buildingId = null;
+            if (!string.IsNullOrWhiteSpace(request.BuildingCode))
+            {
+                var building = await Db.Buildings.Where(x => x.Code == Code(request.BuildingCode))
+                    .Select(x => new { x.Id, x.ComplexId }).SingleOrDefaultAsync(token)
+                    ?? throw AppException.NotFound("building");
+                buildingId = building.Id;
+                parentComplexId = building.ComplexId;
+            }
             long? complexId = string.IsNullOrWhiteSpace(request.ComplexCode)
                 ? null
                 : await Db.Complexes.Where(x => x.Code == Code(request.ComplexCode))
                     .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("complex");
-            var typeId = await Db.ExpenseTypes.Where(x => x.Id == request.ExpenseTypeId && x.IsActive &&
-                    (x.BuildingId == null || x.BuildingId == buildingId) &&
-                    (x.ComplexId == null || x.ComplexId == complexId))
+            var typeId = await AvailableTypes(buildingId, buildingId.HasValue ? parentComplexId : complexId)
+                .Where(x => x.Id == request.ExpenseTypeId)
                 .Select(x => (long?)x.Id).FirstOrDefaultAsync(token) ?? throw AppException.NotFound("expense_type");
             long? vendorId = string.IsNullOrWhiteSpace(request.VendorPartyCode)
                 ? null
@@ -124,4 +133,15 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
 
     private static IEnumerable<string> DistinctCodes(IReadOnlyList<string>? codes) =>
         (codes ?? []).Select(Code).Distinct(StringComparer.OrdinalIgnoreCase);
+
+    private IQueryable<ExpenseType> AvailableTypes(long? buildingId, long? complexId)
+    {
+        var types = Db.ExpenseTypes.Where(x => x.IsActive);
+        if (buildingId.HasValue)
+            return types.Where(x => x.BuildingId == null && x.ComplexId == null ||
+                x.BuildingId == buildingId || complexId.HasValue && x.ComplexId == complexId);
+        if (complexId.HasValue)
+            return types.Where(x => x.BuildingId == null && x.ComplexId == null || x.ComplexId == complexId);
+        return types.Where(x => x.BuildingId == null && x.ComplexId == null);
+    }
 }

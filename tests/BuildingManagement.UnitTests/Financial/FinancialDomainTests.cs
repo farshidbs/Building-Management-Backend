@@ -158,6 +158,29 @@ public sealed class FinancialDomainTests
             1_000_000m, 100_000m, true, "owner", "no_redistribution", null));
     }
 
+    [Theory]
+    [InlineData(FinancialKeys.ResponsibleParties.Owner)]
+    [InlineData(FinancialKeys.ResponsibleParties.CurrentOccupant)]
+    public void AllocationRuleAcceptsApprovedResponsiblePartyTypes(string responsiblePartyType)
+    {
+        var rule = new DemandAllocationRule(1, FinancialKeys.AllocationMethods.Equal,
+            FinancialKeys.AmountModes.Total, 1_000_000m, null, true, responsiblePartyType,
+            FinancialKeys.Redistribution.None, null);
+        Assert.Equal(responsiblePartyType, rule.ResponsiblePartyTypeKey);
+    }
+
+    [Theory]
+    [InlineData("current_ocupant")]
+    [InlineData("random")]
+    public void FinancialSnapshotsRejectUnknownResponsiblePartyTypes(string responsiblePartyType)
+    {
+        Assert.Throws<DomainValidationException>(() => new DemandAllocationRule(1,
+            FinancialKeys.AllocationMethods.Equal, FinancialKeys.AmountModes.Total, 1_000_000m, null,
+            true, responsiblePartyType, FinancialKeys.Redistribution.None, null));
+        Assert.Throws<DomainValidationException>(() => new AccountAdjustment("A1B2C", 1, 2,
+            FinancialKeys.Adjustments.OpeningDebt, 1_000m, Now, "opening", responsiblePartyType, null, Now));
+    }
+
     private static List<AllocationInput> FourEqualUnits() =>
     [
         new("U0001", 1, true, "owner", null),

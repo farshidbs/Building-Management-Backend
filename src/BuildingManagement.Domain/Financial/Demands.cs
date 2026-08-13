@@ -55,7 +55,7 @@ public sealed class DemandAllocationRule
         TotalAmount = total;
         RateAmount = rate;
         IncludeVacantUnits = includeVacant;
-        ResponsiblePartyTypeKey = responsible;
+        ResponsiblePartyTypeKey = FinancialKeys.ResponsibleParties.RequireValid(responsible);
         RedistributionPolicyKey = redistribution;
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
     }
@@ -84,7 +84,7 @@ public sealed class DemandAllocation
     public decimal FinalAmount { get; private set; }
     public bool IsIncluded { get; private set; }
     public string? AdjustmentReason { get; private set; }
-    public DemandAllocation(long demandId, long unitId, string responsible, long? partyId, decimal? basis, decimal calculated, decimal final, bool included, string? reason) { if (calculated < 0 || final < 0) throw new DomainValidationException("amount", "Must not be negative."); DemandId = demandId; UnitId = unitId; ResponsiblePartyTypeKey = responsible; ResponsiblePartyId = partyId; BasisValue = basis; CalculatedAmount = calculated; FinalAmount = final; IsIncluded = included; AdjustmentReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(); }
+    public DemandAllocation(long demandId, long unitId, string responsible, long? partyId, decimal? basis, decimal calculated, decimal final, bool included, string? reason) { if (calculated < 0 || final < 0) throw new DomainValidationException("amount", "Must not be negative."); DemandId = demandId; UnitId = unitId; ResponsiblePartyTypeKey = FinancialKeys.ResponsibleParties.RequireValid(responsible); ResponsiblePartyId = partyId; BasisValue = basis; CalculatedAmount = calculated; FinalAmount = final; IsIncluded = included; AdjustmentReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(); }
 }
 
 public sealed class UnitReceivable : Entity
@@ -99,7 +99,7 @@ public sealed class UnitReceivable : Entity
     public string ResponsiblePartyTypeKey { get; private set; } = ""; public long? ResponsiblePartyId { get; private set; }
     public DateTimeOffset? DueDate { get; private set; }
     public string Status { get; private set; } = FinancialKeys.ReceivableStatuses.Open;
-    public UnitReceivable(string code, long unitAccountId, long fundId, long? allocationId, long? adjustmentId, decimal amount, string responsible, long? partyId, DateTimeOffset? dueDate, DateTimeOffset now) { if (allocationId.HasValue == adjustmentId.HasValue) throw new DomainValidationException("origin", "Exactly one origin is required."); if (amount <= 0) throw new DomainValidationException("amount", "Must be positive."); Initialize(code, now); UnitAccountId = unitAccountId; FundAccountId = fundId; DemandAllocationId = allocationId; AccountAdjustmentId = adjustmentId; OriginalAmount = OutstandingAmount = amount; ResponsiblePartyTypeKey = Required(responsible, "responsiblePartyTypeKey"); ResponsiblePartyId = partyId; DueDate = dueDate; }
+    public UnitReceivable(string code, long unitAccountId, long fundId, long? allocationId, long? adjustmentId, decimal amount, string responsible, long? partyId, DateTimeOffset? dueDate, DateTimeOffset now) { if (allocationId.HasValue == adjustmentId.HasValue) throw new DomainValidationException("origin", "Exactly one origin is required."); if (amount <= 0) throw new DomainValidationException("amount", "Must be positive."); Initialize(code, now); UnitAccountId = unitAccountId; FundAccountId = fundId; DemandAllocationId = allocationId; AccountAdjustmentId = adjustmentId; OriginalAmount = OutstandingAmount = amount; ResponsiblePartyTypeKey = FinancialKeys.ResponsibleParties.RequireValid(responsible); ResponsiblePartyId = partyId; DueDate = dueDate; }
     public void ApplyPayment(decimal amount, DateTimeOffset now) { if (amount <= 0) throw new DomainValidationException("amount", "Must be positive."); if (amount > OutstandingAmount) throw new DomainValidationException("amount", "Cannot exceed outstanding amount."); OutstandingAmount -= amount; Status = OutstandingAmount == 0 ? FinancialKeys.ReceivableStatuses.Paid : FinancialKeys.ReceivableStatuses.PartiallyPaid; Touch(now); }
 }
 

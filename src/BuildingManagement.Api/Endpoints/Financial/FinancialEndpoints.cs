@@ -33,7 +33,7 @@ internal static class FinancialEndpoints
         demands.MapGet("/", ([AsParameters] PageQuery query, string? status, DemandService service, CancellationToken ct) => service.List(query, status, ct));
         demands.MapGet("/{demandCode}", (string demandCode, DemandService service, CancellationToken ct) => service.Get(demandCode, ct));
         demands.MapPost("/", async (DemandRequest request, DemandService service, CancellationToken ct) => { var result = await service.Create(request, ct); return Results.Created($"/api/v1/financial/demands/{result.Code}", result); });
-        demands.MapPut("/{demandCode}", (string demandCode, DemandRequest request, DemandService service, CancellationToken ct) => service.Update(demandCode, request, ct));
+        demands.MapPut("/{demandCode}", (string demandCode, UpdateDemandDraftRequest request, DemandService service, CancellationToken ct) => service.Update(demandCode, request, ct));
         demands.MapPost("/{demandCode}/preview", (string demandCode, DemandPreviewRequest request, DemandService service, CancellationToken ct) => service.Preview(demandCode, request, ct));
         demands.MapPost("/{demandCode}/finalize", (string demandCode, DemandPreviewRequest request, DemandService service, CancellationToken ct) => service.Finalize(demandCode, request, ct));
 

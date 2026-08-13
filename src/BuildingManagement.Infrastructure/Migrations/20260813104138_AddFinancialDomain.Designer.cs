@@ -71,7 +71,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.Property<string>("ResponsiblePartyTypeKey")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("varchar(30)");
 
                     b.Property<byte[]>("RowVersion")
                         .IsConcurrencyToken()

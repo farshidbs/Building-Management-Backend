@@ -87,6 +87,7 @@ if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("See
     await db.Database.MigrateAsync();
     await DevelopmentSeeder.SeedAsync(db, CancellationToken.None);
     await AssetDevelopmentSeeder.SeedAsync(db, CancellationToken.None);
+    await FinancialDevelopmentSeeder.SeedAsync(db, CancellationToken.None);
 }
 app.Run();
 

@@ -52,20 +52,14 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
             return new(demand.Code, demand.Title, demand.Status, demand.DemandDate, demand.DueDate, null);
         }, ct);
     public async Task<DemandPreviewResponse> Preview(string code, DemandPreviewRequest request, CancellationToken ct) { var demand = await Db.Demands.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("demand"); if (demand.Status != FinancialKeys.Statuses.Draft) throw AppException.Conflict("demand.preview_not_draft", "Preview is only available for a Draft Demand; read finalized allocations from Demand details."); var rule = await Db.DemandAllocationRules.AsNoTracking().SingleAsync(x => x.DemandId == demand.Id, ct); var dto = new DemandRuleRequest(rule.AllocationMethodKey, rule.AmountModeKey, rule.TotalAmount, rule.RateAmount, rule.IncludeVacantUnits, rule.ResponsiblePartyTypeKey, rule.RedistributionPolicyKey, rule.Notes); return DemandAllocationCalculator.Calculate(await Inputs(demand, rule, ct), dto, request?.Overrides); }
-    public async Task<DemandResponse> Update(string code, DemandRequest request, CancellationToken ct)
+    public async Task<DemandResponse> Update(string code, UpdateDemandDraftRequest request, CancellationToken ct)
     {
         var demand = await Db.Demands.SingleOrDefaultAsync(x => x.Code == Code(code), ct)
             ?? throw AppException.NotFound("demand");
         if (demand.Status != FinancialKeys.Statuses.Draft)
             throw AppException.Conflict("demand.not_draft", "Only a Draft Demand can be updated.");
-        var requestedFund = await FundAccount(request.FundBuildingCode, request.FundComplexCode,
-            request.FundAccountKindKey, ct);
-        if (requestedFund.Id != demand.FundAccountId)
-            throw Validation("fundScope", "A Draft Demand cannot be moved to another Fund.");
-        var requestedTypeId = await Db.DemandTypes.Where(x => x.Key == request.DemandTypeKey && x.IsActive)
-            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("demand_type");
-        if (requestedTypeId != demand.DemandTypeId)
-            throw Validation("demandTypeKey", "Demand type cannot be changed by this update.");
+        if (request is null) throw Validation("request", "Required.");
+        if (request.Rule is null) throw Validation("rule", "Required.");
         demand.UpdateDraft(request.Title, request.Description, request.DemandDate, request.DueDate, Now);
         var rule = await Db.DemandAllocationRules.SingleAsync(x => x.DemandId == demand.Id, ct);
         rule.Update(request.Rule.AllocationMethodKey, request.Rule.AmountModeKey, request.Rule.TotalAmount,
@@ -143,7 +137,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
         var finalTotal = items.Sum(x => x.FinalAmount);
         return new(items, calculatedTotal, finalTotal, finalTotal - calculatedTotal);
     }
-    private async Task<IReadOnlyList<AllocationInput>> Inputs(Demand demand, DemandAllocationRule rule, CancellationToken ct) { var fund = await Db.FinancialAccounts.AsNoTracking().SingleAsync(x => x.Id == demand.FundAccountId, ct); var units = Db.Units.AsNoTracking().Where(x => x.IsActive); if (fund.BuildingId is long buildingId) units = units.Where(x => x.BuildingId == buildingId); else if (fund.ComplexId is long complexId) units = units.Where(x => Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId == complexId)); var rows = await units.OrderBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Area, x.CurrentOccupantsCount }).ToListAsync(ct); var result = new List<AllocationInput>(); foreach (var unit in rows) { var vacant = unit.CurrentOccupantsCount == 0; var eligible = rule.AllocationMethodKey == FinancialKeys.AllocationMethods.Occupants ? !vacant : (rule.IncludeVacantUnits ?? true) || !vacant; var basis = rule.AllocationMethodKey switch { FinancialKeys.AllocationMethods.Occupants => unit.CurrentOccupantsCount, FinancialKeys.AllocationMethods.Area => unit.Area ?? 0, _ => 1 }; var ownership = rule.ResponsiblePartyTypeKey == FinancialKeys.ResponsibleParties.Owner; var partyCode = await Db.UnitPartyRelations.AsNoTracking().Where(x => x.UnitId == unit.Id && x.IsActive && x.EndDate == null && Db.UnitPartyRelationTypes.Any(t => t.Id == x.UnitPartyRelationTypeId && (ownership ? t.IsOwnershipRelation : t.IsOccupancyRelation))).OrderBy(x => x.Id).Select(x => Db.Parties.Where(p => p.Id == x.PartyId).Select(p => p.Code).Single()).FirstOrDefaultAsync(ct); result.Add(new(unit.Code, basis, eligible, rule.ResponsiblePartyTypeKey, partyCode)); } return result; }
+    private async Task<IReadOnlyList<AllocationInput>> Inputs(Demand demand, DemandAllocationRule rule, CancellationToken ct) { var fund = await Db.FinancialAccounts.AsNoTracking().SingleAsync(x => x.Id == demand.FundAccountId, ct); var units = Db.Units.AsNoTracking().Where(x => x.IsActive); if (fund.BuildingId is long buildingId) units = units.Where(x => x.BuildingId == buildingId); else if (fund.ComplexId is long complexId) units = units.Where(x => Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId == complexId)); var rows = await units.OrderBy(x => x.Id).Select(x => new { x.Id, x.Code, x.Area, x.CurrentOccupantsCount }).ToListAsync(ct); var result = new List<AllocationInput>(); var relationKind = FinancialKeys.ResponsibleParties.RequireValid(rule.ResponsiblePartyTypeKey); foreach (var unit in rows) { var vacant = unit.CurrentOccupantsCount == 0; var eligible = rule.AllocationMethodKey == FinancialKeys.AllocationMethods.Occupants ? !vacant : (rule.IncludeVacantUnits ?? true) || !vacant; var basis = rule.AllocationMethodKey switch { FinancialKeys.AllocationMethods.Occupants => unit.CurrentOccupantsCount, FinancialKeys.AllocationMethods.Area => unit.Area ?? 0, _ => 1 }; var ownership = relationKind == FinancialKeys.ResponsibleParties.Owner; var partyCode = await Db.UnitPartyRelations.AsNoTracking().Where(x => x.UnitId == unit.Id && x.IsActive && x.EndDate == null && Db.UnitPartyRelationTypes.Any(t => t.Id == x.UnitPartyRelationTypeId && (ownership ? t.IsOwnershipRelation : t.IsOccupancyRelation))).OrderBy(x => x.Id).Select(x => Db.Parties.Where(p => p.Id == x.PartyId).Select(p => p.Code).Single()).FirstOrDefaultAsync(ct); result.Add(new(unit.Code, basis, eligible, relationKind, partyCode)); } return result; }
 
     private async Task AddLinks(long demandId, FinancialAccount fund, DemandRequest request, CancellationToken ct)
     {

@@ -168,16 +168,24 @@ public sealed partial class ApiScenarios
         await using var scope = factory!.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
         var building = await db.Buildings.AsNoTracking().OrderBy(x => x.Id).FirstAsync();
+        var otherBuilding = await db.Buildings.AsNoTracking().Where(x => x.Id != building.Id)
+            .OrderBy(x => x.Id).FirstAsync();
         var complexCode = await db.Complexes.Where(x => x.Id == building.ComplexId).Select(x => x.Code).SingleAsync();
         var complexType = await Post<ExpenseTypeResponse>("/api/v1/financial/expenses/types",
             new ExpenseTypeRequest(null, complexCode, "تعمیر ویژه"));
         var buildingType = await Post<ExpenseTypeResponse>("/api/v1/financial/expenses/types",
             new ExpenseTypeRequest(building.Code, null, "تعمیر ویژه"));
+        var otherBuildingType = await Post<ExpenseTypeResponse>("/api/v1/financial/expenses/types",
+            new ExpenseTypeRequest(otherBuilding.Code, null, "تعمیر ویژه"));
         Assert.NotEqual(complexType.Id, buildingType.Id);
+        var globalOnly = await client!.GetFromJsonAsync<List<ExpenseTypeResponse>>(
+            "/api/v1/financial/expenses/types");
+        Assert.All(globalOnly!, x => Assert.True(x.BuildingCode is null && x.ComplexCode is null));
         var available = await client!.GetFromJsonAsync<List<ExpenseTypeResponse>>(
             $"/api/v1/financial/expenses/types?buildingCode={building.Code}");
         Assert.Contains(available!, x => x.Id == complexType.Id);
         Assert.Contains(available!, x => x.Id == buildingType.Id);
+        Assert.DoesNotContain(available!, x => x.Id == otherBuildingType.Id);
 
         var expense = await Post<ExpenseResponse>("/api/v1/financial/expenses",
             new ExpenseRequest(building.Code, null, buildingType.Id, null, "تعمیر موتورخانه", 1_000_000m,
@@ -185,6 +193,23 @@ public sealed partial class ApiScenarios
         var expenseTypeId = await db.Expenses.Where(x => x.Code == expense.Code)
             .Select(x => x.ExpenseTypeId).SingleAsync();
         Assert.Equal(buildingType.Id, expenseTypeId);
+
+        var parentTypeExpense = await Post<ExpenseResponse>("/api/v1/financial/expenses",
+            new ExpenseRequest(building.Code, null, complexType.Id, null, "هزینه فضای مجتمع",
+                2_000_000m, DateTimeOffset.UtcNow, null, null));
+        Assert.Equal(complexType.Id, await db.Expenses.Where(x => x.Code == parentTypeExpense.Code)
+            .Select(x => x.ExpenseTypeId).SingleAsync());
+        using var unrelatedForBuilding = await client!.PostAsJsonAsync("/api/v1/financial/expenses",
+            new ExpenseRequest(building.Code, null, otherBuildingType.Id, null, "نوع نامرتبط",
+                1_000_000m, DateTimeOffset.UtcNow, null, null));
+        Assert.Equal(HttpStatusCode.NotFound, unrelatedForBuilding.StatusCode);
+        await Post<ExpenseResponse>("/api/v1/financial/expenses",
+            new ExpenseRequest(null, complexCode, complexType.Id, null, "هزینه مجتمع",
+                1_000_000m, DateTimeOffset.UtcNow, null, null));
+        using var buildingTypeForComplex = await client!.PostAsJsonAsync("/api/v1/financial/expenses",
+            new ExpenseRequest(null, complexCode, buildingType.Id, null, "نوع ساختمان برای مجتمع",
+                1_000_000m, DateTimeOffset.UtcNow, null, null));
+        Assert.Equal(HttpStatusCode.NotFound, buildingTypeForComplex.StatusCode);
     }
 
     [Fact]
@@ -212,11 +237,9 @@ public sealed partial class ApiScenarios
         var demand = await Post<DemandResponse>("/api/v1/financial/demands", draftRequest);
         var firstPreview = await Post<DemandPreviewResponse>(
             $"/api/v1/financial/demands/{demand.Code}/preview", new DemandPreviewRequest());
-        var updatedRequest = draftRequest with
-        {
-            Title = "شارژ اصلاح‌شده",
-            Rule = draftRequest.Rule with { RateAmount = 200_000m }
-        };
+        var updatedRequest = new UpdateDemandDraftRequest("شارژ اصلاح‌شده", draftRequest.Description,
+            draftRequest.DemandDate, draftRequest.DueDate,
+            draftRequest.Rule with { RateAmount = 200_000m });
         await Put<DemandResponse>($"/api/v1/financial/demands/{demand.Code}", updatedRequest);
         var secondPreview = await Post<DemandPreviewResponse>(
             $"/api/v1/financial/demands/{demand.Code}/preview", new DemandPreviewRequest());

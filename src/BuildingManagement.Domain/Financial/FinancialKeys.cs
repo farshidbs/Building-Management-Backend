@@ -10,6 +10,16 @@ public static class FinancialKeys
     public static class AllocationMethods { public const string Equal = "equal"; public const string Occupants = "occupants"; public const string Area = "area"; public const string Custom = "custom"; }
     public static class AmountModes { public const string Total = "total_amount"; public const string PerUnit = "per_unit"; public const string PerPerson = "per_person"; public const string PerArea = "per_area"; }
     public static class Redistribution { public const string None = "no_redistribution"; public const string ToOthers = "redistribute_to_others"; }
-    public static class ResponsibleParties { public const string Owner = "owner"; public const string CurrentOccupant = "current_occupant"; }
+    public static class ResponsibleParties
+    {
+        public const string Owner = "owner";
+        public const string CurrentOccupant = "current_occupant";
+        public static string RequireValid(string? value)
+        {
+            if (value is not (Owner or CurrentOccupant))
+                throw new DomainValidationException("responsiblePartyTypeKey", "Must be owner or current_occupant.");
+            return value;
+        }
+    }
     public static class Adjustments { public const string OpeningDebt = "opening_debt"; public const string OpeningCredit = "opening_credit"; public const string Correction = "correction"; }
 }

@@ -34,6 +34,7 @@ public sealed record DemandRequest(string? FundBuildingCode, string? FundComplex
     IReadOnlyList<string>? RelatedBuildingCodes = null,
     IReadOnlyList<string>? RelatedComplexCodes = null);
 public sealed record DemandRuleRequest(string AllocationMethodKey, string AmountModeKey, decimal? TotalAmount, decimal? RateAmount, bool? IncludeVacantUnits, string ResponsiblePartyTypeKey, string RedistributionPolicyKey, string? Notes);
+public sealed record UpdateDemandDraftRequest(string Title, string? Description, DateTimeOffset DemandDate, DateTimeOffset? DueDate, DemandRuleRequest Rule);
 public sealed record DemandOverrideRequest(string UnitCode, bool IsIncluded, decimal? FinalAmount, string? AdjustmentReason);
 public sealed record DemandPreviewRequest(IReadOnlyList<DemandOverrideRequest>? Overrides = null);
 public sealed record DemandAllocationResponse(string UnitCode, decimal? BasisValue, decimal CalculatedAmount, decimal FinalAmount, bool IsIncluded, string ResponsiblePartyTypeKey, string? ResponsiblePartyCode, string? AdjustmentReason);

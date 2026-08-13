@@ -211,7 +211,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .Annotation("SqlServer:Identity", "1, 1"),
                     FinancialAccountId = table.Column<long>(type: "bigint", nullable: false),
                     FundAccountId = table.Column<long>(type: "bigint", nullable: true),
-                    ResponsiblePartyTypeKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ResponsiblePartyTypeKey = table.Column<string>(type: "varchar(30)", nullable: true),
                     ResponsiblePartyId = table.Column<long>(type: "bigint", nullable: true),
                     AdjustmentTypeKey = table.Column<string>(type: "varchar(30)", nullable: false),
                     Amount = table.Column<decimal>(type: "decimal(18,2)", precision: 18, scale: 2, nullable: false),
