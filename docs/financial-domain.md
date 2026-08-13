@@ -57,6 +57,10 @@ available Unit credit does not reserve cash in a Fund. A caller may explicitly c
 reduces `AvailableCredit` and Receivable outstanding amounts only; it changes neither Unit
 `CurrentBalance` nor any Fund balance and therefore creates no fake
 `FinancialTransactionEntry`. The settlement header and allocations provide its audit trail.
+Each settlement command carries a caller-generated `RequestId`; `(UnitAccountId, RequestId)` is
+unique. An exact retry returns the existing audit record, while reuse with different normalized
+Receivable/amount allocations is rejected. Unit-scoped paginated settlement history exposes
+the settlement code, request identity, timestamp, total, and allocation details.
 
 Private landlord/tenant settlement, automatic credit consumption, a general Fund-to-Unit cash
 refund, and credit creation from future Demand cancellation/reversal remain outside this scope.

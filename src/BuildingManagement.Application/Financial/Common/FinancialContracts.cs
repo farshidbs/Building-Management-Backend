@@ -52,5 +52,6 @@ public sealed record ReceivableResponse(string Code, string? DemandCode, string?
     string? ResponsiblePartyCode, DateTimeOffset? DueDate);
 public sealed record FinancialFileResponse(StoredFileResponse File, string? Title, string? Description);
 public sealed record UnitCreditSettlementAllocationRequest(string ReceivableCode, decimal Amount);
-public sealed record UnitCreditSettlementRequest(IReadOnlyList<UnitCreditSettlementAllocationRequest> Allocations);
-public sealed record UnitCreditSettlementResponse(string Code, string UnitCode, decimal Amount, decimal AvailableCredit);
+public sealed record UnitCreditSettlementRequest(Guid RequestId, IReadOnlyList<UnitCreditSettlementAllocationRequest> Allocations);
+public sealed record UnitCreditSettlementAllocationResponse(string ReceivableCode, decimal Amount);
+public sealed record UnitCreditSettlementResponse(string Code, string UnitCode, Guid RequestId, DateTimeOffset CreatedAtUtc, decimal TotalAmount, decimal AvailableCredit, IReadOnlyList<UnitCreditSettlementAllocationResponse> Allocations);

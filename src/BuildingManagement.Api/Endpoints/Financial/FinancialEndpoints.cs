@@ -46,6 +46,7 @@ internal static class FinancialEndpoints
         payments.MapGet("/{paymentCode}/evidence", (string paymentCode, FinancialFileService service, CancellationToken ct) => service.PaymentEvidence(paymentCode, ct));
         api.MapGet("/units/{unitCode}/financial/receivables", (string unitCode, PaymentService service, CancellationToken ct) => service.Receivables(unitCode, ct)).WithTags("Financial Payments");
         api.MapPost("/financial/units/{unitCode}/credit-settlements", async (string unitCode, UnitCreditSettlementRequest request, UnitCreditSettlementService service, CancellationToken ct) => { var result = await service.Create(unitCode, request, ct); return Results.Created($"/api/v1/financial/units/{unitCode}/credit-settlements/{result.Code}", result); }).WithTags("Financial Accounts");
+        api.MapGet("/financial/units/{unitCode}/credit-settlements", (string unitCode, [AsParameters] PageQuery query, UnitCreditSettlementService service, CancellationToken ct) => service.History(unitCode, query, ct)).WithTags("Financial Accounts");
     }
 }
 

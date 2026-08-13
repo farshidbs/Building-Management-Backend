@@ -176,9 +176,14 @@ public sealed partial class ApiScenarios
             .Select(x => x.CurrentBalance).SingleAsync();
         var fundBeforeCredit = await db.FinancialAccounts.Where(x => x.Id == fund.Id)
             .Select(x => x.CurrentBalance).SingleAsync();
+        var settlementRequest = new UnitCreditSettlementRequest(Guid.NewGuid(),
+            [new(laterReceivable.Code, 400_000m)]);
         var creditSettlement = await Post<UnitCreditSettlementResponse>(
             $"/api/v1/financial/units/{unit.Code}/credit-settlements",
-            new UnitCreditSettlementRequest([new(laterReceivable.Code, 400_000m)]));
+            settlementRequest);
+        var replay = await Post<UnitCreditSettlementResponse>(
+            $"/api/v1/financial/units/{unit.Code}/credit-settlements", settlementRequest);
+        Assert.Equal(creditSettlement.Code, replay.Code);
         db.ChangeTracker.Clear();
         Assert.Equal(1_700_000m, creditSettlement.AvailableCredit);
         Assert.Equal(600_000m, await db.UnitReceivables.Where(x => x.Id == laterReceivable.Id)
@@ -191,6 +196,16 @@ public sealed partial class ApiScenarios
         Assert.Equal(1, await db.UnitCreditSettlementAllocations.CountAsync(x =>
             x.UnitCreditSettlementId == db.UnitCreditSettlements.Where(s => s.Code == creditSettlement.Code)
                 .Select(s => s.Id).Single()));
+        using var mismatch = await client.PostAsJsonAsync(
+            $"/api/v1/financial/units/{unit.Code}/credit-settlements",
+            settlementRequest with { Allocations = [new(laterReceivable.Code, 300_000m)] });
+        Assert.Equal(HttpStatusCode.Conflict, mismatch.StatusCode);
+        Assert.Equal(1_700_000m, await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
+            .Select(x => x.AvailableCredit).SingleAsync());
+        var history = await client.GetFromJsonAsync<Page<UnitCreditSettlementResponse>>(
+            $"/api/v1/financial/units/{unit.Code}/credit-settlements?pageNumber=1&pageSize=20");
+        Assert.Contains(history!.Items, x => x.Code == creditSettlement.Code &&
+            x.Allocations.Single().ReceivableCode == laterReceivable.Code);
     }
 
     [Fact]

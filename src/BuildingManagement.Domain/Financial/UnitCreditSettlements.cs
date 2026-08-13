@@ -4,7 +4,8 @@ public sealed class UnitCreditSettlement : Entity
 {
     private UnitCreditSettlement() { }
     public long UnitAccountId { get; private set; }
-    public UnitCreditSettlement(string code, long unitAccountId, DateTimeOffset now) { if (unitAccountId <= 0) throw new DomainValidationException("unitAccount", "Required."); Initialize(code, now); UnitAccountId = unitAccountId; }
+    public Guid RequestId { get; private set; }
+    public UnitCreditSettlement(string code, long unitAccountId, Guid requestId, DateTimeOffset now) { if (unitAccountId <= 0) throw new DomainValidationException("unitAccount", "Required."); if (requestId == Guid.Empty) throw new DomainValidationException("requestId", "Required."); Initialize(code, now); UnitAccountId = unitAccountId; RequestId = requestId; }
 }
 
 public sealed class UnitCreditSettlementAllocation
