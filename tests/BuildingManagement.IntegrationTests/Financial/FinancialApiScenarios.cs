@@ -154,6 +154,12 @@ public sealed partial class ApiScenarios
         confirmFirst.EnsureSuccessStatusCode();
         var confirmedFirst = await db.Payments.SingleAsync(x => x.Code == first.Code);
         Assert.True(confirmedFirst.PaidAtUtc < confirmedFirst.ConfirmedAtUtc);
+        var firstTransaction = await db.FinancialTransactions.SingleAsync(x => x.PaymentId == confirmedFirst.Id);
+        Assert.Equal(confirmedFirst.PaidAtUtc, firstTransaction.OccurredAtUtc);
+        var statement = await client.GetFromJsonAsync<List<FinancialEntryResponse>>(
+            $"/api/v1/financial/accounts/units/{unit.Code}/statement");
+        Assert.Contains(statement!, x => x.PaymentCode == first.Code &&
+            x.OccurredAtUtc == confirmedFirst.PaidAtUtc);
         using (var duplicate = await client.PostAsJsonAsync("/api/v1/financial/payments", new PaymentRequest(unit.Code,
             building.Code, null, FinancialKeys.AccountKinds.ReserveFund, null, "card_to_card", 3_000_000m,
             " bank-track-001 ", null, [], DateTimeOffset.UtcNow.AddHours(-10))))
@@ -243,6 +249,22 @@ public sealed partial class ApiScenarios
             $"/api/v1/financial/units/{unit.Code}/credit-settlements?pageNumber=1&pageSize=20");
         Assert.Contains(history!.Items, x => x.Code == creditSettlement.Code &&
             x.AvailableCreditAfter == 1_700_000m && x.Allocations.Single().ReceivableCode == laterReceivable.Code);
+
+        var concurrentRequest = new UnitCreditSettlementRequest(Guid.NewGuid(),
+            [new(laterReceivable.Code, 100_000m)]);
+        var concurrentResponses = await Task.WhenAll(
+            client.PostAsJsonAsync($"/api/v1/financial/units/{unit.Code}/credit-settlements", concurrentRequest),
+            client.PostAsJsonAsync($"/api/v1/financial/units/{unit.Code}/credit-settlements", concurrentRequest));
+        Assert.All(concurrentResponses, x => x.EnsureSuccessStatusCode());
+        var concurrentResults = await Task.WhenAll(concurrentResponses.Select(x =>
+            x.Content.ReadFromJsonAsync<UnitCreditSettlementResponse>()));
+        Assert.Single(concurrentResults.Select(x => x!.Code).Distinct());
+        db.ChangeTracker.Clear();
+        Assert.Equal(1, await db.UnitCreditSettlements.CountAsync(x => x.RequestId == concurrentRequest.RequestId));
+        Assert.Equal(500_000m, await db.UnitReceivables.Where(x => x.Id == laterReceivable.Id)
+            .Select(x => x.OutstandingAmount).SingleAsync());
+        Assert.Equal(1_600_000m, await db.FinancialAccounts.Where(x => x.Id == unitAccount.Id)
+            .Select(x => x.AvailableCredit).SingleAsync());
     }
 
     [Fact]
@@ -282,6 +304,24 @@ public sealed partial class ApiScenarios
             new ExpenseRequest(building.Code, null, complexType.Id, null, "هزینه فضای مجتمع",
                 2_000_000m, DateTimeOffset.UtcNow, null, null));
         Assert.Equal(complexType.Id, await db.Expenses.Where(x => x.Code == parentTypeExpense.Code)
+            .Select(x => x.ExpenseTypeId).SingleAsync());
+        var updatedParentTypeExpense = await Put<ExpenseResponse>(
+            $"/api/v1/financial/expenses/{parentTypeExpense.Code}",
+            new UpdateExpenseDraftRequest(complexType.Id, null, "هزینه فضای مجتمع اصلاح‌شده",
+                2_100_000m, DateTimeOffset.UtcNow, null, null));
+        Assert.Equal("هزینه فضای مجتمع اصلاح‌شده", updatedParentTypeExpense.Title);
+        Assert.Equal(complexType.Id, await db.Expenses.Where(x => x.Code == parentTypeExpense.Code)
+            .Select(x => x.ExpenseTypeId).SingleAsync());
+        using (var unrelatedBuildingUpdate = await client!.PutAsJsonAsync(
+            $"/api/v1/financial/expenses/{parentTypeExpense.Code}",
+            new UpdateExpenseDraftRequest(otherBuildingType.Id, null, "نوع نامرتبط", 2_100_000m,
+                DateTimeOffset.UtcNow, null, null)))
+            Assert.Equal(HttpStatusCode.NotFound, unrelatedBuildingUpdate.StatusCode);
+        var globalTypeId = await db.ExpenseTypes.Where(x => x.Key == "electricity").Select(x => x.Id).SingleAsync();
+        await Put<ExpenseResponse>($"/api/v1/financial/expenses/{parentTypeExpense.Code}",
+            new UpdateExpenseDraftRequest(globalTypeId, null, "نوع سراسری", 2_100_000m,
+                DateTimeOffset.UtcNow, null, null));
+        Assert.Equal(globalTypeId, await db.Expenses.Where(x => x.Code == parentTypeExpense.Code)
             .Select(x => x.ExpenseTypeId).SingleAsync());
         using var unrelatedForBuilding = await client!.PostAsJsonAsync("/api/v1/financial/expenses",
             new ExpenseRequest(building.Code, null, otherBuildingType.Id, null, "نوع نامرتبط",

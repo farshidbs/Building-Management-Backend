@@ -32,7 +32,7 @@ public sealed class UnitCreditSettlementService(IApplicationDbContext db, TimePr
                 return await Response(settlement, unit, token);
             }, ct);
         }
-        catch (AppException ex) when (ex.Code == "persistence.conflict")
+        catch (AppException ex) when (ex.Code is "persistence.conflict" or "concurrency.conflict")
         { var raced = await Find(account.Id, request.RequestId, ct); if (raced is null) throw; return await Replay(raced, unit, request, ct); }
     }
 
