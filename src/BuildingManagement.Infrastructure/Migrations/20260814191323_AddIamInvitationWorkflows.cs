@@ -41,13 +41,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 type: "bigint",
                 nullable: true);
 
-            migrationBuilder.AddColumn<DateTimeOffset>(
-                name: "ExpiredAtUtc",
-                schema: "bms",
-                table: "AuthSessions",
-                type: "datetimeoffset",
-                nullable: true);
-
             migrationBuilder.CreateIndex(
                 name: "IX_Invitations_AcceptedByUserId",
                 schema: "bms",
@@ -136,11 +129,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 name: "SourceUnitPartyRelationId",
                 schema: "bms",
                 table: "Invitations");
-
-            migrationBuilder.DropColumn(
-                name: "ExpiredAtUtc",
-                schema: "bms",
-                table: "AuthSessions");
         }
     }
 }

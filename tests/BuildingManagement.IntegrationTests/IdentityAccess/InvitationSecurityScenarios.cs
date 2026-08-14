@@ -132,7 +132,7 @@ public sealed partial class ApiScenarios
         RequireSql();
         var fixture = await CreateEligibleRelation();
         using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
-        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode);
+        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
         var challenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "123456");
         var request = new AcceptInvitationRequest(created.Token, challenge, "123456", DisplayName: "کاربر دعوت‌شده");
         using var publicClient = factory!.CreateClient();
@@ -174,7 +174,7 @@ public sealed partial class ApiScenarios
         RequireSql();
         var fixture = await CreateEligibleRelation();
         using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
-        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode);
+        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
         var firstChallenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "123456");
         var secondChallenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "654321");
         using var publicClient = factory!.CreateClient();
@@ -227,7 +227,7 @@ public sealed partial class ApiScenarios
         }
 
         using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
-        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode);
+        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
         var challenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "123456");
         using var accepted = await factory!.CreateClient().PostAsJsonAsync("/api/v1/auth/invitations/accept",
             new AcceptInvitationRequest(created.Token, challenge, "123456"));
@@ -251,7 +251,7 @@ public sealed partial class ApiScenarios
         RequireSql();
         var fixture = await CreateEligibleRelation();
         using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
-        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode);
+        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
         var challenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "123456");
         using var publicClient = factory!.CreateClient();
         var outcomes = await Task.WhenAll(
@@ -269,6 +269,141 @@ public sealed partial class ApiScenarios
             await db.AccessMemberships.CountAsync(x => x.SourceUnitPartyRelationId == fixture.RelationId));
     }
 
+    [Fact]
+    public async Task WrongInvitationOtpAttemptsPersistBlockAndCreateNoSecurityState()
+    {
+        RequireSql();
+        var fixture = await CreateEligibleRelation();
+        using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
+        var created = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
+        var challenge = await ArrangeInvitationChallenge(created.Token, fixture.Mobile, "123456");
+        using var publicClient = factory!.CreateClient();
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            using var rejected = await publicClient.PostAsJsonAsync("/api/v1/auth/invitations/accept",
+                new AcceptInvitationRequest(created.Token, challenge, "000000"));
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            await using var attemptScope = factory.Services.CreateAsyncScope();
+            var attemptDb = attemptScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var state = await attemptDb.OtpChallenges.SingleAsync(x => x.PublicReference == challenge);
+            Assert.Equal(attempt, state.AttemptCount);
+        }
+
+        using var blocked = await publicClient.PostAsJsonAsync("/api/v1/auth/invitations/accept",
+            new AcceptInvitationRequest(created.Token, challenge, "123456"));
+        Assert.Equal(HttpStatusCode.BadRequest, blocked.StatusCode);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.Equal(IamKeys.OtpStatuses.Blocked,
+            await db.OtpChallenges.Where(x => x.PublicReference == challenge).Select(x => x.StatusKey).SingleAsync());
+        Assert.Null((await db.Invitations.SingleAsync(x => x.Code == created.Code)).AcceptedAtUtc);
+        Assert.False(await db.UserLoginMethods.AnyAsync(x => x.NormalizedIdentifierValue == fixture.Mobile));
+        Assert.False(await db.AccessMemberships.AnyAsync(x => x.SourceUnitPartyRelationId == fixture.RelationId));
+    }
+
+    [Fact]
+    public async Task ExplicitRelationTypeDisambiguatesOwnerAndResidentWithoutClientRoleChoice()
+    {
+        RequireSql();
+        var fixture = await CreateEligibleRelation();
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var residentTypeId = await db.UnitPartyRelationTypes.Where(x =>
+                x.Key == PartyReferenceKeys.RelationTypes.Resident).Select(x => x.Id).SingleAsync();
+            var unitId = await db.Units.Where(x => x.Code == fixture.UnitCode).Select(x => x.Id).SingleAsync();
+            db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, fixture.PartyId, residentTypeId,
+                null, null, null, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        using var manager = await CreateAuthenticatedClient("building_manager", buildingId: fixture.BuildingId);
+        var owner = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "owner");
+        var resident = await CreateUnitInvitation(manager, fixture.UnitCode, fixture.PartyCode, "resident");
+        Assert.Equal("unit_owner", owner.RoleKey);
+        Assert.Equal("unit_resident", resident.RoleKey);
+        using var absent = await manager.PostAsJsonAsync("/api/v1/invitations/unit",
+            new CreateUnitInvitationRequest(fixture.UnitCode, fixture.PartyCode, "tenant"));
+        Assert.Equal(HttpStatusCode.NotFound, absent.StatusCode);
+    }
+
+    [Fact]
+    public async Task ConcurrentExpiredReissueCreatesExactlyOnePendingReplacement()
+    {
+        RequireSql();
+        var building = await FirstBuilding();
+        var actor = await CreateAuthenticatedClientWithIdentity("building_manager", buildingId: building.Id);
+        using var manager = actor.Client;
+        var mobile = NextMobile();
+        long staleId;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var protector = scope.ServiceProvider.GetRequiredService<IIamSecretProtector>();
+            var roleId = await db.AccessRoles.Where(x => x.Key == "accountant").Select(x => x.Id).SingleAsync();
+            var stale = new Invitation(PublicCode.Create(), protector.Hash("concurrent-expired"), mobile,
+                "building_collaborator", roleId, null, building.Id, null, actor.UserId, null,
+                DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow.AddDays(-8));
+            db.Invitations.Add(stale);
+            await db.SaveChangesAsync();
+            staleId = stale.Id;
+        }
+
+        var request = new CreateBuildingInvitationRequest(building.Code, mobile, "accountant");
+        var responses = await Task.WhenAll(manager.PostAsJsonAsync("/api/v1/invitations/building", request),
+            manager.PostAsJsonAsync("/api/v1/invitations/building", request));
+        Assert.Single(responses, x => x.StatusCode == HttpStatusCode.Created);
+        Assert.Single(responses, x => x.StatusCode == HttpStatusCode.Conflict);
+        Assert.DoesNotContain(responses, x => x.StatusCode == HttpStatusCode.InternalServerError);
+        foreach (var response in responses) response.Dispose();
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var staleRow = await verifyDb.Invitations.SingleAsync(x => x.Id == staleId);
+        Assert.False(staleRow.IsActive);
+        Assert.NotNull(staleRow.ExpiredAtUtc);
+        Assert.Equal(1, await verifyDb.Invitations.CountAsync(x => x.NormalizedIdentifierValue == mobile &&
+            x.IsActive && x.AcceptedAtUtc == null && x.RevokedAtUtc == null));
+    }
+
+    [Fact]
+    public async Task BulkIsolatesMalformedMobileAndContinuesValidRows()
+    {
+        RequireSql();
+        var valid = await CreateEligibleRelation();
+        string invalidPartyName = $"invalid-{Guid.NewGuid():N}";
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var partyTypeId = await db.PartyTypes.Where(x => x.Key == PartyReferenceKeys.PartyTypes.IranianPerson)
+                .Select(x => x.Id).SingleAsync();
+            var tenantTypeId = await db.UnitPartyRelationTypes.Where(x =>
+                x.Key == PartyReferenceKeys.RelationTypes.Tenant).Select(x => x.Id).SingleAsync();
+            var mobileTypeId = await db.PartyContactTypes.Where(x =>
+                x.Key == PartyReferenceKeys.ContactTypes.Mobile).Select(x => x.Id).SingleAsync();
+            var unitId = await db.Units.Where(x => x.Code == valid.UnitCode).Select(x => x.Id).SingleAsync();
+            var now = DateTimeOffset.UtcNow;
+            var party = new Party(PublicCode.Create(), partyTypeId, invalidPartyName, null, null, null,
+                null, null, now);
+            db.Parties.Add(party);
+            await db.SaveChangesAsync();
+            db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, party.Id, tenantTypeId,
+                null, null, null, now));
+            db.PartyContacts.Add(new PartyContact(party.Id, mobileTypeId, "not-a-mobile",
+                "not-a-mobile", "legacy", true, now));
+            await db.SaveChangesAsync();
+        }
+
+        using var manager = await CreateAuthenticatedClient("building_manager", buildingId: valid.BuildingId);
+        using var response = await manager.PostAsync(
+            $"/api/v1/invitations/building/{valid.BuildingCode}/bulk", null);
+        response.EnsureSuccessStatusCode();
+        var rows = (await response.Content.ReadFromJsonAsync<List<BulkInvitationItemResponse>>())!;
+        Assert.Contains(rows, x => x.PartyDisplayName == invalidPartyName && x.Result == "no_usable_mobile" &&
+            x.InvitationToken == null);
+        Assert.Contains(rows, x => x.PartyDisplayName == "مالک آزمایشی" && x.Result == "created" &&
+            !string.IsNullOrWhiteSpace(x.InvitationToken));
+    }
+
     private void RequireSql()
     {
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
@@ -282,10 +417,10 @@ public sealed partial class ApiScenarios
     }
 
     private static async Task<InvitationResponse> CreateUnitInvitation(HttpClient actor, string unitCode,
-        string partyCode)
+        string partyCode, string relationTypeKey)
     {
         using var response = await actor.PostAsJsonAsync("/api/v1/invitations/unit",
-            new CreateUnitInvitationRequest(unitCode, partyCode));
+            new CreateUnitInvitationRequest(unitCode, partyCode, relationTypeKey));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<InvitationResponse>())!;
     }

@@ -28,6 +28,8 @@ public sealed class IdentityAccessDomainTests
         expired.Expire(now);
         Assert.False(expired.IsActive);
         Assert.Equal(now, expired.ExpiredAtUtc);
+        Assert.Throws<DomainValidationException>(() => expired.Revoke(now.AddMinutes(1)));
+        Assert.Null(expired.RevokedAtUtc);
         expired.Expire(now.AddMinutes(1));
 
         var future = new Invitation("PQRST", "hash4", "989121234570", "unit_person",

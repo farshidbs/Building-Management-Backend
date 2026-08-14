@@ -15,7 +15,7 @@ public sealed record SessionResponse(string Code, string ClientTypeKey, DateTime
     DateTimeOffset? LastSeenAtUtc, bool IsCurrent);
 public sealed record CurrentUserResponse(string Code, string StatusKey, string? PartyCode,
     string? DisplayName, IReadOnlyList<LoginMethodResponse> LoginMethods);
-public sealed record CreateUnitInvitationRequest(string UnitCode, string PartyCode);
+public sealed record CreateUnitInvitationRequest(string UnitCode, string PartyCode, string RelationTypeKey);
 public sealed record CreateBuildingInvitationRequest(string BuildingCode, string Mobile, string RoleKey,
     string? DisplayName = null);
 public sealed record InvitationResponse(string Code, string Token, string TypeKey, string RoleKey,

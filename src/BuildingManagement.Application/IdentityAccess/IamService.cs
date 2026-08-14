@@ -166,7 +166,8 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 IamKeys.LoginTypes.Mobile, normalizedMobile, normalizedMobile, true, Now);
             method.Verify(Now);
             db.UserLoginMethods.Add(method);
-            var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", ct);
+            var personType = await db.PartyTypes.SingleAsync(x =>
+                x.Key == PartyReferenceKeys.PartyTypes.IranianPerson, ct);
             var party = new Party(await UniqueCode(db.Parties, ct), personType.Id,
                 string.IsNullOrWhiteSpace(displayName) ? "کاربر دعوت‌شده" : displayName.Trim(),
                 null, null, null, null, null, Now);
