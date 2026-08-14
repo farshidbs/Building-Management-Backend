@@ -64,6 +64,7 @@ builder.Services.AddScoped<ITrustedPaymentResultProcessor>(sp => sp.GetRequiredS
 builder.Services.AddScoped<FinancialFileService>();
 builder.Services.AddScoped<UnitCreditSettlementService>();
 builder.Services.AddScoped<IamService>();
+builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<AccessAuthorizationService>();
 builder.Services.AddScoped<ResourceAuthorization>();
 builder.Services.AddInfrastructure(connectionString);

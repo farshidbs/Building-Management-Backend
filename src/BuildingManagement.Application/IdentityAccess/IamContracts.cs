@@ -15,6 +15,20 @@ public sealed record SessionResponse(string Code, string ClientTypeKey, DateTime
     DateTimeOffset? LastSeenAtUtc, bool IsCurrent);
 public sealed record CurrentUserResponse(string Code, string StatusKey, string? PartyCode,
     string? DisplayName, IReadOnlyList<LoginMethodResponse> LoginMethods);
+public sealed record CreateUnitInvitationRequest(string UnitCode, string PartyCode);
+public sealed record CreateBuildingInvitationRequest(string BuildingCode, string Mobile, string RoleKey,
+    string? DisplayName = null);
+public sealed record InvitationResponse(string Code, string Token, string TypeKey, string RoleKey,
+    string ScopeKind, string ScopeCode, string ScopeName, string Status, DateTimeOffset ExpiresAtUtc);
+public sealed record InvitationPreviewResponse(string TypeKey, string RoleTitle, string ScopeKind,
+    string ScopeName, string? UnitLabel, string Status, DateTimeOffset ExpiresAtUtc);
+public sealed record InvitationOtpRequest(string Token);
+public sealed record AcceptInvitationRequest(string Token, string ChallengeReference, string OtpCode,
+    string ClientTypeKey = "web", string? DisplayName = null, string? DeviceIdentifier = null);
+public sealed record InvitationAcceptanceResponse(string Status, string RoleKey, string ScopeKind,
+    string ScopeCode, TokenResponse? Tokens);
+public sealed record BulkInvitationItemResponse(string PartyDisplayName, string UnitCode, string RoleKey,
+    string Result, string? InvitationCode);
 
 public interface IOtpDelivery
 {

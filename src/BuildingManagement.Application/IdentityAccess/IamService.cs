@@ -150,6 +150,52 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         await db.SaveChangesAsync(ct);
     }
 
+    public async Task<(long UserId, TokenResponse Tokens)> ProvisionInvitationIdentity(string normalizedMobile,
+        string? displayName, string clientTypeKey, string? deviceIdentifier, long? identityPartyId,
+        CancellationToken ct)
+    {
+        var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
+            x.LoginTypeKey == IamKeys.LoginTypes.Mobile && x.NormalizedIdentifierValue == normalizedMobile, ct);
+        User user;
+        string? partyCode;
+        if (method is null)
+        {
+            user = new User(await UniqueCode(db.Users, ct), Now);
+            db.Users.Add(user);
+            await db.SaveChangesAsync(ct);
+            method = new UserLoginMethod(await UniqueCode(db.UserLoginMethods, ct), user.Id,
+                IamKeys.LoginTypes.Mobile, normalizedMobile, normalizedMobile, true, Now);
+            method.Verify(Now);
+            db.UserLoginMethods.Add(method);
+            Party party;
+            if (identityPartyId.HasValue)
+                party = await db.Parties.SingleAsync(x => x.Id == identityPartyId && x.IsActive, ct);
+            else
+            {
+                var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", ct);
+                party = new Party(await UniqueCode(db.Parties, ct), personType.Id,
+                    string.IsNullOrWhiteSpace(displayName) ? "کاربر دعوت‌شده" : displayName.Trim(),
+                    null, null, null, null, null, Now);
+                db.Parties.Add(party);
+                await db.SaveChangesAsync(ct);
+            }
+            db.UserPartyLinks.Add(new UserPartyLink(await UniqueCode(db.UserPartyLinks, ct), user.Id,
+                party.Id, true, Now));
+            partyCode = party.Code;
+        }
+        else
+        {
+            user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive &&
+                x.StatusKey == IamKeys.UserStatuses.Active, ct);
+            partyCode = await (from link in db.UserPartyLinks where link.UserId == user.Id && link.IsActive && link.IsPrimary
+                               join party in db.Parties on link.PartyId equals party.Id select party.Code)
+                .SingleOrDefaultAsync(ct);
+        }
+        var tokens = await CreateSession(user, method.Id, clientTypeKey, deviceIdentifier, ct);
+        await db.SaveChangesAsync(ct);
+        return (user.Id, tokens with { PartyCode = partyCode });
+    }
+
     private async Task<TokenResponse> CreateSession(User user, long methodId, string client, string? device, CancellationToken ct)
     {
         client = Required(client, "clientTypeKey").ToLowerInvariant();

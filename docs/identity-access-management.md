@@ -28,6 +28,46 @@ Scoped onboarding and management of unattached external vendors and service prov
 
 Seed data defines building manager, accountant, owner, tenant, and resident roles plus permissions for physical structure, parties, files, assets, finance, invitations, and memberships. Global Location mutation is guarded by `location_manage`; that permission is intentionally not assigned to normal customer roles.
 
+## Milestone B — Invitation Acceptance Matrix
+
+All customer invitations are bound to a normalized Iranian mobile and an unguessable token. Creation requires `invitation_send` on the exact target scope; revocation requires `invitation_revoke`. A pending equivalent invitation is returned instead of duplicated, and acceptance is idempotent. Unit roles are derived from an active Unit relation; management roles are explicitly delegated and never inferred from occupancy.
+
+| ID | Caller / target | Rule and expected result |
+|---|---|---|
+| A01 | Building manager → own Unit owner | Allowed; `unit_owner` Membership at Unit, linked to source relation. |
+| A02 | Building manager → foreign Unit | Denied by scoped authorization. |
+| A03 | Unit invitation → non-Unit role | Denied by workflow allowlist and `RoleAllowedScope`. |
+| A04–A06 | Building manager → own Building collaborator | `building_manager`, `manager_assistant`, and `accountant` allowed at Building. |
+| A07 | Building collaborator → `complex_manager` | Denied by workflow allowlist. |
+| A08 | Building A manager → Building B collaborator | Denied by scoped authorization. |
+| A09 | owner/resident relation | Never infers a Building management Membership. |
+| A10 | equivalent pending invitation | Existing pending invitation returned; no duplicate row. |
+| B01–B03 | verified existing mobile accepts | Existing User/LoginMethod reused; exactly one Membership. |
+| B04–B05 | accepted invite/equivalent Membership | Idempotent; no duplicate Membership. |
+| B06 | mobile A attempts invite for mobile B | Denied unless invitation-purpose OTP proves mobile B. |
+| C01 | unknown mobile accepts | OTP-bound User, LoginMethod, identity Party, session and Membership created transactionally. |
+| C02 | provisioning failure | Invitation remains unaccepted; partial identity/access state rolls back. |
+| C03 | invitation linked to unambiguous Party | That Party may be linked; no duplicate Party. |
+| C04 | ambiguous identity | No heuristic merge; registration identity Party remains separate. |
+| D01–D03 | expired/revoked/already accepted | Expired and revoked denied; accepted is idempotent without second Membership. |
+| D04 | Building A revokes Building B invite | Denied/concealed. |
+| D05–D06 | concurrent existing/new-user acceptance | DB serialization yields one accepted state, User, LoginMethod and Membership. |
+| E01–E04 | public preview | Only type, role title, safe Building/Unit label, status and expiry; no mobile, Party, identity or private data. |
+| E05–E06 | unknown/expired preview | Safe not-found or expired state without identity/existence disclosure. |
+| F01–F04 | own-Building bulk | Server discovers active eligible relations and maps owner/tenant/resident/representative to Unit roles; never management roles. |
+| F05–F06 | member/pending target | Per-item `already_member` / `already_pending`; no duplicate. |
+| F07 | relation without usable verified mobile contact | Per-item `no_usable_mobile`. |
+| F08 | foreign-Building relation | Never discovered or invited. |
+| F09 | mixed eligibility | Per-item result; invalid rows do not abort the batch. |
+| G01 | Building A invitation list | DB-filtered to authorized Building/Units; excludes Building B. |
+| G02 | direct read/revoke foreign invitation | Denied/concealed. |
+| G03 | Unit-scoped actor → sibling Unit | Excluded/denied. |
+| G04 | public preview | Grants no authenticated management access. |
+| H01–H04 | created Membership scope/role | Exactly one scope; `RoleAllowedScope` enforced; Unit workflow cannot create Building membership and vice versa. |
+| H05 | equivalent active Membership | Existing Membership reused; service and DB concurrency prevent duplicates. |
+
+Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vendors, notifications/SMS delivery, recovery, SSO, support acting, AccessGrant UI and membership-exit workflows remain deferred.
+
 ## History, recovery, and support
 
 Login methods are released, not deleted. Filtered unique indexes prevent two active Users from sharing a normalized identifier while allowing later reuse after release. UserPartyLink and PartyAffiliation preserve history. Party BirthDate is nullable.

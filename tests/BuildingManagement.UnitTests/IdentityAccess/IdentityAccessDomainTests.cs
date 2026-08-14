@@ -6,6 +6,32 @@ namespace BuildingManagement.UnitTests;
 
 public sealed class IdentityAccessDomainTests
 {
+    [Fact]
+    public void InvitationLifecycleRejectsExpiredAndRevokedAcceptanceAndIsIdempotentForSameUser()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var accepted = new Invitation("ABCDE", "hash", "989121234567", "building_collaborator",
+            1, null, 1, null, 10, null, now.AddDays(1), now);
+        accepted.Accept(20, now);
+        accepted.Accept(20, now.AddMinutes(1));
+        Assert.Equal(20, accepted.AcceptedByUserId);
+        Assert.Throws<DomainValidationException>(() => accepted.Accept(21, now.AddMinutes(2)));
+        Assert.Throws<DomainValidationException>(() => accepted.Revoke(now.AddMinutes(2)));
+
+        var revoked = new Invitation("FGHIJ", "hash2", "989121234568", "unit_person",
+            2, null, null, 2, 10, 30, now.AddDays(1), now);
+        revoked.Revoke(now);
+        Assert.Throws<DomainValidationException>(() => revoked.Accept(20, now));
+        var expired = new Invitation("KLMNO", "hash3", "989121234569", "unit_person",
+            2, null, null, 2, 10, 30, now, now.AddDays(-1));
+        Assert.Throws<DomainValidationException>(() => expired.Accept(20, now));
+    }
+
+    [Theory]
+    [InlineData("09121234567", "+989121234567")]
+    [InlineData("+98 912 123 4567", "+989121234567")]
+    public void InvitationMobileBindingUsesCanonicalIranianMobile(string input, string expected) =>
+        Assert.Equal(expected, IranianMobileNormalizer.Normalize(input));
     private static readonly DateTimeOffset Now = new(2026, 8, 14, 0, 0, 0, TimeSpan.Zero);
 
     [Theory]
