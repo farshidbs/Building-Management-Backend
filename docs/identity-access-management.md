@@ -30,7 +30,13 @@ Seed data defines building manager, accountant, owner, tenant, and resident role
 
 ## Milestone B — Invitation Acceptance Matrix
 
-All customer invitations are bound to a normalized Iranian mobile and an unguessable token. Creation requires `invitation_send` on the exact target scope; revocation requires `invitation_revoke`. A pending equivalent invitation is returned instead of duplicated, and acceptance is idempotent. Unit roles are derived from an active Unit relation; management roles are explicitly delegated and never inferred from occupancy.
+All customer invitations are bound to a normalized Iranian mobile and an unguessable token. Creation requires `invitation_send` on the exact target scope; Building collaborator creation additionally requires `membership_manage_scoped` on that same Building. Revocation requires `invitation_revoke`. An equivalent live invitation produces a deterministic conflict; expired rows are explicitly marked inactive and retained before reissue. Unit roles are derived from an active Unit relation; management roles are explicitly delegated and never inferred from occupancy.
+
+Only a creation response may contain the one-time plaintext token. Bulk-created rows with `created` status return it because notification delivery is deferred; all other bulk statuses return a null token, and list responses use a separate DTO with no token field. The database stores only the token hash. Public preview may identify a valid expired token as `expired`, but never exposes mobile, Party identity, user existence, or private contacts; revoked tokens are concealed.
+
+Acceptance serializes on the Invitation row with SQL Server `UPDLOCK, HOLDLOCK` and decides terminal state before OTP consumption, identity/session provisioning, or Membership creation. A repeated acceptance returns deterministic conflict and mints no new session or refresh token. Revocation uses the same row lock, so accept and revoke cannot both win. OTP consumption, identity provisioning, Membership creation, and invitation acceptance share one transaction.
+
+For a new User, the accepted mobile creates a new registration identity Party and UserPartyLink. A source `UnitPartyRelation` may be retained on the Membership for authorization validity, but its Party is never treated as the User's identity merely because a `PartyContact` mobile matched. Existing Users retain their existing identity link.
 
 | ID | Caller / target | Rule and expected result |
 |---|---|---|
@@ -91,4 +97,4 @@ Migration `AddIdentityAccessManagement` is additive and also adds nullable `Birt
 
 Implemented: persistence model and constraints, OTP registration/login, opaque DB-backed sessions, refresh rotation/reuse handling, logout, current profile, context listing, central permission evaluation, migration, role/permission seeds, and resource authorization across the current physical-structure, Party, file, Asset, and Finance application services. Destination authorization is enforced when a Building or Asset changes scope; unattached Parties are not exposed to ordinary scoped users; confidential files require their distinct permission.
 
-The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Login-method lifecycle APIs, Invitations, context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notifications remain deferred. Their persistence foundations do not imply that those workflows are available.
+The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Invitation creation, preview, invitation-purpose OTP, acceptance, scoped list, revocation, and bulk creation are implemented. Login-method lifecycle APIs, context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notification delivery remain deferred.

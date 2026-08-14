@@ -28,7 +28,9 @@ public sealed record AcceptInvitationRequest(string Token, string ChallengeRefer
 public sealed record InvitationAcceptanceResponse(string Status, string RoleKey, string ScopeKind,
     string ScopeCode, TokenResponse? Tokens);
 public sealed record BulkInvitationItemResponse(string PartyDisplayName, string UnitCode, string RoleKey,
-    string Result, string? InvitationCode);
+    string Result, string? InvitationCode, string? InvitationToken);
+public sealed record InvitationListItemResponse(string Code, string TypeKey, string RoleKey,
+    string ScopeKind, string ScopeCode, string ScopeName, string Status, DateTimeOffset ExpiresAtUtc);
 
 public interface IOtpDelivery
 {

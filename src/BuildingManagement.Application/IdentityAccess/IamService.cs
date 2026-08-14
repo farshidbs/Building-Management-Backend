@@ -151,8 +151,7 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     }
 
     public async Task<(long UserId, TokenResponse Tokens)> ProvisionInvitationIdentity(string normalizedMobile,
-        string? displayName, string clientTypeKey, string? deviceIdentifier, long? identityPartyId,
-        CancellationToken ct)
+        string? displayName, string clientTypeKey, string? deviceIdentifier, CancellationToken ct)
     {
         var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
             x.LoginTypeKey == IamKeys.LoginTypes.Mobile && x.NormalizedIdentifierValue == normalizedMobile, ct);
@@ -167,18 +166,12 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 IamKeys.LoginTypes.Mobile, normalizedMobile, normalizedMobile, true, Now);
             method.Verify(Now);
             db.UserLoginMethods.Add(method);
-            Party party;
-            if (identityPartyId.HasValue)
-                party = await db.Parties.SingleAsync(x => x.Id == identityPartyId && x.IsActive, ct);
-            else
-            {
-                var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", ct);
-                party = new Party(await UniqueCode(db.Parties, ct), personType.Id,
-                    string.IsNullOrWhiteSpace(displayName) ? "کاربر دعوت‌شده" : displayName.Trim(),
-                    null, null, null, null, null, Now);
-                db.Parties.Add(party);
-                await db.SaveChangesAsync(ct);
-            }
+            var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", ct);
+            var party = new Party(await UniqueCode(db.Parties, ct), personType.Id,
+                string.IsNullOrWhiteSpace(displayName) ? "کاربر دعوت‌شده" : displayName.Trim(),
+                null, null, null, null, null, Now);
+            db.Parties.Add(party);
+            await db.SaveChangesAsync(ct);
             db.UserPartyLinks.Add(new UserPartyLink(await UniqueCode(db.UserPartyLinks, ct), user.Id,
                 party.Id, true, Now));
             partyCode = party.Code;
@@ -187,8 +180,10 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         {
             user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive &&
                 x.StatusKey == IamKeys.UserStatuses.Active, ct);
-            partyCode = await (from link in db.UserPartyLinks where link.UserId == user.Id && link.IsActive && link.IsPrimary
-                               join party in db.Parties on link.PartyId equals party.Id select party.Code)
+            partyCode = await (from link in db.UserPartyLinks
+                               where link.UserId == user.Id && link.IsActive && link.IsPrimary
+                               join party in db.Parties on link.PartyId equals party.Id
+                               select party.Code)
                 .SingleOrDefaultAsync(ct);
         }
         var tokens = await CreateSession(user, method.Id, clientTypeKey, deviceIdentifier, ct);

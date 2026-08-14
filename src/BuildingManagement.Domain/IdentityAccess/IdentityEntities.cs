@@ -99,6 +99,7 @@ public sealed class AuthSession : Entity
     public DateTimeOffset AbsoluteExpiresAtUtc { get; private set; }
     public DateTimeOffset? IdleExpiresAtUtc { get; private set; }
     public DateTimeOffset? RevokedAtUtc { get; private set; }
+    public DateTimeOffset? ExpiredAtUtc { get; private set; }
     public string? RevokeReasonKey { get; private set; }
     public string? DeviceIdentifier { get; private set; }
     public string? UserAgent { get; private set; }
@@ -200,11 +201,13 @@ public sealed class Invitation : Entity
     public long? SourceUnitPartyRelationId { get; private set; }
     public long? AcceptedByUserId { get; private set; }
     public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public DateTimeOffset? ExpiredAtUtc { get; private set; }
     public DateTimeOffset? AcceptedAtUtc { get; private set; }
     public DateTimeOffset? RevokedAtUtc { get; private set; }
     public Invitation(string code, string tokenHash, string identifier, string invitationTypeKey, long role, long? complexId, long? buildingId, long? unitId, long by, long? sourceRelation, DateTimeOffset expires, DateTimeOffset now) { if ((complexId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (unitId.HasValue ? 1 : 0) != 1) throw new DomainValidationException("scope", "Exactly one scope is required."); Initialize(code, now); TokenHash = Required(tokenHash, "token"); NormalizedIdentifierValue = Required(identifier, "mobile"); InvitationTypeKey = Required(invitationTypeKey, "invitationType"); RoleId = role; ComplexId = complexId; BuildingId = buildingId; UnitId = unitId; InvitedByUserId = by; SourceUnitPartyRelationId = sourceRelation; ExpiresAtUtc = expires; }
     public void Accept(long userId, DateTimeOffset now) { if (RevokedAtUtc.HasValue || now >= ExpiresAtUtc) throw new DomainValidationException("invitation", "Invitation is not usable."); if (AcceptedAtUtc.HasValue) { if (AcceptedByUserId != userId) throw new DomainValidationException("invitation", "Invitation is not usable."); return; } AcceptedByUserId = userId; AcceptedAtUtc = now; Touch(now); }
     public void Revoke(DateTimeOffset now) { if (AcceptedAtUtc.HasValue) throw new DomainValidationException("invitation", "Accepted invitation cannot be revoked."); if (RevokedAtUtc.HasValue) return; RevokedAtUtc = now; SetActivation(false, now); }
+    public void Expire(DateTimeOffset now) { if (AcceptedAtUtc.HasValue || RevokedAtUtc.HasValue || ExpiredAtUtc.HasValue) return; if (now < ExpiresAtUtc) throw new DomainValidationException("invitation", "Invitation has not expired."); ExpiredAtUtc = now; SetActivation(false, now); }
 }
 
 public sealed class PlatformUser : Entity

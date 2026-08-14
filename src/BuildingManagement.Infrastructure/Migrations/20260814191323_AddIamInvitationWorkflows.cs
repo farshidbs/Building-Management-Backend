@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 #pragma warning disable CA1861 // EF Core generated migration metadata uses inline column arrays.
@@ -18,6 +19,13 @@ namespace BuildingManagement.Infrastructure.Migrations
                 type: "bigint",
                 nullable: true);
 
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "ExpiredAtUtc",
+                schema: "bms",
+                table: "Invitations",
+                type: "datetimeoffset",
+                nullable: true);
+
             migrationBuilder.AddColumn<string>(
                 name: "InvitationTypeKey",
                 schema: "bms",
@@ -31,6 +39,13 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "Invitations",
                 type: "bigint",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTimeOffset>(
+                name: "ExpiredAtUtc",
+                schema: "bms",
+                table: "AuthSessions",
+                type: "datetimeoffset",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
@@ -108,6 +123,11 @@ namespace BuildingManagement.Infrastructure.Migrations
                 table: "Invitations");
 
             migrationBuilder.DropColumn(
+                name: "ExpiredAtUtc",
+                schema: "bms",
+                table: "Invitations");
+
+            migrationBuilder.DropColumn(
                 name: "InvitationTypeKey",
                 schema: "bms",
                 table: "Invitations");
@@ -116,6 +136,11 @@ namespace BuildingManagement.Infrastructure.Migrations
                 name: "SourceUnitPartyRelationId",
                 schema: "bms",
                 table: "Invitations");
+
+            migrationBuilder.DropColumn(
+                name: "ExpiredAtUtc",
+                schema: "bms",
+                table: "AuthSessions");
         }
     }
 }

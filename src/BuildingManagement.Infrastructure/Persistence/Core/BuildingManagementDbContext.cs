@@ -153,6 +153,19 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("user");
     }
 
+    public async Task LockInvitation(string tokenHash, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Invitation lock requires an active transaction.");
+        _ = await Invitations.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[Invitations] WITH (UPDLOCK, HOLDLOCK) WHERE [TokenHash] = {tokenHash}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("invitation");
+    }
+
+    public bool IsUniqueViolation(Exception exception) =>
+        exception is DbUpdateException { InnerException: SqlException { Number: 2601 or 2627 } };
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BuildingManagementDbContext).Assembly);
 }

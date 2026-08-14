@@ -25,6 +25,14 @@ public sealed class IdentityAccessDomainTests
         var expired = new Invitation("KLMNO", "hash3", "989121234569", "unit_person",
             2, null, null, 2, 10, 30, now, now.AddDays(-1));
         Assert.Throws<DomainValidationException>(() => expired.Accept(20, now));
+        expired.Expire(now);
+        Assert.False(expired.IsActive);
+        Assert.Equal(now, expired.ExpiredAtUtc);
+        expired.Expire(now.AddMinutes(1));
+
+        var future = new Invitation("PQRST", "hash4", "989121234570", "unit_person",
+            2, null, null, 2, 10, 30, now.AddDays(1), now);
+        Assert.Throws<DomainValidationException>(() => future.Expire(now));
     }
 
     [Theory]

@@ -45,6 +45,7 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
         var building = await db.Buildings.AsNoTracking().SingleOrDefaultAsync(x =>
             x.Code == buildingCode && x.IsActive, ct) ?? throw AppException.NotFound("building");
         await authorization.Ensure("invitation_send", building.ComplexId, building.Id, null, ct);
+        await authorization.Ensure("membership_manage_scoped", building.ComplexId, building.Id, null, ct);
         var roleKey = Required(request.RoleKey, "roleKey").ToLowerInvariant();
         if (!BuildingRoles.Contains(roleKey))
             throw Validation("roleKey", "Role is not allowed for a Building collaborator invitation.");
@@ -72,31 +73,31 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
         {
             if (!RelationRoles.TryGetValue(item.TypeKey, out var roleKey))
             {
-                result.Add(new(item.Party.DisplayName, item.Unit.Code, "", "not_eligible", null));
+                result.Add(new(item.Party.DisplayName, item.Unit.Code, "", "not_eligible", null, null));
                 continue;
             }
             var mobile = await TryPrimaryMobile(item.Party.Id, ct);
             if (mobile is null)
             {
-                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "no_usable_mobile", null));
+                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "no_usable_mobile", null, null));
                 continue;
             }
             var roleId = await RoleId(roleKey, IamKeys.Scopes.Unit, ct);
             var userId = await ExistingUserId(mobile, ct);
             if (userId.HasValue && await EquivalentMembership(userId.Value, roleId, null, null, item.Unit.Id, ct))
             {
-                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "already_member", null));
+                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "already_member", null, null));
                 continue;
             }
             var existing = await Pending(mobile, roleId, null, null, item.Unit.Id, ct);
             if (existing is not null)
             {
-                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "already_pending", existing.Code));
+                result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "already_pending", existing.Code, null));
                 continue;
             }
             var created = await Create("unit_person", mobile, roleKey, null, null, item.Unit.Id,
                 item.Relation.Id, ct);
-            result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "created", created.Code));
+            result.Add(new(item.Party.DisplayName, item.Unit.Code, roleKey, "created", created.Code, created.Token));
         }
         return result;
     }
@@ -141,21 +142,24 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
     {
         var tokenHash = protector.Hash(Required(request.Token, "token"));
         var reference = Required(request.ChallengeReference, "challengeReference");
-        if (!await db.TryReserveOtpAttempt(reference, Now, ct))
-            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
         try
         {
             return await db.ExecuteInTransaction<InvitationAcceptanceResponse>(async transactionToken =>
             {
+                await db.LockInvitation(tokenHash, transactionToken);
                 var invitation = await db.Invitations.SingleOrDefaultAsync(x => x.TokenHash == tokenHash,
                     transactionToken) ?? throw AppException.NotFound("invitation");
                 if (invitation.RevokedAtUtc.HasValue || invitation.ExpiresAtUtc <= Now)
                     throw AppException.NotFound("invitation");
+                if (invitation.AcceptedAtUtc.HasValue)
+                    throw AppException.Conflict("invitation.already_accepted", "Invitation was already accepted.");
                 if (invitation.SourceUnitPartyRelationId.HasValue &&
                     !await db.UnitPartyRelations.AnyAsync(x => x.Id == invitation.SourceUnitPartyRelationId &&
                         x.IsActive && x.EndDate == null, transactionToken))
                     throw AppException.Conflict("invitation.source_relation_ended",
                         "The Unit relationship is no longer active.");
+                if (!await db.TryReserveOtpAttempt(reference, Now, transactionToken))
+                    throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
                 var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x =>
                     x.PublicReference == reference && x.PurposeKey == "invitation_accept" &&
                     x.NormalizedIdentifierValue == invitation.NormalizedIdentifierValue, transactionToken)
@@ -169,13 +173,8 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
                 challenge.Verify(Now);
                 challenge.Consume(Now);
                 await db.SaveChangesAsync(transactionToken);
-                var identityPartyId = invitation.SourceUnitPartyRelationId.HasValue
-                    ? await db.UnitPartyRelations.Where(x => x.Id == invitation.SourceUnitPartyRelationId)
-                        .Select(x => (long?)x.PartyId).SingleAsync(transactionToken)
-                    : null;
                 var identity = await iam.ProvisionInvitationIdentity(invitation.NormalizedIdentifierValue,
-                    request.DisplayName, request.ClientTypeKey, request.DeviceIdentifier, identityPartyId,
-                    transactionToken);
+                    request.DisplayName, request.ClientTypeKey, request.DeviceIdentifier, transactionToken);
                 var roleKey = await db.AccessRoles.Where(x => x.Id == invitation.RoleId)
                     .Select(x => x.Key).SingleAsync(transactionToken);
                 if (!await EquivalentMembership(identity.UserId, invitation.RoleId, invitation.ComplexId,
@@ -194,19 +193,29 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
             foreach (var entry in exception.Entries) db.Detach(entry.Entity);
             throw AppException.Conflict("invitation.concurrent_acceptance", "Invitation was already processed.");
         }
+        catch (DbUpdateException exception) when (db.IsUniqueViolation(exception))
+        {
+            throw AppException.Conflict("invitation.concurrent_acceptance", "Invitation was already processed.");
+        }
     }
 
     public async Task Revoke(string code, CancellationToken ct)
     {
         code = PublicCode.Normalize(code);
-        var invitation = await db.Invitations.SingleOrDefaultAsync(x => x.Code == code, ct)
+        var state = await db.Invitations.AsNoTracking().SingleOrDefaultAsync(x => x.Code == code, ct)
             ?? throw AppException.NotFound("invitation");
-        await EnsureScope(invitation, "invitation_revoke", ct);
-        invitation.Revoke(Now);
-        await db.SaveChangesAsync(ct);
+        await EnsureScope(state, "invitation_revoke", ct);
+        await db.ExecuteInTransaction(async token =>
+        {
+            await db.LockInvitation(state.TokenHash, token);
+            var invitation = await db.Invitations.SingleAsync(x => x.Id == state.Id, token);
+            invitation.Revoke(Now);
+            await db.SaveChangesAsync(token);
+            return invitation.Id;
+        }, ct);
     }
 
-    public async Task<IReadOnlyList<InvitationResponse>> List(string? buildingCode, string? unitCode,
+    public async Task<IReadOnlyList<InvitationListItemResponse>> List(string? buildingCode, string? unitCode,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(buildingCode) == string.IsNullOrWhiteSpace(unitCode))
@@ -230,8 +239,13 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
             query = query.Where(x => x.UnitId == unit.Id);
         }
         var invitations = await query.OrderByDescending(x => x.CreatedAtUtc).ToListAsync(ct);
-        var result = new List<InvitationResponse>();
-        foreach (var invitation in invitations) result.Add(await Response(invitation, "", ct));
+        var result = new List<InvitationListItemResponse>();
+        foreach (var invitation in invitations)
+        {
+            var item = await Response(invitation, "", ct);
+            result.Add(new(item.Code, item.TypeKey, item.RoleKey, item.ScopeKind, item.ScopeCode,
+                item.ScopeName, item.Status, item.ExpiresAtUtc));
+        }
         return result;
     }
 
@@ -241,19 +255,40 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
         var scopeKind = unitId.HasValue ? IamKeys.Scopes.Unit : buildingId.HasValue
             ? IamKeys.Scopes.Building : IamKeys.Scopes.Complex;
         var roleId = await RoleId(roleKey, scopeKind, ct);
-        var userId = await ExistingUserId(mobile, ct);
-        if (userId.HasValue && await EquivalentMembership(userId.Value, roleId, complexId, buildingId, unitId, ct))
-            throw AppException.Conflict("invitation.already_member", "Target already has this Membership.");
-        var pending = await Pending(mobile, roleId, complexId, buildingId, unitId, ct);
-        if (pending is not null)
-            throw AppException.Conflict("invitation.already_pending", "An equivalent invitation is already pending.");
-        var plainToken = protector.CreateToken(24);
-        var invitation = new Invitation(await UniqueCode(db.Invitations, ct), protector.Hash(plainToken),
-            mobile, type, roleId, complexId, buildingId, unitId, authorization.UserId, sourceRelationId,
-            Now.AddDays(7), Now);
-        db.Invitations.Add(invitation);
-        await db.SaveChangesAsync(ct);
-        return await Response(invitation, plainToken, ct);
+        try
+        {
+            return await db.ExecuteInTransaction<InvitationResponse>(async transactionToken =>
+            {
+                var userId = await ExistingUserId(mobile, transactionToken);
+                if (userId.HasValue && await EquivalentMembership(userId.Value, roleId, complexId,
+                    buildingId, unitId, transactionToken))
+                    throw AppException.Conflict("invitation.already_member",
+                        "Target already has this Membership.");
+
+                var equivalent = await db.Invitations.Where(x =>
+                    x.NormalizedIdentifierValue == mobile && x.RoleId == roleId &&
+                    x.ComplexId == complexId && x.BuildingId == buildingId && x.UnitId == unitId &&
+                    x.IsActive && x.AcceptedAtUtc == null && x.RevokedAtUtc == null).ToListAsync(transactionToken);
+                foreach (var stale in equivalent.Where(x => x.ExpiresAtUtc <= Now)) stale.Expire(Now);
+                if (equivalent.Any(x => x.ExpiresAtUtc > Now))
+                    throw AppException.Conflict("invitation.already_pending",
+                        "An equivalent invitation is already pending.");
+                if (equivalent.Count != 0) await db.SaveChangesAsync(transactionToken);
+
+                var plainToken = protector.CreateToken(24);
+                var invitation = new Invitation(await UniqueCode(db.Invitations, transactionToken),
+                    protector.Hash(plainToken), mobile, type, roleId, complexId, buildingId, unitId,
+                    authorization.UserId, sourceRelationId, Now.AddDays(7), Now);
+                db.Invitations.Add(invitation);
+                await db.SaveChangesAsync(transactionToken);
+                return await Response(invitation, plainToken, transactionToken);
+            }, ct);
+        }
+        catch (DbUpdateException exception) when (db.IsUniqueViolation(exception))
+        {
+            throw AppException.Conflict("invitation.already_pending",
+                "An equivalent invitation is already pending.");
+        }
     }
 
     private async Task<InvitationResponse> Response(Invitation invitation, string token, CancellationToken ct)
@@ -326,7 +361,8 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
     {
         if (invitation.UnitId.HasValue)
         {
-            var value = await (from unit in db.Units where unit.Id == invitation.UnitId
+            var value = await (from unit in db.Units
+                               where unit.Id == invitation.UnitId
                                join building in db.Buildings on unit.BuildingId equals building.Id
                                select new { building.Name, unit.UnitNumber }).SingleAsync(ct);
             return (IamKeys.Scopes.Unit, value.Name, value.UnitNumber);

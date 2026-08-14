@@ -2809,6 +2809,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<string>("DeviceIdentifier")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<DateTimeOffset?>("ExpiredAtUtc")
+                        .HasColumnType("datetimeoffset");
+
                     b.Property<DateTimeOffset?>("IdleExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -4855,6 +4858,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
+
+                    b.Property<DateTimeOffset?>("ExpiredAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<DateTimeOffset>("ExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
