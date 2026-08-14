@@ -66,6 +66,31 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<AccountAdjustment> AccountAdjustments => Set<AccountAdjustment>();
     public DbSet<UnitCreditSettlement> UnitCreditSettlements => Set<UnitCreditSettlement>();
     public DbSet<UnitCreditSettlementAllocation> UnitCreditSettlementAllocations => Set<UnitCreditSettlementAllocation>();
+    public DbSet<User> Users => Set<User>();
+    public DbSet<UserLoginMethod> UserLoginMethods => Set<UserLoginMethod>();
+    public DbSet<UserPartyLink> UserPartyLinks => Set<UserPartyLink>();
+    public DbSet<PartyAffiliation> PartyAffiliations => Set<PartyAffiliation>();
+    public DbSet<OtpChallenge> OtpChallenges => Set<OtpChallenge>();
+    public DbSet<AuthSession> AuthSessions => Set<AuthSession>();
+    public DbSet<AuthRefreshToken> AuthRefreshTokens => Set<AuthRefreshToken>();
+    public DbSet<AccessRole> AccessRoles => Set<AccessRole>();
+    public DbSet<AccessCapability> AccessPermissions => Set<AccessCapability>();
+    public DbSet<AccessRoleCapability> AccessRolePermissions => Set<AccessRoleCapability>();
+    public DbSet<RoleAllowedScope> RoleAllowedScopes => Set<RoleAllowedScope>();
+    public DbSet<AccessMembership> AccessMemberships => Set<AccessMembership>();
+    public DbSet<AccessGrant> AccessGrants => Set<AccessGrant>();
+    public DbSet<BuildingAccessSetting> BuildingAccessSettings => Set<BuildingAccessSetting>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
+    public DbSet<MembershipExitRequest> MembershipExitRequests => Set<MembershipExitRequest>();
+    public DbSet<IdentityConflictReview> IdentityConflictReviews => Set<IdentityConflictReview>();
+    public DbSet<AccountRecoveryCase> AccountRecoveryCases => Set<AccountRecoveryCase>();
+    public DbSet<PlatformUser> PlatformUsers => Set<PlatformUser>();
+    public DbSet<PlatformRole> PlatformRoles => Set<PlatformRole>();
+    public DbSet<PlatformCapability> PlatformPermissions => Set<PlatformCapability>();
+    public DbSet<PlatformRolePermissionLink> PlatformRolePermissions => Set<PlatformRolePermissionLink>();
+    public DbSet<PlatformUserRoleLink> PlatformUserRoles => Set<PlatformUserRoleLink>();
+    public DbSet<SupportActingSession> SupportActingSessions => Set<SupportActingSession>();
+    public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

@@ -22,6 +22,17 @@ Error codes include `validation.failed`, `{resource}.not_found`, `location.name_
 
 Breaking changes require a new route version.
 
+## Implemented route families
+
+- Physical structure: `/locations`, `/complexes`, `/buildings`, `/buildings/{buildingCode}/units`.
+- Party/occupancy: `/parties`, Party contacts, Unit party relations and occupancy history.
+- Files: Building/Complex galleries and documents plus `/files/{fileCode}/content`.
+- Assets: `/assets` with nested events, galleries, documents and event files.
+- Finance: accounts, expenses, demands, payments, Unit receivables/payment history and credit settlements.
+
+Swagger/OpenAPI is the authoritative transport inventory. Domain documents define semantics; do
+not infer lifecycle or money movement only from route names.
+
 Unit creation requires an explicit `occupancy` object. Later occupancy changes use
 `POST /api/v1/units/{unitCode}/occupancy-history`; generic Unit update cannot change the
 current count. Unit responses include a derived `currentOccupancy` object.

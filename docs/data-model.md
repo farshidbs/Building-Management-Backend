@@ -32,12 +32,12 @@ Public codes:
 
 ## Party and occupancy
 
-Party data uses the database default schema: `PartyTypes`, `Parties`, `PartyContactTypes`, and
+Party data uses the application schema `bms`: `PartyTypes`, `Parties`, `PartyContactTypes`, and
 `PartyContacts`. A Party requires only `PartyType` and `DisplayName`; contacts and the directly
 stored `Party.IdentityNumber` are optional. IdentityNumber is omitted from list/search responses.
 PartyContact is an internal child row without a public Code; verification fields remain available.
 
-Unit-scoped feature tables use the database default schema: `UnitPartyRelationTypes`,
+Unit-scoped feature tables use the application schema `bms`: `UnitPartyRelationTypes`,
 `UnitPartyRelations`, and `UnitOccupancyHistories`. Relations use internal Ids, real FKs and
 restricted deletes; they have no public Code, ownership share, or payment-contact flags.
 Relationship dates may be null when unknown. Occupancy effective dates may likewise be null.
@@ -66,3 +66,25 @@ The pre-Phase-2 migration history is squashed into one `InitialCreate` migration
 - `bms.BuildingDocuments` and `bms.ComplexDocuments` link document metadata, file, owner, and document type through real foreign keys.
 - Relationship rows and stored files use internal `bigint IDENTITY` keys. HTTP contracts expose only public codes or document-type keys.
 - Deleting a relationship removes it and deactivates/deletes an orphaned stored file; file bytes are never served directly from disk.
+
+## Asset management
+
+- `bms.AssetTypes` and `bms.AssetEventTypes` are key-based Persian reference data.
+- `bms.Assets` belongs to exactly one Building or Complex and uses a public Code.
+- `bms.AssetEvents` is nested history. Event date is not identity; multiple events may occur on one date. Its internal Id is exposed only in the nested Asset route.
+- Gallery, document and event-file relations reference `base.StoredFiles` through restricted FKs.
+- A filtered unique index permits one active Asset gallery cover.
+- Suggested review dates are derived and are not persisted schedules.
+
+## Financial management
+
+All Financial tables use schema `bms`; Financial file relations reference `base.StoredFiles`.
+
+- `FinancialAccounts` has exactly one Unit, Building or Complex owner. Unit owners use `unit_account`; Building/Complex owners use Fund kinds. SQL constraints enforce this.
+- `CurrentBalance` is net position. `AvailableCredit` is non-negative and can be non-zero only for Unit accounts.
+- `FinancialTransactions` has exactly one explicit source FK. Immutable entries store effect, amount and BalanceAfter.
+- `Expenses` and `ExpenseDisbursements` are separate. Only finalized Disbursements affect Fund; parent Expense rowversion prevents concurrent over-disbursement.
+- Demand allocation snapshots create `UnitReceivables`, each with exactly one DemandAllocation or AccountAdjustment origin.
+- Payments connect one Unit account to one receiving Fund. PaymentAllocations target same-scope Receivables. Gateway reference and offline bank identity have DB-backed uniqueness.
+- `UnitCreditSettlements` is unique by UnitAccount plus RequestId. It reduces AvailableCredit and Receivable outstanding without changing CurrentBalance or Fund. `AvailableCreditAfter` is historical snapshot.
+- Money uses `decimal(18,2)`, history deletes are restricted, and relevant aggregates use rowversion.

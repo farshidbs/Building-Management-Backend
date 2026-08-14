@@ -62,6 +62,31 @@ public interface IApplicationDbContext
     DbSet<AccountAdjustment> AccountAdjustments { get; }
     DbSet<UnitCreditSettlement> UnitCreditSettlements { get; }
     DbSet<UnitCreditSettlementAllocation> UnitCreditSettlementAllocations { get; }
+    DbSet<User> Users { get; }
+    DbSet<UserLoginMethod> UserLoginMethods { get; }
+    DbSet<UserPartyLink> UserPartyLinks { get; }
+    DbSet<PartyAffiliation> PartyAffiliations { get; }
+    DbSet<OtpChallenge> OtpChallenges { get; }
+    DbSet<AuthSession> AuthSessions { get; }
+    DbSet<AuthRefreshToken> AuthRefreshTokens { get; }
+    DbSet<AccessRole> AccessRoles { get; }
+    DbSet<AccessCapability> AccessPermissions { get; }
+    DbSet<AccessRoleCapability> AccessRolePermissions { get; }
+    DbSet<RoleAllowedScope> RoleAllowedScopes { get; }
+    DbSet<AccessMembership> AccessMemberships { get; }
+    DbSet<AccessGrant> AccessGrants { get; }
+    DbSet<BuildingAccessSetting> BuildingAccessSettings { get; }
+    DbSet<Invitation> Invitations { get; }
+    DbSet<MembershipExitRequest> MembershipExitRequests { get; }
+    DbSet<IdentityConflictReview> IdentityConflictReviews { get; }
+    DbSet<AccountRecoveryCase> AccountRecoveryCases { get; }
+    DbSet<PlatformUser> PlatformUsers { get; }
+    DbSet<PlatformRole> PlatformRoles { get; }
+    DbSet<PlatformCapability> PlatformPermissions { get; }
+    DbSet<PlatformRolePermissionLink> PlatformRolePermissions { get; }
+    DbSet<PlatformUserRoleLink> PlatformUserRoles { get; }
+    DbSet<SupportActingSession> SupportActingSessions { get; }
+    DbSet<SecurityAuditEvent> SecurityAuditEvents { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,

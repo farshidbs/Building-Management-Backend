@@ -57,9 +57,17 @@ Integration tests use a real SQL Server Testcontainer, never EF InMemory. They a
 
 `ConnectionStrings__BuildingManagement` is required. Local secrets use .NET User Secrets or environment variables and are not committed. `Cors__AllowedOrigins__0` etc. configure explicit origins.
 
-Known limitations: no authentication/tenant isolation, deep location-cycle detection, localization tables, bulk import, or client-driven optimistic concurrency token. RowVersion is enforced by EF Core for changes tracked during one request, but it is not yet exposed to clients, so sequential stale updates remain last-write-wins. Next planned: Party/User invitation and historical `UnitPartyRelation`.
+Known limitations: no authentication/tenant isolation, deep location-cycle detection, localization tables,
+bulk import, real payment-gateway adapter, refund/reversal workflows, or client-driven optimistic
+concurrency token. RowVersion is enforced by EF Core for changes tracked during one request, but it
+is not exposed to clients, so sequential stale updates remain last-write-wins. Party and historical
+UnitPartyRelation are implemented; User/Invitation/auth remain deliberately deferred.
 
-See [domain overview](docs/domain-overview.md), [data model](docs/data-model.md), [API conventions](docs/api-conventions.md), and [roadmap](docs/roadmap.md).
+For a new developer or context-free AI session, start with [project context](docs/project-context.md)
+and [implementation history](docs/implementation-history.md). Then read the
+[domain overview](docs/domain-overview.md), [data model](docs/data-model.md),
+[API conventions](docs/api-conventions.md), [financial domain](docs/financial-domain.md),
+[asset management](docs/asset-management.md), and [roadmap](docs/roadmap.md).
 
 ## File storage
 

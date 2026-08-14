@@ -16,6 +16,7 @@ internal sealed class PartyConfiguration : IEntityTypeConfiguration<Party>
         builder.Property(x => x.OrganizationName).HasMaxLength(200);
         builder.Property(x => x.IdentityNumber).HasMaxLength(200);
         builder.Property(x => x.Description).HasMaxLength(1000);
+        builder.Property(x => x.BirthDate).HasColumnType("date");
         builder.HasOne<PartyType>().WithMany().HasForeignKey(x => x.PartyTypeId)
             .OnDelete(DeleteBehavior.Restrict);
         builder.HasIndex(x => x.PartyTypeId);

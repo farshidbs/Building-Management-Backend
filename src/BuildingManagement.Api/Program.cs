@@ -3,6 +3,7 @@ using BuildingManagement.Application;
 using BuildingManagement.Domain;
 using BuildingManagement.Infrastructure;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,6 +13,16 @@ if (string.IsNullOrWhiteSpace(connectionString))
     throw new InvalidOperationException("ConnectionStrings:BuildingManagement is required.");
 
 builder.Services.AddProblemDetails();
+var iamOptions = builder.Configuration.GetSection("Iam").Get<IamOptions>() ?? new IamOptions();
+var iamSecret = builder.Configuration["Iam:Secret"];
+if (string.IsNullOrWhiteSpace(iamSecret) && !builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Iam:Secret is required outside Development.");
+iamSecret ??= "development-only-iam-secret-change-before-production";
+builder.Services.AddSingleton(iamOptions);
+builder.Services.AddSingleton<IIamSecretProtector>(new HmacIamSecretProtector(iamSecret));
+builder.Services.AddSingleton<IOtpDelivery, UnconfiguredOtpDelivery>();
+builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, DatabaseBearerHandler>("Bearer", null);
+builder.Services.AddAuthorization();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddOpenApi(); builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -49,6 +60,8 @@ builder.Services.AddScoped<PaymentService>();
 builder.Services.AddScoped<ITrustedPaymentResultProcessor>(sp => sp.GetRequiredService<PaymentService>());
 builder.Services.AddScoped<FinancialFileService>();
 builder.Services.AddScoped<UnitCreditSettlementService>();
+builder.Services.AddScoped<IamService>();
+builder.Services.AddScoped<AccessAuthorizationService>();
 builder.Services.AddInfrastructure(connectionString);
 builder.Services.AddHealthChecks().AddDbContextCheck<BuildingManagementDbContext>("database");
 
@@ -62,6 +75,8 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors();
+app.UseAuthentication();
+app.UseAuthorization();
 app.Use(async (context, next) =>
 {
     context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;

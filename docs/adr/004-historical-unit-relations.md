@@ -2,7 +2,7 @@
 ## Context
 Owners, tenants, and residents change.
 ## Decision
-Do not store them on Unit; future UnitPartyRelation carries type and effective dates.
+Do not store them on Unit; UnitPartyRelation carries type and effective dates.
 ## Consequences
 History is preserved and current occupancy becomes a temporal query.
 ## Status

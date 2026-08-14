@@ -18,6 +18,7 @@ public static class EndpointRegistration
         api.MapFinancialEndpoints();
         app.MapFileManagementEndpoints();
         app.MapAssetEndpoints();
+        app.MapIamEndpoints();
     }
 
     internal static PageQuery Query(int? pageNumber, int? pageSize, string? search, bool? active,

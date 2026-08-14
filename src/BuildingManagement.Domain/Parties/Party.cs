@@ -11,6 +11,7 @@ public sealed class Party : Entity
     public string? OrganizationName { get; private set; }
     public string? IdentityNumber { get; private set; }
     public string? Description { get; private set; }
+    public DateOnly? BirthDate { get; private set; }
 
     public Party(string code, long partyTypeId, string displayName, string? firstName, string? lastName,
         string? organizationName, string? identityNumber, string? description, DateTimeOffset now)
@@ -33,6 +34,12 @@ public sealed class Party : Entity
         OrganizationName = Optional(organizationName);
         IdentityNumber = Optional(identityNumber);
         Description = Optional(description);
+        Touch(now);
+    }
+
+    public void SetBirthDate(DateOnly? birthDate, DateTimeOffset now)
+    {
+        BirthDate = birthDate;
         Touch(now);
     }
 }
