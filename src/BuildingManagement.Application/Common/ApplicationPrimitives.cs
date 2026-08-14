@@ -94,6 +94,7 @@ public interface IApplicationDbContext
     Task MarkOtpAttemptFailed(string publicReference, DateTimeOffset now,
         CancellationToken cancellationToken);
     void Detach(object entity);
+    Task LockUserForFirstRoot(long userId, CancellationToken cancellationToken);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken);
 }

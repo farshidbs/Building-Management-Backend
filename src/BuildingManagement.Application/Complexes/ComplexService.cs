@@ -11,15 +11,19 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock,
     public async Task<ComplexResponse> CreateComplex(ComplexRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
-        // An authenticated user with no active scope may establish exactly one initial root scope.
-        // Once any active membership exists, normal permission enforcement applies.
-        if (await Authorization.HasActiveMembership(ct))
-            await Authorization.EnsureAny("complex_manage", ct);
+        var hadActiveMembership = await Authorization.HasActiveMembership(ct);
         var locationId = await LocationId(request.LocationCode, true, ct);
-        var entity = new Complex(await UniqueCode(Db.Complexes, ct), locationId!.Value, request.Name,
-            request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);
-        await Db.ExecuteInTransaction(async token =>
+        var code = await Db.ExecuteInTransaction(async token =>
         {
+            await Db.LockUserForFirstRoot(Authorization.UserId, token);
+            var hasActiveMembership = await Authorization.HasActiveMembership(token);
+            if (!hadActiveMembership && hasActiveMembership)
+                throw AppException.Conflict("authorization.first_root_already_created",
+                    "The first root scope was already created by another request.");
+            if (hadActiveMembership)
+                await Authorization.EnsureAny("complex_manage", token);
+            var entity = new Complex(await UniqueCode(Db.Complexes, token), locationId!.Value, request.Name,
+                request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);
             Db.Complexes.Add(entity);
             await Save(token);
             var roleId = await Db.AccessRoles.Where(x => x.Key == "complex_manager" && x.IsActive)
@@ -33,9 +37,9 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock,
                 Db.AccessMemberships.Add(new AccessMembership(await UniqueCode(Db.AccessMemberships, token),
                     Authorization.UserId, roleId, entity.Id, null, null, null, Now));
             await Save(token);
-            return entity.Id;
+            return entity.Code;
         }, ct);
-        return await GetComplex(entity.Code, ct);
+        return await GetComplex(code, ct);
     }
 
     public async Task<ComplexResponse> GetComplex(string code, CancellationToken ct)

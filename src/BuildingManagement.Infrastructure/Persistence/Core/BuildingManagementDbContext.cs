@@ -143,6 +143,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             return result;
         });
     }
+    public async Task LockUserForFirstRoot(long userId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The onboarding User lock requires an active transaction.");
+        _ = await Users.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[Users] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {userId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("user");
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder) =>
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(BuildingManagementDbContext).Assembly);
 }

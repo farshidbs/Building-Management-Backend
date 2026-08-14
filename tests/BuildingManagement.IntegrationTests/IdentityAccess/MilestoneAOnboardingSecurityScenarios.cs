@@ -12,6 +12,58 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task ConcurrentFirstComplexRequestsCreateOnlyOneRootMembership()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        var marker = Guid.NewGuid().ToString("N");
+        var location = await CreateLocationFixture(new LocationRequest(null, $"Concurrent {marker}",
+            ReferenceKeys.LocationTypes.Country));
+        var actor = await CreateAuthenticatedClientWithIdentity();
+        using var authenticated = actor.Client;
+
+        var requests = Enumerable.Range(1, 2).Select(index => authenticated.PostAsJsonAsync(
+            "/api/v1/complexes", new ComplexRequest(location.Code, $"Concurrent root {marker}-{index}",
+                marker, marker[..10], null, null, null))).ToArray();
+        var responses = await Task.WhenAll(requests);
+
+        Assert.Single(responses, x => x.IsSuccessStatusCode);
+        Assert.Single(responses, x => x.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden);
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.Equal(1, await db.Complexes.CountAsync(x => x.Address == marker));
+        Assert.Single(await db.AccessMemberships.Where(x => x.UserId == actor.UserId && x.IsActive &&
+            x.EndsAtUtc == null).ToListAsync());
+    }
+
+    [Fact]
+    public async Task ConcurrentFirstComplexAndStandaloneBuildingCreateOnlyOneRootMembership()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        var marker = Guid.NewGuid().ToString("N");
+        var location = await CreateLocationFixture(new LocationRequest(null, $"Mixed concurrent {marker}",
+            ReferenceKeys.LocationTypes.Country));
+        var actor = await CreateAuthenticatedClientWithIdentity();
+        using var authenticated = actor.Client;
+
+        var complexTask = authenticated.PostAsJsonAsync("/api/v1/complexes", new ComplexRequest(
+            location.Code, $"Mixed complex {marker}", marker, marker[..10], null, null, null));
+        var buildingTask = authenticated.PostAsJsonAsync("/api/v1/buildings", new BuildingRequest(null,
+            location.Code, ReferenceKeys.BuildingTypes.Residential, $"Mixed building {marker}", marker,
+            marker[..10], null, null, 1, 1400, null));
+        var responses = await Task.WhenAll(complexTask, buildingTask);
+
+        Assert.Single(responses, x => x.IsSuccessStatusCode);
+        Assert.Single(responses, x => x.StatusCode is HttpStatusCode.Conflict or HttpStatusCode.Forbidden);
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var roots = await db.Complexes.CountAsync(x => x.Address == marker) +
+                    await db.Buildings.CountAsync(x => x.Address == marker);
+        Assert.Equal(1, roots);
+        Assert.Single(await db.AccessMemberships.Where(x => x.UserId == actor.UserId && x.IsActive &&
+            x.EndsAtUtc == null).ToListAsync());
+    }
+
+    [Fact]
     public async Task UserWithoutMembershipCanCreateFirstComplexAndReceivesOnlyManagerMembership()
     {
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
@@ -172,5 +224,96 @@ public sealed partial class ApiScenarios
                 .Select(x => x.CurrentOccupantsCount).SingleAsync());
         Assert.True(await verificationDb.UnitPartyRelations.AnyAsync(x =>
             x.UnitId == secondUnitA.Id && x.PartyId == visibleParty.Id));
+    }
+
+    [Fact]
+    public async Task OwnIdentityPartyCanBeReusedWithoutMakingItGloballyVisibleOrDuplicatingIt()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        long buildingId;
+        Unit unit;
+        long unrelatedBuildingId;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            unit = await db.Units.FirstAsync();
+            buildingId = unit.BuildingId;
+            unrelatedBuildingId = await db.Buildings.Where(x => x.Id != buildingId).Select(x => x.Id).FirstAsync();
+        }
+        var actor = await CreateAuthenticatedClientWithIdentity("building_manager", buildingId: buildingId);
+        using var manager = actor.Client;
+        Party selfParty;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var partyTypeId = await db.PartyTypes.Where(x => x.Key == PartyReferenceKeys.PartyTypes.IranianPerson)
+                .Select(x => x.Id).SingleAsync();
+            selfParty = new Party(PublicCode.Create(), partyTypeId, "پروفایل شخصی", null, null, null,
+                null, null, DateTimeOffset.UtcNow);
+            db.Parties.Add(selfParty);
+            await db.SaveChangesAsync();
+            db.UserPartyLinks.Add(new UserPartyLink(PublicCode.Create(), actor.UserId, selfParty.Id,
+                true, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        var response = await manager.PostAsJsonAsync($"/api/v1/units/{unit.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(selfParty.Code, null)));
+        response.EnsureSuccessStatusCode();
+
+        await using var verification = factory!.Services.CreateAsyncScope();
+        var verificationDb = verification.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.Equal(1, await verificationDb.Parties.CountAsync(x => x.Code == selfParty.Code));
+        Assert.True(await verificationDb.UnitPartyRelations.AnyAsync(x =>
+            x.UnitId == unit.Id && x.PartyId == selfParty.Id));
+        using var unrelated = await CreateAuthenticatedClient("building_manager", buildingId: unrelatedBuildingId);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await unrelated.GetAsync($"/api/v1/parties/{selfParty.Code}")).StatusCode);
+    }
+
+    [Fact]
+    public async Task ScopedNewPartyInputPersistsAtomicallyAndInvalidContactRollsBack()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        Unit unit;
+        long unrelatedBuildingId;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            unit = await db.Units.FirstAsync();
+            unrelatedBuildingId = await db.Buildings.Where(x => x.Id != unit.BuildingId)
+                .Select(x => x.Id).FirstAsync();
+        }
+        using var manager = await CreateAuthenticatedClient("building_manager", buildingId: unit.BuildingId);
+        var displayName = $"شخص جدید {Guid.NewGuid():N}";
+        var success = await manager.PostAsJsonAsync($"/api/v1/units/{unit.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(null, new NewPartyInput(
+                    new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, displayName),
+                    [new PartyContactRequest(PartyReferenceKeys.ContactTypes.Mobile, "09125550123", IsPrimary: true)]))));
+        success.EnsureSuccessStatusCode();
+        var relation = (await success.Content.ReadFromJsonAsync<UnitPartyRelationResponse>())!;
+        Assert.Equal(HttpStatusCode.OK,
+            (await manager.GetAsync($"/api/v1/parties/{relation.PartyCode}")).StatusCode);
+        using var unrelated = await CreateAuthenticatedClient("building_manager", buildingId: unrelatedBuildingId);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await unrelated.GetAsync($"/api/v1/parties/{relation.PartyCode}")).StatusCode);
+
+        var orphanName = $"Orphan {Guid.NewGuid():N}";
+        var failed = await manager.PostAsJsonAsync($"/api/v1/units/{unit.Code}/party-relations",
+            new UnitOnboardingRelationRequest(PartyReferenceKeys.RelationTypes.Owner,
+                new PartySelectionRequest(null, new NewPartyInput(
+                    new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, orphanName),
+                    [new PartyContactRequest("missing_contact_type", "09120000001")]))));
+        Assert.Equal(HttpStatusCode.NotFound, failed.StatusCode);
+
+        await using var verification = factory!.Services.CreateAsyncScope();
+        var dbVerification = verification.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var createdParty = await dbVerification.Parties.SingleAsync(x => x.Code == relation.PartyCode);
+        Assert.True(await dbVerification.PartyContacts.AnyAsync(x => x.PartyId == createdParty.Id));
+        Assert.True(await dbVerification.UnitPartyRelations.AnyAsync(x =>
+            x.UnitId == unit.Id && x.PartyId == createdParty.Id));
+        Assert.False(await dbVerification.Parties.AnyAsync(x => x.DisplayName == orphanName));
     }
 }

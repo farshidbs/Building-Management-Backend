@@ -13,14 +13,25 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
         RequestValidation.Validate(request);
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
         if (parents.ComplexId.HasValue) await Authorization.Ensure("building_manage", parents.ComplexId, null, null, ct);
-        else if (await Authorization.HasActiveMembership(ct))
-            await Authorization.EnsureAny("building_manage", ct);
+        var hadActiveMembership = parents.ComplexId.HasValue
+            ? (bool?)null
+            : await Authorization.HasActiveMembership(ct);
         var typeId = await ReferenceId(Db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
-        var entity = new Building(await UniqueCode(Db.Buildings, ct), parents.ComplexId, parents.LocationId,
-            typeId, request.Name, request.Address, request.PostalCode, request.Latitude, request.Longitude,
-            request.FloorsCount, request.ConstructionYear, request.Description, Now);
-        await Db.ExecuteInTransaction(async token =>
+        var code = await Db.ExecuteInTransaction(async token =>
         {
+            if (!parents.ComplexId.HasValue)
+            {
+                await Db.LockUserForFirstRoot(Authorization.UserId, token);
+                var hasActiveMembership = await Authorization.HasActiveMembership(token);
+                if (hadActiveMembership == false && hasActiveMembership)
+                    throw AppException.Conflict("authorization.first_root_already_created",
+                        "The first root scope was already created by another request.");
+                if (hadActiveMembership == true)
+                    await Authorization.EnsureAny("building_manage", token);
+            }
+            var entity = new Building(await UniqueCode(Db.Buildings, token), parents.ComplexId, parents.LocationId,
+                typeId, request.Name, request.Address, request.PostalCode, request.Latitude, request.Longitude,
+                request.FloorsCount, request.ConstructionYear, request.Description, Now);
             Db.Buildings.Add(entity);
             await Save(token);
             if (!entity.ComplexId.HasValue)
@@ -37,9 +48,9 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
                         Authorization.UserId, roleId, null, entity.Id, null, null, Now));
                 await Save(token);
             }
-            return entity.Id;
+            return entity.Code;
         }, ct);
-        return await GetBuilding(entity.Code, ct);
+        return await GetBuilding(code, ct);
     }
 
     public async Task<BuildingResponse> GetBuilding(string code, CancellationToken ct)

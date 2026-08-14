@@ -58,7 +58,10 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             .Where(x => x.Code == normalized && x.IsActive)
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
             ?? throw AppException.NotFound("party");
-        await EnsureParty(userId, "party_view", partyId, ct);
+        var isOwnIdentityParty = await db.UserPartyLinks.AsNoTracking().AnyAsync(x =>
+            x.UserId == userId && x.PartyId == partyId && x.IsActive && x.UnlinkedAtUtc == null, ct);
+        if (!isOwnIdentityParty)
+            await EnsureParty(userId, "party_view", partyId, ct);
         return partyId;
     }
 
