@@ -144,9 +144,12 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
         });
     }
     public async Task LockUserForFirstRoot(long userId, CancellationToken cancellationToken)
+        => await LockUserForSecurityMutation(userId, cancellationToken);
+
+    public async Task LockUserForSecurityMutation(long userId, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)
-            throw new InvalidOperationException("The onboarding User lock requires an active transaction.");
+            throw new InvalidOperationException("The User security lock requires an active transaction.");
         _ = await Users.FromSqlInterpolated(
                 $"SELECT * FROM [bms].[Users] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {userId}")
             .AsNoTracking().SingleOrDefaultAsync(cancellationToken)

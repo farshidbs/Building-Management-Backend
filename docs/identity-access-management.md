@@ -82,6 +82,24 @@ Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vend
 
 ## History, recovery, and support
 
+## Milestone C — Login Method & Session Security Acceptance Matrix
+
+All operations below are authenticated as the customer User represented by the current session. Unknown or foreign public codes are concealed as not found. Security mutations are serialized by locking the User row in SQL Server; filtered unique indexes remain the final protection for active identifiers and primaries.
+
+| IDs | Actor and target | Expected result and database invariant |
+|---|---|---|
+| LM01–LM02 | User lists methods / targets another User's method | Only own current and historical methods are returned; foreign mutation is concealed and unchanged. |
+| LM03–LM07 | User requests and verifies a new mobile | Purpose is `login_method_add`; OTP attempts are durable and purpose/mobile bound; success creates only a verified LoginMethod on the same User. |
+| LM08–LM11 | Active or released identifier | Active identifier conflicts without account disclosure; a released identifier creates a new row while history remains unchanged. |
+| LM12–LM15 | First/additional/foreign primary selection | A User with usable methods has exactly one primary; switching is atomic; foreign or unusable targets are concealed. |
+| REL01–REL05 | User releases own/foreign method | The last usable method is protected. Releasing a primary deterministically requires a usable replacement; foreign methods are concealed. |
+| REL06–REL10 | Released method and related sessions | Released rows remain historical, identifier uniqueness is freed, sessions authenticated through that method and their refresh tokens are revoked; unrelated sessions remain active. |
+| CON01–CON03 | Concurrent release, identifier claim, or primary switch | User-row serialization prevents zero usable methods and multiple primaries; SQL uniqueness allows one identifier claimant and expected races become deterministic conflicts. |
+| SES01–SES05 | User lists/revokes sessions | Only own sessions are visible or mutable, current session is identified, and target session plus refresh tokens are revoked atomically. |
+| SES06–SES10 | Logout current/all and refresh | Current logout preserves other sessions; logout-all affects only the User; revoked sessions cannot authenticate or refresh and token rows remain historical. |
+
+When releasing a primary method, `ReplacementPrimaryLoginMethodCode` is required even if only one alternative exists. This keeps the security decision explicit and deterministic. Recovery, support override, email/SSO, MFA, and device trust remain deferred. Docker-dependent SQL race tests remain available for external execution; this environment validates domain/application behavior and statically reviews the SQL locking and filtered-index guarantees.
+
 Login methods are released, not deleted. Filtered unique indexes prevent two active Users from sharing a normalized identifier while allowing later reuse after release. UserPartyLink and PartyAffiliation preserve history. Party BirthDate is nullable.
 
 IdentityConflictReview, AccountRecoveryCase, MembershipExitRequest, Invitation, SecurityAuditEvent, and SupportActingSession are explicit workflows. PlatformUser authentication, roles, and permissions are separate from customer mobile identities so support never silently becomes a customer.

@@ -7,6 +7,55 @@ namespace BuildingManagement.UnitTests;
 public sealed class IdentityAccessDomainTests
 {
     [Fact]
+    public void LoginMethodVerificationPrimarySwitchAndReleasePreserveHistory()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var method = new UserLoginMethod("LM001", 10, IamKeys.LoginTypes.Mobile,
+            "+989121234567", "+989121234567", false, now);
+        method.Verify(now.AddMinutes(1));
+        method.SetPrimary(true, now.AddMinutes(2));
+        Assert.True(method.IsActive);
+        Assert.True(method.IsVerified);
+        Assert.True(method.IsPrimary);
+        Assert.Equal(IamKeys.LoginStatuses.Active, method.StatusKey);
+
+        method.Release("number_changed", now.AddMinutes(3));
+        Assert.False(method.IsActive);
+        Assert.False(method.IsPrimary);
+        Assert.Equal(IamKeys.LoginStatuses.Released, method.StatusKey);
+        Assert.Equal("+989121234567", method.NormalizedIdentifierValue);
+        Assert.Equal("number_changed", method.ReleaseReasonKey);
+        Assert.Equal(now.AddMinutes(3), method.ReleasedAtUtc);
+    }
+
+    [Fact]
+    public void SessionAndRefreshTokenRevocationAreHistoricalAndIdempotent()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var session = new AuthSession("SES01", 10, null, 20, "web", "access-hash",
+            now.AddMinutes(15), now, now.AddHours(12), now.AddHours(2), "browser", null);
+        var refresh = new AuthRefreshToken(30, "refresh-hash", now, now.AddDays(30));
+        session.Revoke("login_method_released", now.AddMinutes(1));
+        refresh.Revoke(now.AddMinutes(1));
+        refresh.Revoke(now.AddMinutes(2));
+        Assert.False(session.IsUsable(now.AddMinutes(2)));
+        Assert.Equal(IamKeys.SessionStatuses.Revoked, session.StatusKey);
+        Assert.Equal("login_method_released", session.RevokeReasonKey);
+        Assert.NotNull(refresh.RevokedAtUtc);
+    }
+
+    [Fact]
+    public void LoginMethodAndSessionDtosContainNoInternalIdsOrHashes()
+    {
+        var loginProperties = typeof(LoginMethodResponse).GetProperties().Select(x => x.Name).ToArray();
+        var sessionProperties = typeof(SessionResponse).GetProperties().Select(x => x.Name).ToArray();
+        Assert.DoesNotContain(loginProperties, x => x.Contains("Hash", StringComparison.OrdinalIgnoreCase) ||
+            x is "Id" or "UserId");
+        Assert.DoesNotContain(sessionProperties, x => x.Contains("Hash", StringComparison.OrdinalIgnoreCase) ||
+            x is "Id" or "UserId");
+    }
+
+    [Fact]
     public void InvitationLifecycleRejectsExpiredAndRevokedAcceptanceAndIsIdempotentForSameUser()
     {
         var now = DateTimeOffset.UtcNow;

@@ -143,12 +143,177 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         return new(user.Code, user.StatusKey, profile?.Code, profile?.DisplayName, methods);
     }
 
+    public Task<List<LoginMethodResponse>> LoginMethods(long userId, CancellationToken ct) =>
+        db.UserLoginMethods.AsNoTracking().Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.IsPrimary)
+            .ThenByDescending(x => x.CreatedAtUtc)
+            .Select(x => new LoginMethodResponse(x.Code, x.LoginTypeKey, x.IdentifierValue,
+                x.IsPrimary, x.IsVerified, x.StatusKey, x.ReleasedAtUtc)).ToListAsync(ct);
+
+    public async Task<RequestOtpResponse> RequestLoginMethodOtp(long userId, LoginMethodOtpRequest request,
+        CancellationToken ct)
+    {
+        _ = await ActiveUser(userId, ct);
+        var mobile = IranianMobileNormalizer.Normalize(request.Mobile);
+        if (await UsableLoginMethods().AnyAsync(x => x.NormalizedIdentifierValue == mobile, ct))
+            throw AppException.Conflict("login_method.identifier_unavailable", "The identifier is unavailable.");
+        if (await db.OtpChallenges.AnyAsync(x => x.NormalizedIdentifierValue == mobile &&
+            x.PurposeKey == "login_method_add" && x.StatusKey == IamKeys.OtpStatuses.Pending &&
+            x.SentAtUtc > Now.AddMinutes(-1), ct))
+            throw new AppException(429, "otp.cooldown", "Wait before requesting another OTP.");
+        if (await db.OtpChallenges.CountAsync(x => x.NormalizedIdentifierValue == mobile &&
+            x.CreatedAtUtc > Now.AddMinutes(-10), ct) >= 5)
+            throw new AppException(429, "otp.rate_limited", "Too many OTP requests.");
+        var code = protector.CreateOtp();
+        var challenge = new OtpChallenge(protector.CreateToken(18), IamKeys.LoginTypes.Mobile,
+            mobile, mobile, "login_method_add", protector.Hash(code), Now,
+            Now.AddMinutes(options.OtpLifetimeMinutes), options.OtpMaxAttempts);
+        db.OtpChallenges.Add(challenge);
+        await db.SaveChangesAsync(ct);
+        await otpDelivery.Send(mobile, code, ct);
+        return new(challenge.PublicReference, challenge.ExpiresAtUtc);
+    }
+
+    public async Task<LoginMethodResponse> AddLoginMethod(long userId, AddLoginMethodRequest request,
+        CancellationToken ct)
+    {
+        var mobile = IranianMobileNormalizer.Normalize(request.Mobile);
+        var reference = Required(request.ChallengeReference, "challengeReference");
+        if (!await db.TryReserveOtpAttempt(reference, Now, ct))
+            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+        var proof = await db.OtpChallenges.AsNoTracking().SingleOrDefaultAsync(x =>
+            x.PublicReference == reference && x.PurposeKey == "login_method_add" &&
+            x.NormalizedIdentifierValue == mobile, ct);
+        if (proof is null || !protector.Verify(Required(request.OtpCode, "otpCode"), proof.CodeHash))
+        {
+            await db.MarkOtpAttemptFailed(reference, Now, ct);
+            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+        }
+        try
+        {
+            return await db.ExecuteInTransaction(async token =>
+            {
+                await db.LockUserForSecurityMutation(userId, token);
+                _ = await ActiveUser(userId, token);
+                var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x =>
+                    x.PublicReference == reference && x.PurposeKey == "login_method_add" &&
+                    x.NormalizedIdentifierValue == mobile, token)
+                    ?? throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+                if (!protector.Verify(request.OtpCode, challenge.CodeHash))
+                    throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+                if (await UsableLoginMethods().AnyAsync(x => x.NormalizedIdentifierValue == mobile, token))
+                    throw AppException.Conflict("login_method.identifier_unavailable", "The identifier is unavailable.");
+                var owned = await UsableLoginMethods().Where(x => x.UserId == userId).ToListAsync(token);
+                var makePrimary = request.MakePrimary || owned.Count == 0;
+                if (makePrimary)
+                {
+                    foreach (var method in owned.Where(x => x.IsPrimary)) method.SetPrimary(false, Now);
+                    if (owned.Any(x => x.IsPrimary == false)) await db.SaveChangesAsync(token);
+                }
+                var created = new UserLoginMethod(await UniqueCode(db.UserLoginMethods, token), userId,
+                    IamKeys.LoginTypes.Mobile, mobile, mobile, makePrimary, Now);
+                created.Verify(Now);
+                db.UserLoginMethods.Add(created);
+                challenge.Verify(Now);
+                challenge.Consume(Now);
+                await db.SaveChangesAsync(token);
+                return LoginMethod(created);
+            }, ct);
+        }
+        catch (DbUpdateException exception) when (db.IsUniqueViolation(exception))
+        {
+            throw AppException.Conflict("login_method.identifier_unavailable", "The identifier is unavailable.");
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            foreach (var entry in exception.Entries) db.Detach(entry.Entity);
+            throw AppException.Conflict("login_method.concurrent_change", "The LoginMethod changed concurrently.");
+        }
+    }
+
+    public Task SetPrimaryLoginMethod(long userId, string code, CancellationToken ct) =>
+        db.ExecuteInTransaction(async token =>
+        {
+            await db.LockUserForSecurityMutation(userId, token);
+            code = PublicCode.Normalize(code);
+            var target = await UsableLoginMethods().SingleOrDefaultAsync(x =>
+                x.UserId == userId && x.Code == code, token) ?? throw AppException.NotFound("login_method");
+            var methods = await UsableLoginMethods().Where(x => x.UserId == userId).ToListAsync(token);
+            foreach (var method in methods.Where(x => x.Id != target.Id && x.IsPrimary))
+                method.SetPrimary(false, Now);
+            await db.SaveChangesAsync(token);
+            target.SetPrimary(true, Now);
+            await db.SaveChangesAsync(token);
+            return target.Id;
+        }, ct);
+
+    public async Task ReleaseLoginMethod(long userId, string code, ReleaseLoginMethodRequest request,
+        CancellationToken ct)
+    {
+        var reasons = new[] { "user_requested", "number_changed", "lost_access" };
+        var reason = Required(request.ReasonKey, "reasonKey").ToLowerInvariant();
+        if (!reasons.Contains(reason, StringComparer.Ordinal))
+            throw Validation("reasonKey", "Release reason is not allowed.");
+        await db.ExecuteInTransaction(async token =>
+        {
+            await db.LockUserForSecurityMutation(userId, token);
+            var targetCode = PublicCode.Normalize(code);
+            var target = await UsableLoginMethods().SingleOrDefaultAsync(x =>
+                x.UserId == userId && x.Code == targetCode, token) ?? throw AppException.NotFound("login_method");
+            var usable = await UsableLoginMethods().Where(x => x.UserId == userId).ToListAsync(token);
+            if (usable.Count <= 1)
+                throw AppException.Conflict("login_method.last_usable", "The last usable LoginMethod cannot be released.");
+            if (target.IsPrimary)
+            {
+                if (string.IsNullOrWhiteSpace(request.ReplacementPrimaryLoginMethodCode))
+                    throw Validation("replacementPrimaryLoginMethodCode", "A replacement primary LoginMethod is required.");
+                var replacementCode = PublicCode.Normalize(request.ReplacementPrimaryLoginMethodCode);
+                var replacement = usable.SingleOrDefault(x => x.Code == replacementCode && x.Id != target.Id)
+                    ?? throw AppException.NotFound("replacement_login_method");
+                target.Release(reason, Now);
+                await db.SaveChangesAsync(token);
+                replacement.SetPrimary(true, Now);
+            }
+            else target.Release(reason, Now);
+            await RevokeSessions(usableSessionQuery: db.AuthSessions.Where(x => x.IsActive &&
+                x.AuthenticatedViaLoginMethodId == target.Id), "login_method_released", token);
+            await db.SaveChangesAsync(token);
+            return target.Id;
+        }, ct);
+    }
+
+    public Task<List<SessionResponse>> Sessions(long userId, long currentSessionId, CancellationToken ct) =>
+        db.AuthSessions.AsNoTracking().Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.CreatedAtUtc)
+            .Select(x => new SessionResponse(x.Code, x.ClientTypeKey, x.AbsoluteExpiresAtUtc,
+                x.LastSeenAtUtc, x.Id == currentSessionId, x.DeviceIdentifier)).ToListAsync(ct);
+
+    public async Task RevokeSession(long userId, string code, CancellationToken ct)
+    {
+        code = PublicCode.Normalize(code);
+        await db.ExecuteInTransaction(async token =>
+        {
+            var session = await db.AuthSessions.SingleOrDefaultAsync(x => x.UserId == userId &&
+                x.Code == code, token) ?? throw AppException.NotFound("session");
+            await RevokeSessions(db.AuthSessions.Where(x => x.Id == session.Id),
+                "user_revoked_session", token);
+            await db.SaveChangesAsync(token);
+            return session.Id;
+        }, ct);
+    }
+
     public async Task Logout(long sessionId, bool all, CancellationToken ct)
     {
-        var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, ct);
-        var sessions = all && session.UserId.HasValue ? await db.AuthSessions.Where(x => x.UserId == session.UserId && x.IsActive).ToListAsync(ct) : [session];
-        foreach (var item in sessions) item.Revoke(all ? "logout_all" : "logout", Now);
-        await db.SaveChangesAsync(ct);
+        await db.ExecuteInTransaction(async token =>
+        {
+            var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, token);
+            var query = all && session.UserId.HasValue
+                ? db.AuthSessions.Where(x => x.UserId == session.UserId && x.IsActive)
+                : db.AuthSessions.Where(x => x.Id == session.Id);
+            await RevokeSessions(query, all ? "logout_all" : "logout", token);
+            await db.SaveChangesAsync(token);
+            return session.Id;
+        }, ct);
     }
 
     public async Task<(long UserId, TokenResponse Tokens)> ProvisionInvitationIdentity(string normalizedMobile,
@@ -216,6 +381,28 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
             await db.SaveChangesAsync(ct);
         }
     }
+
+    private IQueryable<UserLoginMethod> UsableLoginMethods() => db.UserLoginMethods.Where(x =>
+        x.IsActive && x.IsVerified && x.ReleasedAtUtc == null && x.StatusKey == IamKeys.LoginStatuses.Active);
+
+    private async Task<User> ActiveUser(long userId, CancellationToken ct) =>
+        await db.Users.SingleOrDefaultAsync(x => x.Id == userId && x.IsActive &&
+            x.StatusKey == IamKeys.UserStatuses.Active, ct) ?? throw AppException.NotFound("user");
+
+    private async Task RevokeSessions(IQueryable<AuthSession> usableSessionQuery, string reason,
+        CancellationToken ct)
+    {
+        var sessions = await usableSessionQuery.ToListAsync(ct);
+        foreach (var session in sessions.Where(x => x.IsActive)) session.Revoke(reason, Now);
+        var ids = sessions.Select(x => x.Id).ToList();
+        var refreshTokens = await db.AuthRefreshTokens.Where(x => ids.Contains(x.AuthSessionId) &&
+            x.RevokedAtUtc == null && x.ConsumedAtUtc == null && x.ExpiresAtUtc > Now).ToListAsync(ct);
+        foreach (var refreshToken in refreshTokens) refreshToken.Revoke(Now);
+    }
+
+    private static LoginMethodResponse LoginMethod(UserLoginMethod method) => new(method.Code,
+        method.LoginTypeKey, method.IdentifierValue, method.IsPrimary, method.IsVerified,
+        method.StatusKey, method.ReleasedAtUtc);
 
     private static async Task<string> UniqueCode<TEntity>(DbSet<TEntity> set, CancellationToken ct) where TEntity : Entity
     {

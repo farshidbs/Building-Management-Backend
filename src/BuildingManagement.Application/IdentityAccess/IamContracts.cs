@@ -7,12 +7,13 @@ public sealed record VerifyOtpRequest(string ChallengeReference, string Code, st
 public sealed record TokenResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAtUtc,
     string UserCode, string? PartyCode);
 public sealed record RefreshTokenRequest(string RefreshToken);
-public sealed record ReleaseLoginMethodRequest(string ReasonKey);
+public sealed record LoginMethodOtpRequest(string Mobile);
+public sealed record ReleaseLoginMethodRequest(string ReasonKey, string? ReplacementPrimaryLoginMethodCode = null);
 public sealed record AddLoginMethodRequest(string Mobile, string ChallengeReference, string OtpCode, bool MakePrimary);
 public sealed record LoginMethodResponse(string Code, string TypeKey, string Identifier, bool IsPrimary,
     bool IsVerified, string StatusKey, DateTimeOffset? ReleasedAtUtc);
 public sealed record SessionResponse(string Code, string ClientTypeKey, DateTimeOffset ExpiresAtUtc,
-    DateTimeOffset? LastSeenAtUtc, bool IsCurrent);
+    DateTimeOffset? LastSeenAtUtc, bool IsCurrent, string? DeviceIdentifier = null);
 public sealed record CurrentUserResponse(string Code, string StatusKey, string? PartyCode,
     string? DisplayName, IReadOnlyList<LoginMethodResponse> LoginMethods);
 public sealed record CreateUnitInvitationRequest(string UnitCode, string PartyCode, string RelationTypeKey);

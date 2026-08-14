@@ -95,6 +95,7 @@ public interface IApplicationDbContext
         CancellationToken cancellationToken);
     void Detach(object entity);
     Task LockUserForFirstRoot(long userId, CancellationToken cancellationToken);
+    Task LockUserForSecurityMutation(long userId, CancellationToken cancellationToken);
     Task LockInvitation(string tokenHash, CancellationToken cancellationToken);
     bool IsUniqueViolation(Exception exception);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
