@@ -9,13 +9,8 @@ public sealed class PartyService(IApplicationDbContext db, TimeProvider clock, R
     {
         ValidateParty(request);
         await Authorization.EnsureAny("party_manage", ct);
-        var typeId = await ReferenceId(Db.PartyTypes, request.PartyTypeKey, "party_type", ct);
-        var party = new Party(await UniqueCode(Db.Parties, ct), typeId, request.DisplayName,
-            request.FirstName, request.LastName, request.OrganizationName, request.IdentityNumber,
-            request.Description, Now);
-        Db.Parties.Add(party);
-        await Save(ct);
-        return await GetParty(party.Code, ct);
+        throw new AppException(403, "party.scoped_creation_required",
+            "A Party must be created through a scoped Unit or occupancy workflow.");
     }
 
     public async Task<PartyResponse> GetParty(string code, CancellationToken ct)

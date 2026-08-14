@@ -15,8 +15,23 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock,
         var locationId = await LocationId(request.LocationCode, true, ct);
         var entity = new Complex(await UniqueCode(Db.Complexes, ct), locationId!.Value, request.Name,
             request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);
-        Db.Complexes.Add(entity);
-        await Save(ct);
+        await Db.ExecuteInTransaction(async token =>
+        {
+            Db.Complexes.Add(entity);
+            await Save(token);
+            var roleId = await Db.AccessRoles.Where(x => x.Key == "complex_manager" && x.IsActive)
+                .Select(x => x.Id).SingleAsync(token);
+            if (!await Db.RoleAllowedScopes.AnyAsync(x => x.RoleId == roleId &&
+                x.ScopeKindKey == IamKeys.Scopes.Complex, token))
+                throw AppException.Conflict("authorization.role_scope_invalid",
+                    "The creator role cannot be assigned at Complex scope.");
+            if (!await Db.AccessMemberships.AnyAsync(x => x.UserId == Authorization.UserId &&
+                x.RoleId == roleId && x.ComplexId == entity.Id && x.IsActive && x.EndsAtUtc == null, token))
+                Db.AccessMemberships.Add(new AccessMembership(await UniqueCode(Db.AccessMemberships, token),
+                    Authorization.UserId, roleId, entity.Id, null, null, null, Now));
+            await Save(token);
+            return entity.Id;
+        }, ct);
         return await GetComplex(entity.Code, ct);
     }
 

@@ -20,6 +20,8 @@ Roles, Permissions, RolePermissions, RoleAllowedScopes, Memberships, building ov
 
 File permissions are intentionally separated: `file_read` permits ordinary metadata/content reads, `file_read_confidential` permits confidential document metadata/content at the exact effective scope, and `file_manage` permits Building/Complex gallery and document mutations. `file_manage` is seeded only to Complex and Building managers. Asset file mutations continue to use `asset_manage` or `asset_event_manage` through the Asset's real scope.
 
+Creating a Complex atomically provisions one active `complex_manager` membership for its authenticated creator. Creating a standalone Building similarly provisions one active `building_manager` membership. A Building created inside an existing Complex relies on the creator's inherited Complex authority and does not create a redundant Building membership. Public standalone Party creation is intentionally rejected for customer users; a new Party must be created atomically through a scoped Unit relation or occupancy workflow so failed onboarding cannot leave an inaccessible orphan.
+
 Seed data defines building manager, accountant, owner, tenant, and resident roles plus permissions for physical structure, parties, files, assets, finance, invitations, and memberships. Global Location mutation is guarded by `location_manage`; that permission is intentionally not assigned to normal customer roles.
 
 ## History, recovery, and support

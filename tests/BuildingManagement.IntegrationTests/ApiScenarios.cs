@@ -166,6 +166,34 @@ public sealed partial class ApiScenarios : IAsyncLifetime
             new(type.Key, type.Title), location.IsActive, location.CreatedAtUtc, location.UpdatedAtUtc);
     }
 
+    private async Task<PartyResponse> CreateScopedPartyFixture(PartyRequest request)
+    {
+        string code = "";
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            await db.ExecuteInTransaction(async token =>
+            {
+                var typeId = await db.PartyTypes.Where(x => x.Key == request.PartyTypeKey)
+                    .Select(x => x.Id).SingleAsync(token);
+                var relationTypeId = await db.UnitPartyRelationTypes.Where(x => x.Key == "owner")
+                    .Select(x => x.Id).SingleAsync(token);
+                var unitId = await db.Units.Select(x => x.Id).FirstAsync(token);
+                var party = new Party(PublicCode.Create(), typeId, request.DisplayName, request.FirstName,
+                    request.LastName, request.OrganizationName, request.IdentityNumber, request.Description,
+                    DateTimeOffset.UtcNow);
+                db.Parties.Add(party);
+                await db.SaveChangesAsync(token);
+                db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, party.Id, relationTypeId,
+                    null, null, null, DateTimeOffset.UtcNow));
+                await db.SaveChangesAsync(token);
+                code = party.Code;
+                return party.Id;
+            }, CancellationToken.None);
+        }
+        return (await client!.GetFromJsonAsync<PartyResponse>($"/api/v1/parties/{code}"))!;
+    }
+
     private async Task<T> Put<T>(string uri, object value)
     {
         var response = await client!.PutAsJsonAsync(uri, value);

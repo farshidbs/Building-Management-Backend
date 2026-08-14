@@ -118,7 +118,7 @@ public sealed partial class ApiScenarios
         Assert.Null((await client.GetFromJsonAsync<AssetResponse>(
             $"/api/v1/assets/{noReviewAsset.Code}"))!.SuggestedNextReviewDate);
 
-        var party = await Post<PartyResponse>("/api/v1/parties", new PartyRequest(
+        var party = await CreateScopedPartyFixture(new PartyRequest(
             PartyReferenceKeys.PartyTypes.IranianOrganization, $"شرکت سرویس {suffix}"));
         var providerEvent = await Post<AssetEventResponse>(
             $"/api/v1/assets/{buildingAsset.Code}/events", new AssetEventRequest(

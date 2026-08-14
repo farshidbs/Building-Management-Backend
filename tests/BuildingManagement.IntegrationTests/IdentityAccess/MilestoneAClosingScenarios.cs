@@ -12,6 +12,98 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task ScopeCreatorsReceiveAtomicCanonicalMembershipsAndImmediateAccess()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        var suffix = Guid.NewGuid().ToString("N")[..8];
+        var location = await CreateLocationFixture(new LocationRequest(null, $"Creator {suffix}",
+            ReferenceKeys.LocationTypes.Country));
+        var complex = await Post<ComplexResponse>("/api/v1/complexes", new ComplexRequest(location.Code,
+            $"مجتمع سازنده {suffix}", "نشانی", suffix, null, null, null));
+        Assert.Equal(HttpStatusCode.OK,
+            (await client!.GetAsync($"/api/v1/complexes/{complex.Code}")).StatusCode);
+        var complexes = await client.GetFromJsonAsync<Page<ComplexResponse>>("/api/v1/complexes?pageSize=100");
+        Assert.Contains(complexes!.Items, x => x.Code == complex.Code);
+        var updated = await Put<ComplexResponse>($"/api/v1/complexes/{complex.Code}",
+            new ComplexRequest(location.Code, $"مجتمع ویرایش‌شده {suffix}", "نشانی", suffix,
+                null, null, null));
+        Assert.Contains("ویرایش", updated.Name, StringComparison.Ordinal);
+
+        var standalone = await Post<BuildingResponse>("/api/v1/buildings", new BuildingRequest(null,
+            location.Code, ReferenceKeys.BuildingTypes.Residential, $"ساختمان مستقل {suffix}",
+            "نشانی", suffix, null, null, 1, 2020, null));
+        Assert.Equal(HttpStatusCode.OK,
+            (await client.GetAsync($"/api/v1/buildings/{standalone.Code}")).StatusCode);
+        var buildings = await client.GetFromJsonAsync<Page<BuildingResponse>>("/api/v1/buildings?pageSize=100");
+        Assert.Contains(buildings!.Items, x => x.Code == standalone.Code);
+
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var complexRoleId = await db.AccessRoles.Where(x => x.Key == "complex_manager").Select(x => x.Id).SingleAsync();
+        var buildingRoleId = await db.AccessRoles.Where(x => x.Key == "building_manager").Select(x => x.Id).SingleAsync();
+        var complexId = await db.Complexes.Where(x => x.Code == complex.Code).Select(x => x.Id).SingleAsync();
+        var buildingId = await db.Buildings.Where(x => x.Code == standalone.Code).Select(x => x.Id).SingleAsync();
+        Assert.Equal(1, await db.AccessMemberships.CountAsync(x => x.UserId == defaultUserId &&
+            x.RoleId == complexRoleId && x.ComplexId == complexId && x.IsActive && x.EndsAtUtc == null));
+        Assert.Equal(1, await db.AccessMemberships.CountAsync(x => x.UserId == defaultUserId &&
+            x.RoleId == buildingRoleId && x.BuildingId == buildingId && x.IsActive && x.EndsAtUtc == null));
+    }
+
+    [Fact]
+    public async Task StandalonePartyCreationIsRejectedWithoutPersistingOrphan()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        await using var beforeScope = factory!.Services.CreateAsyncScope();
+        var beforeDb = beforeScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var before = await beforeDb.Parties.CountAsync();
+        using var response = await client!.PostAsJsonAsync("/api/v1/parties",
+            new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, "شخص بدون دامنه"));
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        await using var afterScope = factory.Services.CreateAsyncScope();
+        var afterDb = afterScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.Equal(before, await afterDb.Parties.CountAsync());
+    }
+
+    [Fact]
+    public async Task UnitMembershipBuildingOverrideDenyIsConsistentForPartyDirectAndList()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        Unit unit;
+        Party party;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            unit = await db.Units.AsNoTracking().FirstAsync();
+            var partyTypeId = await db.PartyTypes.Where(x => x.Key == "person").Select(x => x.Id).SingleAsync();
+            var relationTypeId = await db.UnitPartyRelationTypes.Where(x => x.Key == "resident")
+                .Select(x => x.Id).SingleAsync();
+            party = new Party(PublicCode.Create(), partyTypeId, "شخص منع‌شده", null, null, null,
+                null, null, DateTimeOffset.UtcNow);
+            db.Parties.Add(party);
+            await db.SaveChangesAsync();
+            db.UnitPartyRelations.Add(new UnitPartyRelation(unit.Id, party.Id, relationTypeId,
+                null, null, null, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        using var scoped = await CreateAuthenticatedClient("unit_resident", unitId: unit.Id);
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var userId = await db.AuthSessions.Where(x => x.DeviceIdentifier == "integration-security")
+                .OrderByDescending(x => x.Id).Select(x => x.UserId!.Value).FirstAsync();
+            var roleId = await db.AccessMemberships.Where(x => x.UserId == userId).Select(x => x.RoleId).SingleAsync();
+            var permissionId = await db.AccessPermissions.Where(x => x.Key == "party_view").Select(x => x.Id).SingleAsync();
+            db.BuildingRolePermissionOverrides.Add(new BuildingRolePermissionOverride(PublicCode.Create(),
+                unit.BuildingId, roleId, permissionId, IamKeys.Effects.Deny, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await scoped.GetAsync($"/api/v1/parties/{party.Code}")).StatusCode);
+        var page = await scoped.GetFromJsonAsync<Page<PartySummaryResponse>>("/api/v1/parties?pageSize=100");
+        Assert.DoesNotContain(page!.Items, x => x.Code == party.Code);
+    }
+
+    [Fact]
     public async Task BuildingOverrideDenyIsConsistentForDirectAndListAssetAccess()
     {
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");

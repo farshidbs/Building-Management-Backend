@@ -22,7 +22,7 @@ public sealed partial class ApiScenarios
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var minimalParty = await Post<PartyResponse>("/api/v1/parties",
+        var minimalParty = await CreateScopedPartyFixture(
             new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson,
                 $"ساکن بدون اطلاعات تماس {suffix}"));
         Assert.Null(minimalParty.IdentityNumber);
@@ -30,7 +30,7 @@ public sealed partial class ApiScenarios
             $"/api/v1/parties/{minimalParty.Code}/contacts");
         Assert.Empty(minimalContacts!);
 
-        var party = await Post<PartyResponse>("/api/v1/parties",
+        var party = await CreateScopedPartyFixture(
             new PartyRequest(PartyReferenceKeys.PartyTypes.IranianPerson, $"ساکن واحد {suffix}",
                 IdentityNumber: "0012345678"));
         Assert.NotEmpty(party.Code);

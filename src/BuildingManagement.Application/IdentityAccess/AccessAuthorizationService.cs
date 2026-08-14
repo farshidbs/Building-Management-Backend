@@ -131,8 +131,13 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             .Select(x => x.BuildingId!.Value).Distinct().ToArray();
         var membershipComplexIds = memberships.Where(x => x.ComplexId.HasValue)
             .Select(x => x.ComplexId!.Value).Distinct().ToArray();
+        var membershipUnitIds = memberships.Where(x => x.UnitId.HasValue)
+            .Select(x => x.UnitId!.Value).Distinct().ToArray();
+        var unitParentBuildingIds = await db.Units.AsNoTracking()
+            .Where(x => membershipUnitIds.Contains(x.Id)).Select(x => x.BuildingId).Distinct().ToListAsync(ct);
         var buildingIds = await db.Buildings.AsNoTracking().Where(building =>
             membershipBuildingIds.Contains(building.Id) ||
+            unitParentBuildingIds.Contains(building.Id) ||
             building.ComplexId.HasValue && membershipComplexIds.Contains(building.ComplexId.Value))
             .Select(x => x.Id).ToListAsync(ct);
         var overrides = IamPermissionPolicy.CanOverrideAtBuilding(permissionKey)
@@ -160,8 +165,6 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         var effectiveBuildingIds = buildingParents.Where(building => memberships.Any(membership =>
             (membership.BuildingId == building.Id || membership.ComplexId == building.ComplexId) &&
             RoleAllows(membership.RoleId, building.Id))).Select(x => x.Id).Distinct().ToList();
-        var membershipUnitIds = memberships.Where(x => x.UnitId.HasValue)
-            .Select(x => x.UnitId!.Value).Distinct().ToArray();
         var units = await db.Units.AsNoTracking().Where(unit =>
             effectiveBuildingIds.Contains(unit.BuildingId) || membershipUnitIds.Contains(unit.Id))
             .Select(x => new { x.Id, x.BuildingId }).ToListAsync(ct);

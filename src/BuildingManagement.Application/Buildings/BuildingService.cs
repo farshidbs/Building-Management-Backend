@@ -18,8 +18,26 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
         var entity = new Building(await UniqueCode(Db.Buildings, ct), parents.ComplexId, parents.LocationId,
             typeId, request.Name, request.Address, request.PostalCode, request.Latitude, request.Longitude,
             request.FloorsCount, request.ConstructionYear, request.Description, Now);
-        Db.Buildings.Add(entity);
-        await Save(ct);
+        await Db.ExecuteInTransaction(async token =>
+        {
+            Db.Buildings.Add(entity);
+            await Save(token);
+            if (!entity.ComplexId.HasValue)
+            {
+                var roleId = await Db.AccessRoles.Where(x => x.Key == "building_manager" && x.IsActive)
+                    .Select(x => x.Id).SingleAsync(token);
+                if (!await Db.RoleAllowedScopes.AnyAsync(x => x.RoleId == roleId &&
+                    x.ScopeKindKey == IamKeys.Scopes.Building, token))
+                    throw AppException.Conflict("authorization.role_scope_invalid",
+                        "The creator role cannot be assigned at Building scope.");
+                if (!await Db.AccessMemberships.AnyAsync(x => x.UserId == Authorization.UserId &&
+                    x.RoleId == roleId && x.BuildingId == entity.Id && x.IsActive && x.EndsAtUtc == null, token))
+                    Db.AccessMemberships.Add(new AccessMembership(await UniqueCode(Db.AccessMemberships, token),
+                        Authorization.UserId, roleId, null, entity.Id, null, null, Now));
+                await Save(token);
+            }
+            return entity.Id;
+        }, ct);
         return await GetBuilding(entity.Code, ct);
     }
 
