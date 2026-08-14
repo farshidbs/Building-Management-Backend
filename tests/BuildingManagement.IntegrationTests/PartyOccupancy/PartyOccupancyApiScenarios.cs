@@ -113,9 +113,9 @@ public sealed partial class ApiScenarios
         Assert.False(contactsAfterPrimaryAdd.Single(x => x.Value == "09350000000").IsPrimary);
         Assert.True(contactsAfterPrimaryAdd.Single(x => x.Value == "owner@example.com").IsPrimary);
 
-        var country = await Post<LocationResponse>("/api/v1/locations",
+        var country = await CreateLocationFixture(
             new LocationRequest(null, $"Party country {suffix}", ReferenceKeys.LocationTypes.Country));
-        var city = await Post<LocationResponse>("/api/v1/locations",
+        var city = await CreateLocationFixture(
             new LocationRequest(country.Code, $"Party city {suffix}", ReferenceKeys.LocationTypes.City));
         var building = await Post<BuildingResponse>("/api/v1/buildings",
             new BuildingRequest(null, city.Code, ReferenceKeys.BuildingTypes.Residential,

@@ -109,22 +109,82 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
     public async Task<AccessibleResourceIds> Accessible(long userId, string permissionKey, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
-        var memberships = await (from membership in db.AccessMemberships.AsNoTracking()
-                                 join user in db.Users.AsNoTracking() on membership.UserId equals user.Id
-                                 join rolePermission in db.AccessRolePermissions.AsNoTracking() on membership.RoleId equals rolePermission.RoleId
-                                 join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
-                                 where membership.UserId == userId && user.IsActive &&
-                                       user.StatusKey == IamKeys.UserStatuses.Active && membership.IsActive &&
-                                       membership.EndsAtUtc == null && membership.StartsAtUtc <= now &&
-                                       rolePermission.EffectKey == IamKeys.Effects.Allow && permission.Key == permissionKey &&
-                                       (!membership.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
-                                           relation.Id == membership.SourceUnitPartyRelationId && relation.IsActive &&
-                                           (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null))
-                                 select new { membership.ComplexId, membership.BuildingId, membership.UnitId })
-            .ToListAsync(ct);
-        return new(memberships.Where(x => x.ComplexId.HasValue).Select(x => x.ComplexId!.Value).Distinct().ToArray(),
-            memberships.Where(x => x.BuildingId.HasValue).Select(x => x.BuildingId!.Value).Distinct().ToArray(),
-            memberships.Where(x => x.UnitId.HasValue).Select(x => x.UnitId!.Value).Distinct().ToArray());
+        if (!await db.Users.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive &&
+            x.StatusKey == IamKeys.UserStatuses.Active, ct))
+            return new([], [], []);
+
+        var memberships = await db.AccessMemberships.AsNoTracking()
+            .Where(x => x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now &&
+                (!x.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                    relation.Id == x.SourceUnitPartyRelationId && relation.IsActive &&
+                    (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null)))
+            .Select(x => new { x.RoleId, x.ComplexId, x.BuildingId, x.UnitId }).ToListAsync(ct);
+        var roleIds = memberships.Select(x => x.RoleId).Distinct().ToArray();
+        var baseAllowedRoleIds = await (from rolePermission in db.AccessRolePermissions.AsNoTracking()
+                                        join permission in db.AccessPermissions.AsNoTracking()
+                                            on rolePermission.PermissionId equals permission.Id
+                                        where roleIds.Contains(rolePermission.RoleId) &&
+                                              permission.Key == permissionKey &&
+                                              rolePermission.EffectKey == IamKeys.Effects.Allow
+                                        select rolePermission.RoleId).Distinct().ToListAsync(ct);
+        var membershipBuildingIds = memberships.Where(x => x.BuildingId.HasValue)
+            .Select(x => x.BuildingId!.Value).Distinct().ToArray();
+        var membershipComplexIds = memberships.Where(x => x.ComplexId.HasValue)
+            .Select(x => x.ComplexId!.Value).Distinct().ToArray();
+        var buildingIds = await db.Buildings.AsNoTracking().Where(building =>
+            membershipBuildingIds.Contains(building.Id) ||
+            building.ComplexId.HasValue && membershipComplexIds.Contains(building.ComplexId.Value))
+            .Select(x => x.Id).ToListAsync(ct);
+        var overrides = IamPermissionPolicy.CanOverrideAtBuilding(permissionKey)
+            ? await (from item in db.BuildingRolePermissionOverrides.AsNoTracking()
+                     join permission in db.AccessPermissions.AsNoTracking() on item.PermissionId equals permission.Id
+                     where buildingIds.Contains(item.BuildingId) && item.IsActive &&
+                           roleIds.Contains(item.RoleId) && permission.Key == permissionKey
+                     select new { item.BuildingId, item.RoleId, item.EffectKey }).ToListAsync(ct)
+            : [];
+
+        bool RoleAllows(long roleId, long? buildingId)
+        {
+            var roleOverride = buildingId.HasValue
+                ? overrides.SingleOrDefault(x => x.BuildingId == buildingId && x.RoleId == roleId)
+                : null;
+            return roleOverride?.EffectKey == IamKeys.Effects.Allow ||
+                   roleOverride is null && baseAllowedRoleIds.Contains(roleId);
+        }
+
+        var complexIds = memberships.Where(x => x.ComplexId.HasValue && RoleAllows(x.RoleId, null))
+            .Select(x => x.ComplexId!.Value).Distinct().ToList();
+        // Complex coverage is expanded once through a focused query; list consumers use these explicit IDs.
+        var buildingParents = await db.Buildings.AsNoTracking().Where(x => buildingIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.ComplexId }).ToListAsync(ct);
+        var effectiveBuildingIds = buildingParents.Where(building => memberships.Any(membership =>
+            (membership.BuildingId == building.Id || membership.ComplexId == building.ComplexId) &&
+            RoleAllows(membership.RoleId, building.Id))).Select(x => x.Id).Distinct().ToList();
+        var membershipUnitIds = memberships.Where(x => x.UnitId.HasValue)
+            .Select(x => x.UnitId!.Value).Distinct().ToArray();
+        var units = await db.Units.AsNoTracking().Where(unit =>
+            effectiveBuildingIds.Contains(unit.BuildingId) || membershipUnitIds.Contains(unit.Id))
+            .Select(x => new { x.Id, x.BuildingId }).ToListAsync(ct);
+        var unitIds = units.Where(unit => memberships.Any(membership =>
+            (membership.UnitId == unit.Id || membership.BuildingId == unit.BuildingId ||
+             buildingParents.Any(building => building.Id == unit.BuildingId && membership.ComplexId == building.ComplexId)) &&
+            RoleAllows(membership.RoleId, unit.BuildingId))).Select(x => x.Id).Distinct().ToList();
+
+        if (IamPermissionPolicy.CanGrantToIndividual(permissionKey))
+        {
+            var grants = await (from grant in db.AccessGrants.AsNoTracking()
+                                join permission in db.AccessPermissions.AsNoTracking()
+                                    on grant.PermissionId equals permission.Id
+                                where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&
+                                      (!grant.ExpiresAtUtc.HasValue || grant.ExpiresAtUtc > now) &&
+                                      permission.Key == permissionKey
+                                select new { grant.ComplexId, grant.BuildingId, grant.UnitId }).ToListAsync(ct);
+            complexIds.AddRange(grants.Where(x => x.ComplexId.HasValue).Select(x => x.ComplexId!.Value));
+            effectiveBuildingIds.AddRange(grants.Where(x => x.BuildingId.HasValue).Select(x => x.BuildingId!.Value));
+            unitIds.AddRange(grants.Where(x => x.UnitId.HasValue).Select(x => x.UnitId!.Value));
+        }
+        return new(complexIds.Distinct().ToArray(), effectiveBuildingIds.Distinct().ToArray(),
+            unitIds.Distinct().ToArray());
     }
 
     public async Task Ensure(long userId, string permissionKey, long? complexId, long? buildingId,

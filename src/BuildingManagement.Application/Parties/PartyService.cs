@@ -35,10 +35,7 @@ public sealed class PartyService(IApplicationDbContext db, TimeProvider clock, R
             ? null
             : await ReferenceId(Db.PartyTypes, partyTypeKey, "party_type", ct);
         var query = Db.Parties.AsNoTracking().Where(party => Db.UnitPartyRelations.Any(relation =>
-            relation.PartyId == party.Id && relation.IsActive && Db.Units.Any(unit => unit.Id == relation.UnitId &&
-                (accessible.UnitIds.Contains(unit.Id) || accessible.BuildingIds.Contains(unit.BuildingId) ||
-                 Db.Buildings.Any(building => building.Id == unit.BuildingId && building.ComplexId.HasValue &&
-                     accessible.ComplexIds.Contains(building.ComplexId.Value))))));
+            relation.PartyId == party.Id && relation.IsActive && accessible.UnitIds.Contains(relation.UnitId)));
         if (typeId.HasValue) query = query.Where(x => x.PartyTypeId == typeId);
         if (page.IsActive.HasValue) query = query.Where(x => x.IsActive == page.IsActive);
         if (!string.IsNullOrWhiteSpace(page.Search))

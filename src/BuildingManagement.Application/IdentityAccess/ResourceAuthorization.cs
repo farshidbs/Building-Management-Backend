@@ -19,6 +19,20 @@ public sealed class ResourceAuthorization(ICurrentActor actor, AccessAuthorizati
         await authorization.EnsureAny(UserId, permissionKey, cancellationToken);
     }
 
+    public async Task<bool> Can(string permissionKey, long? complexId, long? buildingId, long? unitId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Ensure(permissionKey, complexId, buildingId, unitId, cancellationToken);
+            return true;
+        }
+        catch (AppException exception) when (exception.Status == 403)
+        {
+            return false;
+        }
+    }
+
     public async Task EnsureParty(string permissionKey, long partyId, CancellationToken cancellationToken)
     {
         await EnsureSession(cancellationToken);

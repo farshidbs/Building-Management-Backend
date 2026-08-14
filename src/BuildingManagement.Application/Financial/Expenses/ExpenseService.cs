@@ -11,8 +11,7 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock,
         var accessible = await Authorization.Accessible("expense_view", ct);
         var expenses = Db.Expenses.AsNoTracking().Where(x =>
             x.ComplexId.HasValue && accessible.ComplexIds.Contains(x.ComplexId.Value) ||
-            x.BuildingId.HasValue && (accessible.BuildingIds.Contains(x.BuildingId.Value) ||
-                Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))));
+            x.BuildingId.HasValue && accessible.BuildingIds.Contains(x.BuildingId.Value));
         if (!string.IsNullOrWhiteSpace(status)) expenses = expenses.Where(x => x.Status == status);
         if (!string.IsNullOrWhiteSpace(query.Search)) expenses = expenses.Where(x => x.Title.Contains(query.Search));
         var total = await expenses.CountAsync(ct);

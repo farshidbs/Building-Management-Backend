@@ -22,8 +22,8 @@ public abstract class FileManagementServiceBase(
     {
         ValidateDocumentMetadata(metadata);
         var ownerId = building
-            ? await ActiveBuildingId(ownerCode, ct)
-            : await ActiveComplexId(ownerCode, ct);
+            ? await ActiveBuildingId(ownerCode, ct, true)
+            : await ActiveComplexId(ownerCode, ct, true);
         var type = await DocumentType(metadata.DocumentTypeKey, ct);
         var file = FileStoragePolicy.ValidateDocument(incoming, Options);
         var stored = await Store(incoming, file, building ? "buildings" : "complexes", NormalizeCode(ownerCode),
@@ -69,7 +69,7 @@ public abstract class FileManagementServiceBase(
         var type = await DocumentType(request.DocumentTypeKey, ct);
         if (building)
         {
-            var ownerId = await BuildingId(ownerCode, false, ct);
+            var ownerId = await BuildingId(ownerCode, false, ct, true);
             var document = await Db.BuildingDocuments.SingleOrDefaultAsync(x =>
                 x.BuildingId == ownerId && x.Code == NormalizeCode(documentCode), ct)
                 ?? throw AppException.NotFound("building_document");
@@ -82,7 +82,7 @@ public abstract class FileManagementServiceBase(
         }
         else
         {
-            var ownerId = await ComplexId(ownerCode, false, ct);
+            var ownerId = await ComplexId(ownerCode, false, ct, true);
             var document = await Db.ComplexDocuments.SingleOrDefaultAsync(x =>
                 x.ComplexId == ownerId && x.Code == NormalizeCode(documentCode), ct)
                 ?? throw AppException.NotFound("complex_document");
@@ -100,7 +100,7 @@ public abstract class FileManagementServiceBase(
         long storedFileId;
         if (building)
         {
-            var ownerId = await BuildingId(ownerCode, false, ct);
+            var ownerId = await BuildingId(ownerCode, false, ct, true);
             var document = await Db.BuildingDocuments.SingleOrDefaultAsync(x =>
                 x.BuildingId == ownerId && x.Code == NormalizeCode(documentCode), ct)
                 ?? throw AppException.NotFound("building_document");
@@ -109,7 +109,7 @@ public abstract class FileManagementServiceBase(
         }
         else
         {
-            var ownerId = await ComplexId(ownerCode, false, ct);
+            var ownerId = await ComplexId(ownerCode, false, ct, true);
             var document = await Db.ComplexDocuments.SingleOrDefaultAsync(x =>
                 x.ComplexId == ownerId && x.Code == NormalizeCode(documentCode), ct)
                 ?? throw AppException.NotFound("complex_document");
@@ -201,25 +201,25 @@ public abstract class FileManagementServiceBase(
         foreach (var cover in covers) cover.RemoveCover(Now);
     }
 
-    protected async Task<long> ActiveBuildingId(string code, CancellationToken ct) =>
-        await BuildingId(code, true, ct);
+    protected async Task<long> ActiveBuildingId(string code, CancellationToken ct, bool manage = false) =>
+        await BuildingId(code, true, ct, manage);
 
-    protected async Task<long> ActiveComplexId(string code, CancellationToken ct) =>
-        await ComplexId(code, true, ct);
+    protected async Task<long> ActiveComplexId(string code, CancellationToken ct, bool manage = false) =>
+        await ComplexId(code, true, ct, manage);
 
-    protected async Task<long> BuildingId(string code, bool activeOnly, CancellationToken ct)
+    protected async Task<long> BuildingId(string code, bool activeOnly, CancellationToken ct, bool manage = false)
     {
         var building = await Db.Buildings.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
             .Select(x => new { x.Id, x.ComplexId }).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
-        await Authorization.Ensure("file_read", building.ComplexId, building.Id, null, ct);
+        await Authorization.Ensure(manage ? "file_manage" : "file_read", building.ComplexId, building.Id, null, ct);
         return building.Id;
     }
 
-    protected async Task<long> ComplexId(string code, bool activeOnly, CancellationToken ct)
+    protected async Task<long> ComplexId(string code, bool activeOnly, CancellationToken ct, bool manage = false)
     {
         var id = await Db.Complexes.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
-        await Authorization.Ensure("file_read", id, null, null, ct);
+        await Authorization.Ensure(manage ? "file_manage" : "file_read", id, null, null, ct);
         return id;
     }
 

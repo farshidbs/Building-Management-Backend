@@ -35,8 +35,7 @@ public sealed class AssetService(IApplicationDbContext db, IFileStorage storage,
         long? typeId = string.IsNullOrWhiteSpace(assetTypeKey) ? null : await RefId(Db.AssetTypes, assetTypeKey, "asset_type", ct);
         var source = Db.Assets.AsNoTracking().Where(x =>
             (x.ComplexId.HasValue && accessible.ComplexIds.Contains(x.ComplexId.Value) ||
-             x.BuildingId.HasValue && (accessible.BuildingIds.Contains(x.BuildingId.Value) ||
-                Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value)))) &&
+             x.BuildingId.HasValue && accessible.BuildingIds.Contains(x.BuildingId.Value)) &&
             (!query.IsActive.HasValue || x.IsActive == query.IsActive) &&
             (!complexId.HasValue || x.ComplexId == complexId) && (!buildingId.HasValue || x.BuildingId == buildingId) &&
             (!typeId.HasValue || x.AssetTypeId == typeId) && (string.IsNullOrWhiteSpace(query.Search) || x.Name.Contains(query.Search)));

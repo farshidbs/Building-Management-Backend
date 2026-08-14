@@ -18,8 +18,9 @@ public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFi
         string buildingCode, CancellationToken ct)
     {
         var buildingId = await BuildingId(buildingCode, false, ct);
+        var canReadConfidential = await Authorization.Can("file_read_confidential", null, buildingId, null, ct);
         return await BuildingDocumentProjection(Db.BuildingDocuments.AsNoTracking()
-            .Where(x => x.BuildingId == buildingId && x.IsActive)
+            .Where(x => x.BuildingId == buildingId && x.IsActive && (!x.IsConfidential || canReadConfidential))
             .OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAtUtc)).ToListAsync(ct);
     }
 
@@ -27,8 +28,9 @@ public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFi
         string complexCode, CancellationToken ct)
     {
         var complexId = await ComplexId(complexCode, false, ct);
+        var canReadConfidential = await Authorization.Can("file_read_confidential", complexId, null, null, ct);
         return await ComplexDocumentProjection(Db.ComplexDocuments.AsNoTracking()
-            .Where(x => x.ComplexId == complexId && x.IsActive)
+            .Where(x => x.ComplexId == complexId && x.IsActive && (!x.IsConfidential || canReadConfidential))
             .OrderByDescending(x => x.DocumentDate).ThenByDescending(x => x.CreatedAtUtc)).ToListAsync(ct);
     }
 
@@ -36,6 +38,12 @@ public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFi
         string buildingCode, string documentCode, CancellationToken ct)
     {
         var buildingId = await BuildingId(buildingCode, false, ct);
+        var confidential = await Db.BuildingDocuments.AsNoTracking().Where(x =>
+            x.BuildingId == buildingId && x.Code == NormalizeCode(documentCode) && x.IsActive)
+            .Select(x => (bool?)x.IsConfidential).SingleOrDefaultAsync(ct)
+            ?? throw AppException.NotFound("building_document");
+        if (confidential)
+            await Authorization.Ensure("file_read_confidential", null, buildingId, null, ct);
         return await BuildingDocumentProjection(Db.BuildingDocuments.AsNoTracking().Where(x =>
             x.BuildingId == buildingId && x.Code == NormalizeCode(documentCode) && x.IsActive))
             .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building_document");
@@ -45,6 +53,12 @@ public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFi
         string complexCode, string documentCode, CancellationToken ct)
     {
         var complexId = await ComplexId(complexCode, false, ct);
+        var confidential = await Db.ComplexDocuments.AsNoTracking().Where(x =>
+            x.ComplexId == complexId && x.Code == NormalizeCode(documentCode) && x.IsActive)
+            .Select(x => (bool?)x.IsConfidential).SingleOrDefaultAsync(ct)
+            ?? throw AppException.NotFound("complex_document");
+        if (confidential)
+            await Authorization.Ensure("file_read_confidential", complexId, null, null, ct);
         return await ComplexDocumentProjection(Db.ComplexDocuments.AsNoTracking().Where(x =>
             x.ComplexId == complexId && x.Code == NormalizeCode(documentCode) && x.IsActive))
             .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex_document");

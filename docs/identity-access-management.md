@@ -16,7 +16,9 @@ IAM keeps four concepts separate: `Party` is a real person or organization and o
 
 Roles, Permissions, RolePermissions, RoleAllowedScopes, Memberships, building overrides, and explicit AccessGrants are persisted. SQL and domain checks require exactly one scope. Membership authorization requires an active, non-ended membership. Grant authorization requires an active, non-revoked, non-expired grant.
 
-`AccessAuthorizationService` is the central authorization/read-context abstraction. Active context is only navigation state and never grants access. Knowing a public resource or StoredFile code is not authorization. Every resource endpoint must resolve its real scope and call this boundary.
+`AccessAuthorizationService` is the central authorization/read-context abstraction. Active context is only navigation state and never grants access. Knowing a public resource or StoredFile code is not authorization. Every resource endpoint must resolve its real scope and call this boundary. List filtering uses the same effective membership, hierarchy, Building override, and supported individual-grant policy as direct access; Building deny overrides therefore remove resources from both direct and list results.
+
+File permissions are intentionally separated: `file_read` permits ordinary metadata/content reads, `file_read_confidential` permits confidential document metadata/content at the exact effective scope, and `file_manage` permits Building/Complex gallery and document mutations. `file_manage` is seeded only to Complex and Building managers. Asset file mutations continue to use `asset_manage` or `asset_event_manage` through the Asset's real scope.
 
 Seed data defines building manager, accountant, owner, tenant, and resident roles plus permissions for physical structure, parties, files, assets, finance, invitations, and memberships. Global Location mutation is guarded by `location_manage`; that permission is intentionally not assigned to normal customer roles.
 

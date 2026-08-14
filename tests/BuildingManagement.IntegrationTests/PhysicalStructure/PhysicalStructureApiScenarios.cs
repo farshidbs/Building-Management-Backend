@@ -24,10 +24,10 @@ public sealed partial class ApiScenarios
         var referenceData = await client!.GetFromJsonAsync<ReferenceDataResponse>("/api/v1/reference-data");
         Assert.Contains(referenceData!.BuildingTypes, value => value.Key == ReferenceKeys.BuildingTypes.Residential);
 
-        var country = await Post<LocationResponse>("/api/v1/locations",
+        var country = await CreateLocationFixture(
             new LocationRequest(null, "کشور آزمایشی", ReferenceKeys.LocationTypes.Country));
         Assert.Matches("^[A-Z0-9]{5}$", country.Code);
-        var city = await Post<LocationResponse>("/api/v1/locations",
+        var city = await CreateLocationFixture(
             new LocationRequest(country.Code, "شهر آزمایشی", ReferenceKeys.LocationTypes.City));
         var complex = await Post<ComplexResponse>("/api/v1/complexes",
             new ComplexRequest(country.Code, "مجتمع آزمایشی", "نشانی", "۱۲۳", null, null, null));

@@ -47,9 +47,9 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
         }
     }
     public async Task<IReadOnlyList<AssetDocumentResponse>> Documents(string assetCode, CancellationToken ct)
-    { var id = (await Entity(assetCode, ct)).Id; return await DocumentProjection(Db.AssetDocuments.AsNoTracking().Where(x => x.AssetId == id && x.IsActive).OrderByDescending(x => x.CreatedAtUtc)).ToListAsync(ct); }
+    { var asset = await Entity(assetCode, ct); var canReadConfidential = await Authorization.Can("file_read_confidential", asset.ComplexId, asset.BuildingId, null, ct); return await DocumentProjection(Db.AssetDocuments.AsNoTracking().Where(x => x.AssetId == asset.Id && x.IsActive && (!x.IsConfidential || canReadConfidential)).OrderByDescending(x => x.CreatedAtUtc)).ToListAsync(ct); }
     public async Task<AssetDocumentResponse> Document(string assetCode, string fileCode, CancellationToken ct)
-    { var id = (await Entity(assetCode, ct)).Id; var storedId = await StoredId(fileCode, ct); return await DocumentProjection(Db.AssetDocuments.AsNoTracking().Where(x => x.AssetId == id && x.StoredFileId == storedId && x.IsActive)).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("asset_document"); }
+    { var asset = await Entity(assetCode, ct); var storedId = await StoredId(fileCode, ct); var confidential = await Db.AssetDocuments.AsNoTracking().Where(x => x.AssetId == asset.Id && x.StoredFileId == storedId && x.IsActive).Select(x => (bool?)x.IsConfidential).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("asset_document"); if (confidential) await Authorization.Ensure("file_read_confidential", asset.ComplexId, asset.BuildingId, null, ct); return await DocumentProjection(Db.AssetDocuments.AsNoTracking().Where(x => x.AssetId == asset.Id && x.StoredFileId == storedId && x.IsActive)).SingleAsync(ct); }
 
     public async Task<AssetFileResponse> UploadEventFile(string assetCode, long eventId, IncomingFile file,
         AssetFileMetadataRequest metadata, CancellationToken ct)

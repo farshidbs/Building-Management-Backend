@@ -459,6 +459,16 @@ namespace BuildingManagement.Infrastructure.Migrations
                             Key = "location_manage",
                             SortOrder = 520,
                             Title = "مدیریت موقعیت‌های مکانی"
+                        },
+                        new
+                        {
+                            Id = 53L,
+                            CategoryKey = "files",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "file_manage",
+                            SortOrder = 530,
+                            Title = "مدیریت فایل"
                         });
                 });
 
@@ -1063,859 +1073,873 @@ namespace BuildingManagement.Infrastructure.Migrations
                         {
                             Id = 38L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 1L
+                            PermissionId = 53L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 39L,
                             EffectKey = "allow",
-                            PermissionId = 18L,
+                            PermissionId = 17L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 40L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
+                            PermissionId = 18L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 41L,
                             EffectKey = "allow",
-                            PermissionId = 20L,
+                            PermissionId = 19L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 42L,
                             EffectKey = "allow",
-                            PermissionId = 21L,
+                            PermissionId = 20L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 43L,
                             EffectKey = "allow",
-                            PermissionId = 22L,
+                            PermissionId = 21L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 44L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 22L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 45L,
                             EffectKey = "allow",
-                            PermissionId = 24L,
+                            PermissionId = 23L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 46L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 24L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 47L,
                             EffectKey = "allow",
-                            PermissionId = 26L,
+                            PermissionId = 25L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 48L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 26L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 49L,
                             EffectKey = "allow",
-                            PermissionId = 28L,
+                            PermissionId = 27L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 50L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 28L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 51L,
                             EffectKey = "allow",
-                            PermissionId = 30L,
+                            PermissionId = 29L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 52L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
+                            PermissionId = 30L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 53L,
                             EffectKey = "allow",
-                            PermissionId = 32L,
+                            PermissionId = 31L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 54L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 32L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 55L,
                             EffectKey = "allow",
-                            PermissionId = 34L,
+                            PermissionId = 33L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 56L,
                             EffectKey = "allow",
-                            PermissionId = 35L,
+                            PermissionId = 34L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 57L,
                             EffectKey = "allow",
-                            PermissionId = 36L,
+                            PermissionId = 35L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 58L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 36L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 59L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 37L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 60L,
                             EffectKey = "allow",
-                            PermissionId = 39L,
+                            PermissionId = 38L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 61L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 39L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 62L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
+                            PermissionId = 40L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 63L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
+                            PermissionId = 41L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 64L,
                             EffectKey = "allow",
-                            PermissionId = 43L,
+                            PermissionId = 42L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 65L,
                             EffectKey = "allow",
-                            PermissionId = 44L,
+                            PermissionId = 43L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 66L,
                             EffectKey = "allow",
-                            PermissionId = 45L,
+                            PermissionId = 44L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 67L,
                             EffectKey = "allow",
-                            PermissionId = 46L,
+                            PermissionId = 45L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 68L,
                             EffectKey = "allow",
-                            PermissionId = 47L,
+                            PermissionId = 46L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 69L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 47L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 70L,
                             EffectKey = "allow",
-                            PermissionId = 49L,
+                            PermissionId = 48L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 71L,
                             EffectKey = "allow",
-                            PermissionId = 50L,
+                            PermissionId = 49L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 72L,
                             EffectKey = "allow",
-                            PermissionId = 51L,
+                            PermissionId = 50L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 73L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 7L
+                            PermissionId = 51L,
+                            RoleId = 1L
                         },
                         new
                         {
                             Id = 74L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 7L
+                            PermissionId = 53L,
+                            RoleId = 1L
                         },
                         new
                         {
                             Id = 75L,
                             EffectKey = "allow",
-                            PermissionId = 21L,
+                            PermissionId = 17L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 76L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 19L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 77L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 21L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 78L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 79L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 80L,
                             EffectKey = "allow",
-                            PermissionId = 30L,
+                            PermissionId = 27L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 81L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
+                            PermissionId = 29L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 82L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 30L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 83L,
                             EffectKey = "allow",
-                            PermissionId = 34L,
+                            PermissionId = 31L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 84L,
                             EffectKey = "allow",
-                            PermissionId = 35L,
+                            PermissionId = 33L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 85L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 34L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 86L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 35L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 87L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 37L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 88L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
+                            PermissionId = 38L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 89L,
                             EffectKey = "allow",
-                            PermissionId = 44L,
+                            PermissionId = 40L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 90L,
                             EffectKey = "allow",
-                            PermissionId = 46L,
+                            PermissionId = 42L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 91L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 44L,
                             RoleId = 7L
                         },
                         new
                         {
                             Id = 92L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 2L
+                            PermissionId = 46L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 93L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 2L
+                            PermissionId = 48L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 94L,
                             EffectKey = "allow",
-                            PermissionId = 21L,
+                            PermissionId = 17L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 95L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 19L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 96L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 21L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 97L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 98L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 99L,
                             EffectKey = "allow",
-                            PermissionId = 30L,
+                            PermissionId = 27L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 100L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
+                            PermissionId = 29L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 101L,
                             EffectKey = "allow",
-                            PermissionId = 32L,
+                            PermissionId = 30L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 102L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 31L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 103L,
                             EffectKey = "allow",
-                            PermissionId = 34L,
+                            PermissionId = 32L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 104L,
                             EffectKey = "allow",
-                            PermissionId = 35L,
+                            PermissionId = 33L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 105L,
                             EffectKey = "allow",
-                            PermissionId = 36L,
+                            PermissionId = 34L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 106L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 35L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 107L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 36L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 108L,
                             EffectKey = "allow",
-                            PermissionId = 39L,
+                            PermissionId = 37L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 109L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 38L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 110L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 39L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 111L,
                             EffectKey = "allow",
-                            PermissionId = 49L,
+                            PermissionId = 40L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 112L,
                             EffectKey = "allow",
-                            PermissionId = 50L,
+                            PermissionId = 48L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 113L,
                             EffectKey = "allow",
-                            PermissionId = 51L,
+                            PermissionId = 49L,
                             RoleId = 2L
                         },
                         new
                         {
                             Id = 114L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 3L
+                            PermissionId = 50L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 115L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 3L
+                            PermissionId = 51L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 116L,
                             EffectKey = "allow",
-                            PermissionId = 21L,
+                            PermissionId = 17L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 117L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 19L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 118L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 21L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 119L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 120L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 121L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 27L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 122L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 29L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 123L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 33L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 124L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 37L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 125L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 38L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 126L,
                             EffectKey = "allow",
-                            PermissionId = 51L,
+                            PermissionId = 40L,
                             RoleId = 3L
                         },
                         new
                         {
                             Id = 127L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 4L
+                            PermissionId = 48L,
+                            RoleId = 3L
                         },
                         new
                         {
                             Id = 128L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 4L
+                            PermissionId = 51L,
+                            RoleId = 3L
                         },
                         new
                         {
                             Id = 129L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 17L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 130L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 19L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 131L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 132L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 133L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 27L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 134L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 29L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 135L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 33L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 136L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 37L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 137L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 38L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 138L,
                             EffectKey = "allow",
-                            PermissionId = 51L,
+                            PermissionId = 40L,
                             RoleId = 4L
                         },
                         new
                         {
                             Id = 139L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 5L
+                            PermissionId = 48L,
+                            RoleId = 4L
                         },
                         new
                         {
                             Id = 140L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 5L
+                            PermissionId = 51L,
+                            RoleId = 4L
                         },
                         new
                         {
                             Id = 141L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 17L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 142L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 19L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 143L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 144L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 145L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 27L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 146L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 29L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 147L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 33L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 148L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 37L,
                             RoleId = 5L
                         },
                         new
                         {
                             Id = 149L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 8L
+                            PermissionId = 40L,
+                            RoleId = 5L
                         },
                         new
                         {
                             Id = 150L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 8L
+                            PermissionId = 48L,
+                            RoleId = 5L
                         },
                         new
                         {
                             Id = 151L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
+                            PermissionId = 17L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 152L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
+                            PermissionId = 19L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 153L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 23L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 154L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 25L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 155L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 27L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 156L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 29L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 157L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 33L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 158L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 37L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 159L,
                             EffectKey = "allow",
-                            PermissionId = 48L,
+                            PermissionId = 38L,
                             RoleId = 8L
                         },
                         new
                         {
                             Id = 160L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 8L
+                        },
+                        new
+                        {
+                            Id = 161L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 8L
+                        },
+                        new
+                        {
+                            Id = 162L,
                             EffectKey = "allow",
                             PermissionId = 51L,
                             RoleId = 8L

@@ -9,7 +9,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
     public async Task<GalleryFileResponse> UploadBuildingGallery(
         string buildingCode, IncomingFile incoming, GalleryMetadataRequest metadata, CancellationToken ct)
     {
-        var buildingId = await ActiveBuildingId(buildingCode, ct);
+        var buildingId = await ActiveBuildingId(buildingCode, ct, true);
         var file = FileStoragePolicy.ValidateImage(incoming, Options);
         var stored = await Store(incoming, file, "buildings", NormalizeCode(buildingCode), "gallery", ct);
         try
@@ -33,7 +33,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
     public async Task<GalleryFileResponse> UploadComplexGallery(
         string complexCode, IncomingFile incoming, GalleryMetadataRequest metadata, CancellationToken ct)
     {
-        var complexId = await ActiveComplexId(complexCode, ct);
+        var complexId = await ActiveComplexId(complexCode, ct, true);
         var file = FileStoragePolicy.ValidateImage(incoming, Options);
         var stored = await Store(incoming, file, "complexes", NormalizeCode(complexCode), "gallery", ct);
         try
@@ -77,7 +77,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
     public async Task<GalleryFileResponse> UpdateBuildingGallery(string buildingCode, string galleryCode,
         GalleryMetadataRequest request, CancellationToken ct)
     {
-        var buildingId = await BuildingId(buildingCode, false, ct);
+        var buildingId = await BuildingId(buildingCode, false, ct, true);
         var relation = await Db.BuildingGalleryFiles.SingleOrDefaultAsync(x =>
             x.BuildingId == buildingId && x.Code == NormalizeCode(galleryCode), ct)
             ?? throw AppException.NotFound("building_gallery");
@@ -92,7 +92,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
     public async Task<GalleryFileResponse> UpdateComplexGallery(string complexCode, string galleryCode,
         GalleryMetadataRequest request, CancellationToken ct)
     {
-        var complexId = await ComplexId(complexCode, false, ct);
+        var complexId = await ComplexId(complexCode, false, ct, true);
         var relation = await Db.ComplexGalleryFiles.SingleOrDefaultAsync(x =>
             x.ComplexId == complexId && x.Code == NormalizeCode(galleryCode), ct)
             ?? throw AppException.NotFound("complex_gallery");
@@ -106,7 +106,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
 
     public async Task DeleteBuildingGallery(string buildingCode, string galleryCode, CancellationToken ct)
     {
-        var buildingId = await BuildingId(buildingCode, false, ct);
+        var buildingId = await BuildingId(buildingCode, false, ct, true);
         var relation = await Db.BuildingGalleryFiles.SingleOrDefaultAsync(x =>
             x.BuildingId == buildingId && x.Code == NormalizeCode(galleryCode), ct)
             ?? throw AppException.NotFound("building_gallery");
@@ -118,7 +118,7 @@ public sealed class BuildingComplexGalleryService(IApplicationDbContext db, IFil
 
     public async Task DeleteComplexGallery(string complexCode, string galleryCode, CancellationToken ct)
     {
-        var complexId = await ComplexId(complexCode, false, ct);
+        var complexId = await ComplexId(complexCode, false, ct, true);
         var relation = await Db.ComplexGalleryFiles.SingleOrDefaultAsync(x =>
             x.ComplexId == complexId && x.Code == NormalizeCode(galleryCode), ct)
             ?? throw AppException.NotFound("complex_gallery");

@@ -12,6 +12,42 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task BuildingOverrideDenyIsConsistentForDirectAndListAssetAccess()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        Building building;
+        Asset asset;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            building = await db.Buildings.AsNoTracking().FirstAsync();
+            var typeId = await db.AssetTypes.Select(x => x.Id).FirstAsync();
+            asset = new Asset(PublicCode.Create(), typeId, null, building.Id, "دارایی منع‌شده",
+                null, null, null, null, null, null, null, DateTimeOffset.UtcNow);
+            db.Assets.Add(asset);
+            await db.SaveChangesAsync();
+        }
+        using var deniedClient = await CreateAuthenticatedClient("building_manager", buildingId: building.Id);
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var userId = await db.AuthSessions.Where(x => x.DeviceIdentifier == "integration-security")
+                .OrderByDescending(x => x.Id).Select(x => x.UserId!.Value).FirstAsync();
+            var membership = await db.AccessMemberships.Where(x => x.UserId == userId).SingleAsync();
+            var permissionId = await db.AccessPermissions.Where(x => x.Key == "asset_view")
+                .Select(x => x.Id).SingleAsync();
+            db.BuildingRolePermissionOverrides.Add(new BuildingRolePermissionOverride(PublicCode.Create(),
+                building.Id, membership.RoleId, permissionId, IamKeys.Effects.Deny, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await deniedClient.GetAsync($"/api/v1/assets/{asset.Code}")).StatusCode);
+        var page = await deniedClient.GetFromJsonAsync<Page<AssetResponse>>("/api/v1/assets");
+        Assert.DoesNotContain(page!.Items, x => x.Code == asset.Code);
+    }
+
+    [Fact]
     public async Task UnattachedPartyAndGlobalLocationMutationsAreDenied()
     {
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
@@ -183,5 +219,56 @@ public sealed partial class ApiScenarios
         var verificationDb = verification.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
         Assert.Equal(FinancialKeys.Statuses.Draft, await verificationDb.ExpenseDisbursements
             .Where(x => x.Code == disbursement.Code).Select(x => x.Status).SingleAsync());
+    }
+
+    [Fact]
+    public async Task ConfidentialBuildingDocumentMetadataAndFileMutationsRespectDistinctPermissions()
+    {
+        if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
+        Building building;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            building = await db.Buildings.AsNoTracking().FirstAsync();
+        }
+        var ordinary = await UploadBuildingDocument(building.Code, "سند عادی", false);
+        var confidential = await UploadBuildingDocument(building.Code, "سند محرمانه", true);
+        using var reader = await CreateAuthenticatedClient("manager_assistant", buildingId: building.Id);
+
+        var visible = await reader.GetFromJsonAsync<List<DocumentFileResponse>>(
+            $"/api/v1/buildings/{building.Code}/documents");
+        Assert.Contains(visible!, x => x.Code == ordinary.Code);
+        Assert.DoesNotContain(visible!, x => x.Code == confidential.Code);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.GetAsync(
+            $"/api/v1/buildings/{building.Code}/documents/{confidential.Code}")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound,
+            (await reader.GetAsync($"/api/v1/files/{confidential.File.Code}/content")).StatusCode);
+
+        using var mutation = DocumentForm("تلاش غیرمجاز", false);
+        Assert.Equal(HttpStatusCode.Forbidden, (await reader.PostAsync(
+            $"/api/v1/buildings/{building.Code}/documents", mutation)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK,
+            (await client!.GetAsync($"/api/v1/files/{confidential.File.Code}/content")).StatusCode);
+    }
+
+    private async Task<DocumentFileResponse> UploadBuildingDocument(string buildingCode, string title,
+        bool confidential)
+    {
+        using var form = DocumentForm(title, confidential);
+        using var response = await client!.PostAsync($"/api/v1/buildings/{buildingCode}/documents", form);
+        response.EnsureSuccessStatusCode();
+        return (await response.Content.ReadFromJsonAsync<DocumentFileResponse>())!;
+    }
+
+    private static MultipartFormDataContent DocumentForm(string title, bool confidential)
+    {
+        var form = new MultipartFormDataContent();
+        var file = new ByteArrayContent([0x25, 0x50, 0x44, 0x46]);
+        file.Headers.ContentType = new("application/pdf");
+        form.Add(file, "file", "document.pdf");
+        form.Add(new StringContent("contract"), "documentTypeKey");
+        form.Add(new StringContent(title), "title");
+        form.Add(new StringContent(confidential.ToString()), "isConfidential");
+        return form;
     }
 }

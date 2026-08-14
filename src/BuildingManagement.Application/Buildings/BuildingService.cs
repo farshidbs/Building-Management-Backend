@@ -42,8 +42,7 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
         long? typeId = string.IsNullOrWhiteSpace(buildingTypeKey)
             ? null
             : await ReferenceId(Db.BuildingTypes, buildingTypeKey, "building_type", ct);
-        var query = Db.Buildings.AsNoTracking().Where(x => accessible.BuildingIds.Contains(x.Id) ||
-            x.ComplexId.HasValue && accessible.ComplexIds.Contains(x.ComplexId.Value));
+        var query = Db.Buildings.AsNoTracking().Where(x => accessible.BuildingIds.Contains(x.Id));
         if (!string.IsNullOrWhiteSpace(complexCode)) query = query.Where(x => x.ComplexId == complexId);
         if (!string.IsNullOrWhiteSpace(locationCode)) query = query.Where(x => x.LocationId == locationId);
         if (typeId.HasValue) query = query.Where(x => x.BuildingTypeId == typeId);

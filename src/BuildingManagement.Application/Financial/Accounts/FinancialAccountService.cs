@@ -95,10 +95,10 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
         {
             var adjustment = await Db.AccountAdjustments.SingleOrDefaultAsync(x => x.Code == Code(code), token)
                 ?? throw AppException.NotFound("account_adjustment");
-            if (await Db.FinancialTransactions.AnyAsync(x => x.AccountAdjustmentId == adjustment.Id, token))
-                return new(adjustment.Code, adjustment.Status, adjustment.Amount, adjustment.AdjustmentTypeKey);
             var account = await Db.FinancialAccounts.SingleAsync(x => x.Id == adjustment.FinancialAccountId, token);
             await Authorize(account, account.UnitId.HasValue ? "financial_unit_pay" : "expense_finalize", token);
+            if (await Db.FinancialTransactions.AnyAsync(x => x.AccountAdjustmentId == adjustment.Id, token))
+                return new(adjustment.Code, adjustment.Status, adjustment.Amount, adjustment.AdjustmentTypeKey);
             var effect = adjustment.AdjustmentTypeKey == FinancialKeys.Adjustments.OpeningDebt
                 ? FinancialKeys.Effects.Decrease : FinancialKeys.Effects.Increase;
             adjustment.Finalize(Now);

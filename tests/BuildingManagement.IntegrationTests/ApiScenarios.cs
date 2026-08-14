@@ -151,6 +151,21 @@ public sealed partial class ApiScenarios : IAsyncLifetime
         return authenticated;
     }
 
+    private async Task<LocationResponse> CreateLocationFixture(LocationRequest request)
+    {
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var parent = string.IsNullOrWhiteSpace(request.ParentCode) ? null : await db.Locations
+            .Where(x => x.Code == PublicCode.Normalize(request.ParentCode)).SingleAsync();
+        var type = await db.LocationTypes.Where(x => x.Key == request.LocationTypeKey).SingleAsync();
+        var location = new Location(PublicCode.Create(), parent?.Id, type.Id, request.Name,
+            DateTimeOffset.UtcNow);
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+        return new(location.Code, parent is null ? null : new(parent.Code, parent.Name), location.Name,
+            new(type.Key, type.Title), location.IsActive, location.CreatedAtUtc, location.UpdatedAtUtc);
+    }
+
     private async Task<T> Put<T>(string uri, object value)
     {
         var response = await client!.PutAsJsonAsync(uri, value);

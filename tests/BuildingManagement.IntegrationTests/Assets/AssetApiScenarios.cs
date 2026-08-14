@@ -22,9 +22,9 @@ public sealed partial class ApiScenarios
         if (!enabled) Assert.Skip(skipReason ?? "SQL Server integration infrastructure is unavailable.");
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
-        var country = await Post<LocationResponse>("/api/v1/locations",
+        var country = await CreateLocationFixture(
             new LocationRequest(null, $"کشور دارایی {suffix}", ReferenceKeys.LocationTypes.Country));
-        var city = await Post<LocationResponse>("/api/v1/locations",
+        var city = await CreateLocationFixture(
             new LocationRequest(country.Code, $"شهر دارایی {suffix}", ReferenceKeys.LocationTypes.City));
         var complex = await Post<ComplexResponse>("/api/v1/complexes",
             new ComplexRequest(city.Code, $"مجتمع دارایی {suffix}", "نشانی", suffix, null, null, null));

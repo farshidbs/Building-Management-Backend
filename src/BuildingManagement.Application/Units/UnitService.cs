@@ -54,8 +54,7 @@ public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, Un
             ? null
             : await ReferenceId(Db.UnitStatuses, statusKey, "unit_status", ct);
         var query = Db.Units.AsNoTracking().Where(x => x.BuildingId == buildingId &&
-            (accessible.UnitIds.Contains(x.Id) || accessible.BuildingIds.Contains(x.BuildingId) ||
-             Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))));
+            accessible.UnitIds.Contains(x.Id));
         if (floor.HasValue) query = query.Where(x => x.FloorNumber == floor);
         if (usageTypeId.HasValue) query = query.Where(x => x.UsageTypeId == usageTypeId);
         if (statusId.HasValue) query = query.Where(x => x.StatusId == statusId);

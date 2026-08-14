@@ -12,8 +12,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock, 
         var demands = Db.Demands.AsNoTracking().Where(demand => Db.FinancialAccounts.Any(account =>
             account.Id == demand.FundAccountId &&
             (account.ComplexId.HasValue && accessible.ComplexIds.Contains(account.ComplexId.Value) ||
-             account.BuildingId.HasValue && (accessible.BuildingIds.Contains(account.BuildingId.Value) ||
-                Db.Buildings.Any(b => b.Id == account.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))))));
+             account.BuildingId.HasValue && accessible.BuildingIds.Contains(account.BuildingId.Value))));
         if (!string.IsNullOrWhiteSpace(status)) demands = demands.Where(x => x.Status == status);
         if (!string.IsNullOrWhiteSpace(query.Search)) demands = demands.Where(x => x.Title.Contains(query.Search));
         var total = await demands.CountAsync(ct);
