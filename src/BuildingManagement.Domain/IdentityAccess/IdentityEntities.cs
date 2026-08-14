@@ -68,6 +68,7 @@ public sealed class OtpChallenge
 {
     private OtpChallenge() { }
     public long Id { get; private set; }
+    public string PublicReference { get; private set; } = "";
     public string LoginTypeKey { get; private set; } = ""; public string IdentifierValue { get; private set; } = ""; public string NormalizedIdentifierValue { get; private set; } = ""; public string PurposeKey { get; private set; } = ""; public string CodeHash { get; private set; } = ""; public DateTimeOffset SentAtUtc { get; private set; }
     public DateTimeOffset ExpiresAtUtc { get; private set; }
     public int AttemptCount { get; private set; }
@@ -75,7 +76,8 @@ public sealed class OtpChallenge
     public DateTimeOffset? VerifiedAtUtc { get; private set; }
     public DateTimeOffset? ConsumedAtUtc { get; private set; }
     public string StatusKey { get; private set; } = IamKeys.OtpStatuses.Pending; public DateTimeOffset CreatedAtUtc { get; private set; }
-    public OtpChallenge(string type, string value, string normalized, string purpose, string hash, DateTimeOffset now, DateTimeOffset expires, int maxAttempts) { LoginTypeKey = type; IdentifierValue = value; NormalizedIdentifierValue = normalized; PurposeKey = purpose; CodeHash = hash; SentAtUtc = CreatedAtUtc = now; ExpiresAtUtc = expires; MaxAttempts = maxAttempts; }
+    public byte[] RowVersion { get; private set; } = [];
+    public OtpChallenge(string publicReference, string type, string value, string normalized, string purpose, string hash, DateTimeOffset now, DateTimeOffset expires, int maxAttempts) { PublicReference = string.IsNullOrWhiteSpace(publicReference) ? throw new DomainValidationException("publicReference", "Must not be blank.") : publicReference.Trim(); LoginTypeKey = type; IdentifierValue = value; NormalizedIdentifierValue = normalized; PurposeKey = purpose; CodeHash = hash; SentAtUtc = CreatedAtUtc = now; ExpiresAtUtc = expires; MaxAttempts = maxAttempts; }
     public bool CanAttempt(DateTimeOffset now) => StatusKey == IamKeys.OtpStatuses.Pending && now <= ExpiresAtUtc && AttemptCount < MaxAttempts;
     public void Fail(DateTimeOffset now) { AttemptCount++; if (AttemptCount >= MaxAttempts) StatusKey = IamKeys.OtpStatuses.Blocked; else if (now > ExpiresAtUtc) StatusKey = IamKeys.OtpStatuses.Expired; }
     public void Verify(DateTimeOffset now) { StatusKey = IamKeys.OtpStatuses.Verified; VerifiedAtUtc = now; }

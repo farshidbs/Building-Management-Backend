@@ -22,7 +22,7 @@ internal sealed class PartyAffiliationConfiguration : IEntityTypeConfiguration<P
 }
 internal sealed class OtpChallengeConfiguration : IEntityTypeConfiguration<OtpChallenge>
 {
-    public void Configure(EntityTypeBuilder<OtpChallenge> b) { b.ToTable("OtpChallenges", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.LoginTypeKey).HasColumnType("varchar(30)"); b.Property(x => x.IdentifierValue).HasMaxLength(200); b.Property(x => x.NormalizedIdentifierValue).HasMaxLength(200); b.Property(x => x.PurposeKey).HasColumnType("varchar(40)"); b.Property(x => x.CodeHash).HasMaxLength(128); b.Property(x => x.StatusKey).HasColumnType("varchar(30)"); b.HasIndex(x => new { x.NormalizedIdentifierValue, x.PurposeKey, x.StatusKey }); }
+    public void Configure(EntityTypeBuilder<OtpChallenge> b) { b.ToTable("OtpChallenges", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.PublicReference).HasMaxLength(100).IsRequired(); b.Property(x => x.LoginTypeKey).HasColumnType("varchar(30)"); b.Property(x => x.IdentifierValue).HasMaxLength(200); b.Property(x => x.NormalizedIdentifierValue).HasMaxLength(200); b.Property(x => x.PurposeKey).HasColumnType("varchar(40)"); b.Property(x => x.CodeHash).HasMaxLength(128); b.Property(x => x.StatusKey).HasColumnType("varchar(30)"); b.Property(x => x.RowVersion).IsRowVersion().IsConcurrencyToken(); b.HasIndex(x => x.PublicReference).IsUnique(); b.HasIndex(x => new { x.NormalizedIdentifierValue, x.PurposeKey, x.StatusKey }); }
 }
 internal sealed class AuthSessionConfiguration : IEntityTypeConfiguration<AuthSession>
 {
@@ -39,9 +39,12 @@ internal sealed class AccessRoleConfiguration : IEntityTypeConfiguration<AccessR
         ConfigurationHelpers.Reference(b, "AccessRoles"); b.Property(x => x.Description).HasMaxLength(500); var at = new DateTimeOffset(2026, 8, 14, 0, 0, 0, TimeSpan.Zero); b.HasData(
     new { Id = 1L, Key = "building_manager", Title = "مدیر ساختمان", SortOrder = 10, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
     new { Id = 2L, Key = "accountant", Title = "حسابدار", SortOrder = 20, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
-    new { Id = 3L, Key = "owner", Title = "مالک", SortOrder = 30, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
-    new { Id = 4L, Key = "tenant", Title = "مستأجر", SortOrder = 40, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
-    new { Id = 5L, Key = "resident", Title = "ساکن", SortOrder = 50, IsActive = true, CreatedAtUtc = at, IsSystemRole = true });
+    new { Id = 3L, Key = "unit_owner", Title = "مالک واحد", SortOrder = 30, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
+    new { Id = 4L, Key = "unit_tenant", Title = "مستأجر واحد", SortOrder = 40, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
+    new { Id = 5L, Key = "unit_resident", Title = "ساکن واحد", SortOrder = 50, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
+    new { Id = 6L, Key = "complex_manager", Title = "مدیر مجتمع", SortOrder = 5, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
+    new { Id = 7L, Key = "manager_assistant", Title = "دستیار مدیر", SortOrder = 15, IsActive = true, CreatedAtUtc = at, IsSystemRole = true },
+    new { Id = 8L, Key = "unit_representative", Title = "نماینده واحد", SortOrder = 60, IsActive = true, CreatedAtUtc = at, IsSystemRole = true });
     }
 }
 internal sealed class AccessPermissionConfiguration : IEntityTypeConfiguration<AccessCapability>
@@ -55,12 +58,50 @@ internal sealed class AccessPermissionConfiguration : IEntityTypeConfiguration<A
     Seed(7, "file_read", "مشاهده فایل", "files", 70, at), Seed(8, "file_manage", "مدیریت فایل", "files", 80, at),
     Seed(9, "asset_read", "مشاهده دارایی", "assets", 90, at), Seed(10, "asset_manage", "مدیریت دارایی", "assets", 100, at),
     Seed(11, "finance_read", "مشاهده مالی", "finance", 110, at), Seed(12, "finance_manage", "مدیریت مالی", "finance", 120, at),
-    Seed(13, "membership_manage", "مدیریت دسترسی‌ها", "iam", 130, at), Seed(14, "invitation_manage", "مدیریت دعوت‌ها", "iam", 140, at));
+    Seed(13, "membership_manage", "مدیریت دسترسی‌ها", "iam", 130, at), Seed(14, "invitation_manage", "مدیریت دعوت‌ها", "iam", 140, at),
+    Seed(15, "complex_view", "مشاهده مجتمع", "physical", 150, at), Seed(16, "complex_manage", "مدیریت مجتمع", "physical", 160, at),
+    Seed(17, "building_view", "مشاهده ساختمان", "physical", 170, at), Seed(18, "building_manage", "مدیریت ساختمان", "physical", 180, at),
+    Seed(19, "unit_view", "مشاهده واحد", "physical", 190, at), Seed(20, "unit_manage", "مدیریت واحد", "physical", 200, at),
+    Seed(21, "party_view", "مشاهده اشخاص", "party", 210, at), Seed(22, "party_manage", "مدیریت اشخاص", "party", 220, at),
+    Seed(23, "occupancy_view", "مشاهده سکونت", "party", 230, at), Seed(24, "occupancy_manage", "مدیریت سکونت", "party", 240, at),
+    Seed(25, "asset_view", "مشاهده دارایی", "assets", 250, at), Seed(26, "asset_manage", "مدیریت دارایی", "assets", 260, at),
+    Seed(27, "expense_view", "مشاهده هزینه", "finance", 270, at), Seed(28, "expense_manage", "مدیریت هزینه", "finance", 280, at),
+    Seed(29, "demand_view", "مشاهده مطالبه", "finance", 290, at), Seed(30, "demand_manage", "مدیریت مطالبه", "finance", 300, at),
+    Seed(31, "payment_view", "مشاهده پرداخت", "finance", 310, at), Seed(32, "payment_manage", "مدیریت پرداخت", "finance", 320, at),
+    Seed(33, "file_read", "مشاهده فایل", "files", 330, at), Seed(34, "file_read_confidential", "مشاهده فایل محرمانه", "files", 340, at),
+    Seed(35, "membership_view", "مشاهده عضویت", "iam", 350, at), Seed(36, "membership_manage_scoped", "مدیریت عضویت", "iam", 360, at),
+    Seed(37, "invitation_send", "ارسال دعوت", "iam", 370, at), Seed(38, "invitation_revoke", "لغو دعوت", "iam", 380, at),
+    Seed(39, "access_grant_view", "مشاهده دسترسی تفویضی", "iam", 390, at), Seed(40, "access_grant_manage", "مدیریت دسترسی تفویضی", "iam", 400, at),
+    Seed(41, "financial_unit_view", "مشاهده مالی واحد", "finance", 410, at), Seed(42, "financial_unit_pay", "پرداخت برای واحد", "finance", 420, at));
     }
     private static object Seed(long id, string key, string title, string category, int order, DateTimeOffset at) => new { Id = id, Key = key, Title = title, CategoryKey = category, SortOrder = order, IsActive = true, CreatedAtUtc = at };
 }
-internal sealed class AccessRolePermissionConfiguration : IEntityTypeConfiguration<AccessRoleCapability> { public void Configure(EntityTypeBuilder<AccessRoleCapability> b) { b.ToTable("RolePermissions", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.EffectKey).HasColumnType("varchar(10)"); b.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique(); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Cascade); b.HasOne<AccessCapability>().WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Cascade); } }
-internal sealed class RoleAllowedScopeConfiguration : IEntityTypeConfiguration<RoleAllowedScope> { public void Configure(EntityTypeBuilder<RoleAllowedScope> b) { b.ToTable("RoleAllowedScopes", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.ScopeKindKey).HasColumnType("varchar(20)"); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.RoleId, x.ScopeKindKey }).IsUnique(); } }
+internal sealed class AccessRolePermissionConfiguration : IEntityTypeConfiguration<AccessRoleCapability>
+{
+    public void Configure(EntityTypeBuilder<AccessRoleCapability> b)
+    {
+        b.ToTable("RolePermissions", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.EffectKey).HasColumnType("varchar(10)"); b.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique(); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Restrict); b.HasOne<AccessCapability>().WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Restrict);
+        var rows = new List<object>(); long id = 1;
+        void Add(long role, params long[] permissions) { foreach (var permission in permissions) rows.Add(new { Id = id++, RoleId = role, PermissionId = permission, EffectKey = "allow" }); }
+        Add(6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42);
+        Add(1, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42);
+        Add(7, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41);
+        Add(2, 17, 19, 21, 23, 25, 27, 28, 29, 30, 31, 32, 33, 41, 42);
+        Add(3, 17, 19, 21, 23, 25, 27, 29, 31, 33, 41, 42);
+        Add(4, 17, 19, 23, 25, 27, 29, 31, 33, 41, 42);
+        Add(5, 17, 19, 23, 25, 27, 29, 31, 33, 41);
+        Add(8, 17, 19, 23, 25, 27, 29, 31, 33, 41, 42);
+        b.HasData(rows);
+    }
+}
+internal sealed class RoleAllowedScopeConfiguration : IEntityTypeConfiguration<RoleAllowedScope>
+{
+    public void Configure(EntityTypeBuilder<RoleAllowedScope> b)
+    {
+        b.ToTable("RoleAllowedScopes", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.ScopeKindKey).HasColumnType("varchar(20)"); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.RoleId, x.ScopeKindKey }).IsUnique();
+        b.HasData(new { Id = 1L, RoleId = 6L, ScopeKindKey = "complex" }, new { Id = 2L, RoleId = 1L, ScopeKindKey = "building" }, new { Id = 3L, RoleId = 7L, ScopeKindKey = "building" }, new { Id = 4L, RoleId = 2L, ScopeKindKey = "building" }, new { Id = 5L, RoleId = 3L, ScopeKindKey = "unit" }, new { Id = 6L, RoleId = 4L, ScopeKindKey = "unit" }, new { Id = 7L, RoleId = 5L, ScopeKindKey = "unit" }, new { Id = 8L, RoleId = 8L, ScopeKindKey = "unit" });
+    }
+}
 internal sealed class AccessMembershipConfiguration : IEntityTypeConfiguration<AccessMembership>
 {
     public void Configure(EntityTypeBuilder<AccessMembership> b) { ConfigurationHelpers.Entity(b, "AccessMemberships"); b.ToTable("AccessMemberships", "bms", t => t.HasCheckConstraint("CK_AccessMemberships_OneScope", "(CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END) = 1")); b.Property(x => x.StatusKey).HasColumnType("varchar(30)"); b.HasOne<User>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Restrict); b.HasOne<Complex>().WithMany().HasForeignKey(x => x.ComplexId).OnDelete(DeleteBehavior.Restrict); b.HasOne<Building>().WithMany().HasForeignKey(x => x.BuildingId).OnDelete(DeleteBehavior.Restrict); b.HasOne<Unit>().WithMany().HasForeignKey(x => x.UnitId).OnDelete(DeleteBehavior.Restrict); b.HasOne<UnitPartyRelation>().WithMany().HasForeignKey(x => x.SourceUnitPartyRelationId).OnDelete(DeleteBehavior.Restrict); b.HasIndex(x => new { x.UserId, x.RoleId, x.ComplexId, x.BuildingId, x.UnitId }).IsUnique().HasFilter("[IsActive] = 1 AND [EndsAtUtc] IS NULL"); }

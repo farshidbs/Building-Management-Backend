@@ -8,24 +8,24 @@ public sealed record AccessContextResponse(string ScopeKind, string ScopeCode, s
 
 public sealed class AccessAuthorizationService(IApplicationDbContext db, TimeProvider clock)
 {
-    private sealed record ResourceScope(long? ComplexId, long? BuildingId, long? UnitId);
+    private sealed record ResourceScope(long? ComplexId, long? BuildingId, long? UnitId, bool Confidential = false);
 
     public async Task<bool> CanReadStoredFile(long userId, long storedFileId, CancellationToken ct)
     {
         var scopes = new List<ResourceScope>();
         scopes.AddRange(await db.BuildingGalleryFiles.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(null, x.BuildingId, null)).ToListAsync(ct));
-        scopes.AddRange(await db.BuildingDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(null, x.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await db.BuildingDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(null, x.BuildingId, null, x.IsConfidential)).ToListAsync(ct));
         scopes.AddRange(await db.ComplexGalleryFiles.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(x.ComplexId, null, null)).ToListAsync(ct));
-        scopes.AddRange(await db.ComplexDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(x.ComplexId, null, null)).ToListAsync(ct));
+        scopes.AddRange(await db.ComplexDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(x.ComplexId, null, null, x.IsConfidential)).ToListAsync(ct));
         scopes.AddRange(await (from relation in db.AssetGalleryFiles.AsNoTracking() join asset in db.Assets on relation.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
-        scopes.AddRange(await (from relation in db.AssetDocuments.AsNoTracking() join asset in db.Assets on relation.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.AssetDocuments.AsNoTracking() join asset in db.Assets on relation.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null, relation.IsConfidential)).ToListAsync(ct));
         scopes.AddRange(await (from relation in db.AssetEventFiles.AsNoTracking() join assetEvent in db.AssetEvents on relation.AssetEventId equals assetEvent.Id join asset in db.Assets on assetEvent.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
         scopes.AddRange(await (from relation in db.ExpenseDocuments.AsNoTracking() join expense in db.Expenses on relation.ExpenseId equals expense.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(expense.ComplexId, expense.BuildingId, null)).ToListAsync(ct));
         scopes.AddRange(await (from relation in db.ExpenseDisbursementFiles.AsNoTracking() join disbursement in db.ExpenseDisbursements on relation.ExpenseDisbursementId equals disbursement.Id join expense in db.Expenses on disbursement.ExpenseId equals expense.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(expense.ComplexId, expense.BuildingId, null)).ToListAsync(ct));
         scopes.AddRange(await (from relation in db.PaymentEvidenceFiles.AsNoTracking() join payment in db.Payments on relation.PaymentId equals payment.Id join account in db.FinancialAccounts on payment.UnitAccountId equals account.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(account.ComplexId, account.BuildingId, account.UnitId)).ToListAsync(ct));
         foreach (var scope in scopes.Distinct())
         {
-            try { await Ensure(userId, "file_read", scope.ComplexId, scope.BuildingId, scope.UnitId, ct); return true; }
+            try { await Ensure(userId, scope.Confidential ? "file_read_confidential" : "file_read", scope.ComplexId, scope.BuildingId, scope.UnitId, ct); return true; }
             catch (AppException exception) when (exception.Status is 403 or 404) { }
         }
         return false;

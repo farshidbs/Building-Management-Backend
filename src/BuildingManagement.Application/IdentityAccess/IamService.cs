@@ -11,31 +11,42 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     public async Task<RequestOtpResponse> RequestOtp(RequestOtpRequest request, CancellationToken ct)
     {
         var purpose = Required(request.PurposeKey, "purposeKey").ToLowerInvariant();
-        if (purpose is not ("login" or "register" or "add_login_method" or "recovery" or "invitation"))
-            throw Validation("purposeKey", "OTP purpose is invalid.");
+        if (purpose is not ("login" or "register"))
+            throw Validation("purposeKey", "Public OTP purpose must be login or register.");
         var mobile = IranianMobileNormalizer.Normalize(request.Mobile);
+        if (await db.OtpChallenges.AnyAsync(x => x.NormalizedIdentifierValue == mobile &&
+            x.PurposeKey == purpose && x.StatusKey == IamKeys.OtpStatuses.Pending &&
+            x.SentAtUtc > Now.AddMinutes(-1), ct))
+            throw new AppException(429, "otp.cooldown", "Wait before requesting another OTP.");
         var recent = await db.OtpChallenges.CountAsync(x => x.NormalizedIdentifierValue == mobile &&
             x.CreatedAtUtc > Now.AddMinutes(-10), ct);
         if (recent >= 5) throw new AppException(429, "otp.rate_limited", "Too many OTP requests.");
         var code = protector.CreateOtp();
-        var challenge = new OtpChallenge(IamKeys.LoginTypes.Mobile, mobile, mobile, purpose,
+        var challenge = new OtpChallenge(protector.CreateToken(18), IamKeys.LoginTypes.Mobile, mobile, mobile, purpose,
             protector.Hash(code), Now, Now.AddMinutes(options.OtpLifetimeMinutes), options.OtpMaxAttempts);
         db.OtpChallenges.Add(challenge);
         await db.SaveChangesAsync(ct);
         await otpDelivery.Send(mobile, code, ct);
-        return new(challenge.Id, challenge.ExpiresAtUtc);
+        return new(challenge.PublicReference, challenge.ExpiresAtUtc);
     }
 
-    public Task<TokenResponse> VerifyOtp(VerifyOtpRequest request, CancellationToken ct) =>
-        db.ExecuteInTransaction(async token =>
+    public async Task<TokenResponse> VerifyOtp(VerifyOtpRequest request, CancellationToken ct)
+    {
+        var reference = Required(request.ChallengeReference, "challengeReference");
+        var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x => x.PublicReference == reference, ct)
+            ?? throw AppException.NotFound("otp_challenge");
+        if (!challenge.CanAttempt(Now) || !protector.Verify(Required(request.Code, "code"), challenge.CodeHash))
         {
-            var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x => x.Id == request.ChallengeId, token)
-                ?? throw AppException.NotFound("otp_challenge");
-            if (!challenge.CanAttempt(Now) || !protector.Verify(request.Code, challenge.CodeHash))
+            if (challenge.StatusKey == IamKeys.OtpStatuses.Pending)
             {
-                challenge.Fail(Now); await db.SaveChangesAsync(token);
-                throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+                challenge.Fail(Now);
+                await db.SaveChangesAsync(ct);
             }
+            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+        }
+
+        return await db.ExecuteInTransaction(async token =>
+        {
             challenge.Verify(Now);
             var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
                 x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue, token);
@@ -68,6 +79,7 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
             await db.SaveChangesAsync(token);
             return result with { PartyCode = partyCode };
         }, ct);
+    }
 
     public async Task<TokenResponse> Refresh(RefreshTokenRequest request, CancellationToken ct)
     {

@@ -82,6 +82,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
+                    PublicReference = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     LoginTypeKey = table.Column<string>(type: "varchar(30)", nullable: false),
                     IdentifierValue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
                     NormalizedIdentifierValue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
@@ -94,7 +95,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     VerifiedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     ConsumedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
@@ -336,14 +338,14 @@ namespace BuildingManagement.Infrastructure.Migrations
                         principalSchema: "bms",
                         principalTable: "AccessRoles",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_RolePermissions_Permissions_PermissionId",
                         column: x => x.PermissionId,
                         principalSchema: "bms",
                         principalTable: "Permissions",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -1016,9 +1018,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     { 1L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "building_manager", 10, "مدیر ساختمان", null },
                     { 2L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "accountant", 20, "حسابدار", null },
-                    { 3L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "owner", 30, "مالک", null },
-                    { 4L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "tenant", 40, "مستأجر", null },
-                    { 5L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "resident", 50, "ساکن", null }
+                    { 3L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "unit_owner", 30, "مالک واحد", null },
+                    { 4L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "unit_tenant", 40, "مستأجر واحد", null },
+                    { 5L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "unit_resident", 50, "ساکن واحد", null },
+                    { 6L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "complex_manager", 5, "مدیر مجتمع", null },
+                    { 7L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "manager_assistant", 15, "دستیار مدیر", null },
+                    { 8L, new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, true, "unit_representative", 60, "نماینده واحد", null }
                 });
 
             migrationBuilder.InsertData(
@@ -1040,7 +1045,180 @@ namespace BuildingManagement.Infrastructure.Migrations
                     { 11L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "finance_read", 110, "مشاهده مالی", null },
                     { 12L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "finance_manage", 120, "مدیریت مالی", null },
                     { 13L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "membership_manage", 130, "مدیریت دسترسی‌ها", null },
-                    { 14L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "invitation_manage", 140, "مدیریت دعوت‌ها", null }
+                    { 14L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "invitation_manage", 140, "مدیریت دعوت‌ها", null },
+                    { 15L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "complex_view", 150, "مشاهده مجتمع", null },
+                    { 16L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "complex_manage", 160, "مدیریت مجتمع", null },
+                    { 17L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "building_view", 170, "مشاهده ساختمان", null },
+                    { 18L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "building_manage", 180, "مدیریت ساختمان", null },
+                    { 19L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "unit_view", 190, "مشاهده واحد", null },
+                    { 20L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "unit_manage", 200, "مدیریت واحد", null },
+                    { 21L, "party", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "party_view", 210, "مشاهده اشخاص", null },
+                    { 22L, "party", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "party_manage", 220, "مدیریت اشخاص", null },
+                    { 23L, "party", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "occupancy_view", 230, "مشاهده سکونت", null },
+                    { 24L, "party", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "occupancy_manage", 240, "مدیریت سکونت", null },
+                    { 25L, "assets", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "asset_view", 250, "مشاهده دارایی", null },
+                    { 26L, "assets", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "asset_manage", 260, "مدیریت دارایی", null },
+                    { 27L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "expense_view", 270, "مشاهده هزینه", null },
+                    { 28L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "expense_manage", 280, "مدیریت هزینه", null },
+                    { 29L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "demand_view", 290, "مشاهده مطالبه", null },
+                    { 30L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "demand_manage", 300, "مدیریت مطالبه", null },
+                    { 31L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "payment_view", 310, "مشاهده پرداخت", null },
+                    { 32L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "payment_manage", 320, "مدیریت پرداخت", null },
+                    { 33L, "files", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "file_read", 330, "مشاهده فایل", null },
+                    { 34L, "files", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "file_read_confidential", 340, "مشاهده فایل محرمانه", null },
+                    { 35L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "membership_view", 350, "مشاهده عضویت", null },
+                    { 36L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "membership_manage_scoped", 360, "مدیریت عضویت", null },
+                    { 37L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "invitation_send", 370, "ارسال دعوت", null },
+                    { 38L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "invitation_revoke", 380, "لغو دعوت", null },
+                    { 39L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "access_grant_view", 390, "مشاهده دسترسی تفویضی", null },
+                    { 40L, "iam", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "access_grant_manage", 400, "مدیریت دسترسی تفویضی", null },
+                    { 41L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_view", 410, "مشاهده مالی واحد", null },
+                    { 42L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_pay", 420, "پرداخت برای واحد", null }
+                });
+
+            migrationBuilder.InsertData(
+                schema: "bms",
+                table: "RoleAllowedScopes",
+                columns: new[] { "Id", "RoleId", "ScopeKindKey" },
+                values: new object[,]
+                {
+                    { 1L, 6L, "complex" },
+                    { 2L, 1L, "building" },
+                    { 3L, 7L, "building" },
+                    { 4L, 2L, "building" },
+                    { 5L, 3L, "unit" },
+                    { 6L, 4L, "unit" },
+                    { 7L, 5L, "unit" },
+                    { 8L, 8L, "unit" }
+                });
+
+            migrationBuilder.InsertData(
+                schema: "bms",
+                table: "RolePermissions",
+                columns: new[] { "Id", "EffectKey", "PermissionId", "RoleId" },
+                values: new object[,]
+                {
+                    { 1L, "allow", 15L, 6L },
+                    { 2L, "allow", 16L, 6L },
+                    { 3L, "allow", 17L, 6L },
+                    { 4L, "allow", 18L, 6L },
+                    { 5L, "allow", 19L, 6L },
+                    { 6L, "allow", 20L, 6L },
+                    { 7L, "allow", 21L, 6L },
+                    { 8L, "allow", 22L, 6L },
+                    { 9L, "allow", 23L, 6L },
+                    { 10L, "allow", 24L, 6L },
+                    { 11L, "allow", 25L, 6L },
+                    { 12L, "allow", 26L, 6L },
+                    { 13L, "allow", 27L, 6L },
+                    { 14L, "allow", 28L, 6L },
+                    { 15L, "allow", 29L, 6L },
+                    { 16L, "allow", 30L, 6L },
+                    { 17L, "allow", 31L, 6L },
+                    { 18L, "allow", 32L, 6L },
+                    { 19L, "allow", 33L, 6L },
+                    { 20L, "allow", 34L, 6L },
+                    { 21L, "allow", 35L, 6L },
+                    { 22L, "allow", 36L, 6L },
+                    { 23L, "allow", 37L, 6L },
+                    { 24L, "allow", 38L, 6L },
+                    { 25L, "allow", 39L, 6L },
+                    { 26L, "allow", 40L, 6L },
+                    { 27L, "allow", 41L, 6L },
+                    { 28L, "allow", 42L, 6L },
+                    { 29L, "allow", 17L, 1L },
+                    { 30L, "allow", 18L, 1L },
+                    { 31L, "allow", 19L, 1L },
+                    { 32L, "allow", 20L, 1L },
+                    { 33L, "allow", 21L, 1L },
+                    { 34L, "allow", 22L, 1L },
+                    { 35L, "allow", 23L, 1L },
+                    { 36L, "allow", 24L, 1L },
+                    { 37L, "allow", 25L, 1L },
+                    { 38L, "allow", 26L, 1L },
+                    { 39L, "allow", 27L, 1L },
+                    { 40L, "allow", 28L, 1L },
+                    { 41L, "allow", 29L, 1L },
+                    { 42L, "allow", 30L, 1L },
+                    { 43L, "allow", 31L, 1L },
+                    { 44L, "allow", 32L, 1L },
+                    { 45L, "allow", 33L, 1L },
+                    { 46L, "allow", 34L, 1L },
+                    { 47L, "allow", 35L, 1L },
+                    { 48L, "allow", 36L, 1L },
+                    { 49L, "allow", 37L, 1L },
+                    { 50L, "allow", 38L, 1L },
+                    { 51L, "allow", 39L, 1L },
+                    { 52L, "allow", 40L, 1L },
+                    { 53L, "allow", 41L, 1L },
+                    { 54L, "allow", 42L, 1L },
+                    { 55L, "allow", 17L, 7L },
+                    { 56L, "allow", 19L, 7L },
+                    { 57L, "allow", 21L, 7L },
+                    { 58L, "allow", 23L, 7L },
+                    { 59L, "allow", 25L, 7L },
+                    { 60L, "allow", 27L, 7L },
+                    { 61L, "allow", 29L, 7L },
+                    { 62L, "allow", 31L, 7L },
+                    { 63L, "allow", 33L, 7L },
+                    { 64L, "allow", 35L, 7L },
+                    { 65L, "allow", 37L, 7L },
+                    { 66L, "allow", 39L, 7L },
+                    { 67L, "allow", 41L, 7L },
+                    { 68L, "allow", 17L, 2L },
+                    { 69L, "allow", 19L, 2L },
+                    { 70L, "allow", 21L, 2L },
+                    { 71L, "allow", 23L, 2L },
+                    { 72L, "allow", 25L, 2L },
+                    { 73L, "allow", 27L, 2L },
+                    { 74L, "allow", 28L, 2L },
+                    { 75L, "allow", 29L, 2L },
+                    { 76L, "allow", 30L, 2L },
+                    { 77L, "allow", 31L, 2L },
+                    { 78L, "allow", 32L, 2L },
+                    { 79L, "allow", 33L, 2L },
+                    { 80L, "allow", 41L, 2L },
+                    { 81L, "allow", 42L, 2L },
+                    { 82L, "allow", 17L, 3L },
+                    { 83L, "allow", 19L, 3L },
+                    { 84L, "allow", 21L, 3L },
+                    { 85L, "allow", 23L, 3L },
+                    { 86L, "allow", 25L, 3L },
+                    { 87L, "allow", 27L, 3L },
+                    { 88L, "allow", 29L, 3L },
+                    { 89L, "allow", 31L, 3L },
+                    { 90L, "allow", 33L, 3L },
+                    { 91L, "allow", 41L, 3L },
+                    { 92L, "allow", 42L, 3L },
+                    { 93L, "allow", 17L, 4L },
+                    { 94L, "allow", 19L, 4L },
+                    { 95L, "allow", 23L, 4L },
+                    { 96L, "allow", 25L, 4L },
+                    { 97L, "allow", 27L, 4L },
+                    { 98L, "allow", 29L, 4L },
+                    { 99L, "allow", 31L, 4L },
+                    { 100L, "allow", 33L, 4L },
+                    { 101L, "allow", 41L, 4L },
+                    { 102L, "allow", 42L, 4L },
+                    { 103L, "allow", 17L, 5L },
+                    { 104L, "allow", 19L, 5L },
+                    { 105L, "allow", 23L, 5L },
+                    { 106L, "allow", 25L, 5L },
+                    { 107L, "allow", 27L, 5L },
+                    { 108L, "allow", 29L, 5L },
+                    { 109L, "allow", 31L, 5L },
+                    { 110L, "allow", 33L, 5L },
+                    { 111L, "allow", 41L, 5L },
+                    { 112L, "allow", 17L, 8L },
+                    { 113L, "allow", 19L, 8L },
+                    { 114L, "allow", 23L, 8L },
+                    { 115L, "allow", 25L, 8L },
+                    { 116L, "allow", 27L, 8L },
+                    { 117L, "allow", 29L, 8L },
+                    { 118L, "allow", 31L, 8L },
+                    { 119L, "allow", 33L, 8L },
+                    { 120L, "allow", 41L, 8L },
+                    { 121L, "allow", 42L, 8L }
                 });
 
             migrationBuilder.CreateIndex(
@@ -1419,6 +1597,13 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "OtpChallenges",
                 columns: new[] { "NormalizedIdentifierValue", "PurposeKey", "StatusKey" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_OtpChallenges_PublicReference",
+                schema: "bms",
+                table: "OtpChallenges",
+                column: "PublicReference",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_PartyAffiliations_Code",
