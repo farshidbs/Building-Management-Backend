@@ -3,12 +3,16 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock) : FinancialServiceBase(db, clock)
+public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : FinancialServiceBase(db, clock, authorization)
 {
     public async Task<Page<ExpenseResponse>> List(PageQuery query, string? status, CancellationToken ct)
     {
         var (pageNumber, pageSize) = query.Validated();
-        var expenses = Db.Expenses.AsNoTracking();
+        var accessible = await Authorization.Accessible("expense_view", ct);
+        var expenses = Db.Expenses.AsNoTracking().Where(x =>
+            x.ComplexId.HasValue && accessible.ComplexIds.Contains(x.ComplexId.Value) ||
+            x.BuildingId.HasValue && (accessible.BuildingIds.Contains(x.BuildingId.Value) ||
+                Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))));
         if (!string.IsNullOrWhiteSpace(status)) expenses = expenses.Where(x => x.Status == status);
         if (!string.IsNullOrWhiteSpace(query.Search)) expenses = expenses.Where(x => x.Title.Contains(query.Search));
         var total = await expenses.CountAsync(ct);
@@ -23,6 +27,7 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
     {
         var expense = await Db.Expenses.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct)
             ?? throw AppException.NotFound("expense");
+        await Authorize(expense, "expense_view", ct);
         return await Detail(expense, ct);
     }
 
@@ -31,6 +36,7 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
         var building = string.IsNullOrWhiteSpace(r.BuildingCode) ? (long?)null : await Db.Buildings.Where(x => x.Code == Code(r.BuildingCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
         var complex = string.IsNullOrWhiteSpace(r.ComplexCode) ? (long?)null : await Db.Complexes.Where(x => x.Code == Code(r.ComplexCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
         if (!building.HasValue && !complex.HasValue) throw Validation("scope", "Custom expense type requires a scope.");
+        await Authorize("expense_create", complex, building, null, ct);
         var type = new ExpenseType(null, r.Title, complex, building, r.SortOrder, Now); Db.ExpenseTypes.Add(type); await Save(ct);
         return new(type.Id, type.Key, type.Title, r.BuildingCode, r.ComplexCode, type.IsActive);
     }
@@ -42,6 +48,8 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
         long? building = null, complex = null;
         if (!string.IsNullOrWhiteSpace(buildingCode)) { var row = await Db.Buildings.Where(x => x.Code == Code(buildingCode)).Select(x => new { x.Id, x.ComplexId }).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building"); building = row.Id; complex = row.ComplexId; }
         else if (!string.IsNullOrWhiteSpace(complexCode)) complex = await Db.Complexes.Where(x => x.Code == Code(complexCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
+        if (building.HasValue || complex.HasValue) await Authorize("expense_view", complex, building, null, ct);
+        else await Authorization.EnsureAny("expense_view", ct);
         return await AvailableTypes(building, complex).AsNoTracking().OrderBy(x => x.SortOrder).ThenBy(x => x.Title).Select(x => new ExpenseTypeResponse(x.Id, x.Key, x.Title, x.BuildingId == null ? null : Db.Buildings.Where(b => b.Id == x.BuildingId).Select(b => b.Code).Single(), x.ComplexId == null ? null : Db.Complexes.Where(c => c.Id == x.ComplexId).Select(c => c.Code).Single(), x.IsActive)).ToListAsync(ct);
     }
     public async Task<ExpenseResponse> Create(ExpenseRequest request, CancellationToken ct) =>
@@ -64,6 +72,7 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
                 ? null
                 : await Db.Complexes.Where(x => x.Code == Code(request.ComplexCode))
                     .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("complex");
+            await Authorize("expense_create", complexId ?? parentComplexId, buildingId, null, token);
             var typeId = await AvailableTypes(buildingId, buildingId.HasValue ? parentComplexId : complexId)
                 .Where(x => x.Id == request.ExpenseTypeId)
                 .Select(x => (long?)x.Id).FirstOrDefaultAsync(token) ?? throw AppException.NotFound("expense_type");
@@ -80,9 +89,9 @@ public sealed class ExpenseService(IApplicationDbContext db, TimeProvider clock)
             await Save(token);
             return await Response(expense, token);
         }, ct);
-    public async Task<ExpenseResponse> Finalize(string code, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("expense"); e.Finalize(Now); await Save(ct); return await Response(e, ct); }
-    public async Task<ExpenseResponse> Update(string code, UpdateExpenseDraftRequest r, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("expense"); var parentComplexId = e.BuildingId.HasValue ? await Db.Buildings.Where(x => x.Id == e.BuildingId).Select(x => x.ComplexId).SingleAsync(ct) : e.ComplexId; var typeId = await AvailableTypes(e.BuildingId, parentComplexId).Where(x => x.Id == r.ExpenseTypeId).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("expense_type"); long? vendorId = string.IsNullOrWhiteSpace(r.VendorPartyCode) ? null : await Db.Parties.Where(x => x.Code == Code(r.VendorPartyCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party"); e.Update(e.BuildingId, e.ComplexId, typeId, vendorId, r.Title, r.Amount, r.ExpenseDate, r.DueDate, r.Description, Now); await Save(ct); return await Response(e, ct); }
-    public async Task<ExpenseDisbursementResponse> CreateDisbursement(string expenseCode, ExpenseDisbursementRequest r, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct) ?? throw AppException.NotFound("expense"); if (e.Status != FinancialKeys.Statuses.Finalized) throw AppException.Conflict("expense.not_finalized", "Expense must be finalized."); var fund = await FundAccount(r.FundBuildingCode, r.FundComplexCode, r.FundAccountKindKey, ct); if ((e.BuildingId != null && fund.BuildingId != e.BuildingId) || (e.ComplexId != null && fund.ComplexId != e.ComplexId)) throw Validation("fundAccount", "Fund must belong to the expense scope."); var payee = string.IsNullOrWhiteSpace(r.PayeePartyCode) ? (long?)null : await Db.Parties.Where(x => x.Code == Code(r.PayeePartyCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party"); var d = new ExpenseDisbursement(await Unique(Db.ExpenseDisbursements, ct), e.Id, fund.Id, payee, r.Amount, r.PaymentMethodKey, r.PaidAtUtc, r.Notes, Now); Db.ExpenseDisbursements.Add(d); await Save(ct); return await DisbursementResponse(d, e.Code, ct); }
+    public async Task<ExpenseResponse> Finalize(string code, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("expense"); await Authorize(e, "expense_finalize", ct); e.Finalize(Now); await Save(ct); return await Response(e, ct); }
+    public async Task<ExpenseResponse> Update(string code, UpdateExpenseDraftRequest r, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(code), ct) ?? throw AppException.NotFound("expense"); await Authorize(e, "expense_update", ct); var parentComplexId = e.BuildingId.HasValue ? await Db.Buildings.Where(x => x.Id == e.BuildingId).Select(x => x.ComplexId).SingleAsync(ct) : e.ComplexId; var typeId = await AvailableTypes(e.BuildingId, parentComplexId).Where(x => x.Id == r.ExpenseTypeId).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("expense_type"); long? vendorId = string.IsNullOrWhiteSpace(r.VendorPartyCode) ? null : await Db.Parties.Where(x => x.Code == Code(r.VendorPartyCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party"); e.Update(e.BuildingId, e.ComplexId, typeId, vendorId, r.Title, r.Amount, r.ExpenseDate, r.DueDate, r.Description, Now); await Save(ct); return await Response(e, ct); }
+    public async Task<ExpenseDisbursementResponse> CreateDisbursement(string expenseCode, ExpenseDisbursementRequest r, CancellationToken ct) { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct) ?? throw AppException.NotFound("expense"); await Authorize(e, "expense_finalize", ct); if (e.Status != FinancialKeys.Statuses.Finalized) throw AppException.Conflict("expense.not_finalized", "Expense must be finalized."); var fund = await FundAccount(r.FundBuildingCode, r.FundComplexCode, r.FundAccountKindKey, ct); if ((e.BuildingId != null && fund.BuildingId != e.BuildingId) || (e.ComplexId != null && fund.ComplexId != e.ComplexId)) throw Validation("fundAccount", "Fund must belong to the expense scope."); var payee = string.IsNullOrWhiteSpace(r.PayeePartyCode) ? (long?)null : await Db.Parties.Where(x => x.Code == Code(r.PayeePartyCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party"); var d = new ExpenseDisbursement(await Unique(Db.ExpenseDisbursements, ct), e.Id, fund.Id, payee, r.Amount, r.PaymentMethodKey, r.PaidAtUtc, r.Notes, Now); Db.ExpenseDisbursements.Add(d); await Save(ct); return await DisbursementResponse(d, e.Code, ct); }
     public async Task<ExpenseDisbursementResponse> FinalizeDisbursement(string expenseCode, string disbursementCode, CancellationToken ct) => await Db.ExecuteInTransaction<ExpenseDisbursementResponse>(async token => { var e = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), token) ?? throw AppException.NotFound("expense"); var d = await Db.ExpenseDisbursements.SingleOrDefaultAsync(x => x.Code == Code(disbursementCode) && x.ExpenseId == e.Id, token) ?? throw AppException.NotFound("expense_disbursement"); if (await Db.FinancialTransactions.AnyAsync(x => x.ExpenseDisbursementId == d.Id, token)) return await DisbursementResponse(d, e.Code, token); var alreadyPaid = await Db.ExpenseDisbursements.Where(x => x.ExpenseId == e.Id && x.Status == FinancialKeys.Statuses.Finalized).SumAsync(x => (decimal?)x.Amount, token) ?? 0; if (alreadyPaid + d.Amount > e.Amount) throw AppException.Conflict("expense.over_disbursement", "Disbursements cannot exceed expense amount."); var fund = await Db.FinancialAccounts.SingleAsync(x => x.Id == d.FundAccountId, token); d.Finalize(Now); e.TouchFinancialState(Now); var tx = new FinancialTransaction(FinancialKeys.TransactionTypes.ExpenseDisbursement, null, null, d.Id, null, d.PaidAtUtc!.Value, $"Expense {e.Code}", Now); Db.FinancialTransactions.Add(tx); await Apply(fund, FinancialKeys.Effects.Decrease, d.Amount, tx, token); await Save(token); return await DisbursementResponse(d, e.Code, token); }, ct);
     private async Task<ExpenseResponse> Response(Expense e, CancellationToken ct) { var paid = await Db.ExpenseDisbursements.Where(x => x.ExpenseId == e.Id && x.Status == FinancialKeys.Statuses.Finalized).SumAsync(x => (decimal?)x.Amount, ct) ?? 0; return new(e.Code, e.Title, e.Amount, paid, Math.Max(0, e.Amount - paid), e.Status, e.ExpenseDate, e.DueDate); }
 

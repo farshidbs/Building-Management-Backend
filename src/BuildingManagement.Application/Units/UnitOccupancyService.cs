@@ -3,12 +3,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class UnitOccupancyService(IApplicationDbContext db, TimeProvider clock) : PartyOccupancyServiceBase(db, clock)
+public sealed class UnitOccupancyService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : PartyOccupancyServiceBase(db, clock, authorization)
 {
     public async Task<IReadOnlyList<UnitOccupancyHistoryResponse>> GetOccupancyHistory(
         string unitCode, CancellationToken ct)
     {
         var unitId = await UnitId(unitCode, ct);
+        await Authorization.Ensure("occupancy_view", null, null, unitId, ct);
         return await Db.UnitOccupancyHistories.AsNoTracking().Where(x => x.UnitId == unitId)
             .OrderByDescending(x => x.EffectiveFrom)
             .Select(x => new UnitOccupancyHistoryResponse(x.OccupantsCount, x.EffectiveFrom,
@@ -43,6 +44,7 @@ public sealed class UnitOccupancyService(IApplicationDbContext db, TimeProvider 
         {
             var unit = await Db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(unitCode), token)
                 ?? throw AppException.NotFound("unit");
+            await Authorization.Ensure("occupancy_manage", null, unit.BuildingId, unit.Id, token);
             var current = await Db.UnitOccupancyHistories.SingleOrDefaultAsync(x =>
                 x.UnitId == unit.Id && x.IsActive && x.EffectiveTo == null, token)
                 ?? throw AppException.Conflict("occupancy.history_missing",

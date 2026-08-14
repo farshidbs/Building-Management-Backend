@@ -3,9 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public abstract class PartyOccupancyServiceBase(IApplicationDbContext db, TimeProvider clock)
+public abstract class PartyOccupancyServiceBase(IApplicationDbContext db, TimeProvider clock,
+    ResourceAuthorization? resourceAuthorization = null)
 {
     protected IApplicationDbContext Db { get; } = db;
+    protected ResourceAuthorization Authorization { get; } = resourceAuthorization!;
     protected DateTimeOffset Now => clock.GetUtcNow();
 
     protected async Task<UnitPartyRelation> AddRelation(long unitId, UnitOnboardingRelationRequest request,

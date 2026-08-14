@@ -3,6 +3,7 @@ using BuildingManagement.Domain;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Data.SqlClient;
 
 namespace BuildingManagement.Infrastructure;
 
@@ -94,6 +95,38 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<BuildingRolePermissionOverride> BuildingRolePermissionOverrides => Set<BuildingRolePermissionOverride>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
+
+    public async Task<bool> TryReserveOtpAttempt(string publicReference, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var reference = new SqlParameter("@reference", publicReference);
+        var current = new SqlParameter("@now", now);
+        var affected = await Database.ExecuteSqlRawAsync("""
+            UPDATE [bms].[OtpChallenges] WITH (UPDLOCK, ROWLOCK)
+            SET [AttemptCount] = [AttemptCount] + 1
+            WHERE [PublicReference] = @reference
+              AND [StatusKey] = 'pending'
+              AND [ExpiresAtUtc] >= @now
+              AND [AttemptCount] < [MaxAttempts]
+            """, [reference, current], cancellationToken);
+        return affected == 1;
+    }
+
+    public Task MarkOtpAttemptFailed(string publicReference, DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var reference = new SqlParameter("@reference", publicReference);
+        var current = new SqlParameter("@now", now);
+        return Database.ExecuteSqlRawAsync("""
+            UPDATE [bms].[OtpChallenges]
+            SET [StatusKey] = CASE
+                WHEN [ExpiresAtUtc] < @now THEN 'expired'
+                WHEN [AttemptCount] >= [MaxAttempts] THEN 'blocked'
+                ELSE [StatusKey]
+            END
+            WHERE [PublicReference] = @reference AND [StatusKey] = 'pending'
+            """, [reference, current], cancellationToken);
+    }
 
     public async Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken)

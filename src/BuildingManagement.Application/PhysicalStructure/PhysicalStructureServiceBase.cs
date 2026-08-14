@@ -59,9 +59,11 @@ internal static class RequestValidation
             throw new AppException(400, "validation.failed", "One or more validation errors occurred.", errors);
     }
 }
-public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, TimeProvider clock)
+public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, TimeProvider clock,
+    ResourceAuthorization? resourceAuthorization = null)
 {
     protected IApplicationDbContext Db { get; } = db;
+    protected ResourceAuthorization Authorization { get; } = resourceAuthorization!;
     protected DateTimeOffset Now => clock.GetUtcNow();
 
     protected async Task Activate(string resource, string code, bool active, CancellationToken ct)
@@ -75,6 +77,7 @@ public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, Tim
             "unit" => await Db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource),
             _ => throw new InvalidOperationException()
         };
+        await AuthorizeEntity(resource, entity.Id, true, ct);
         entity.SetActivation(active, Now);
         await Save(ct);
     }
@@ -94,23 +97,42 @@ public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, Tim
                 break;
             case "complex":
                 var complex = await Db.Complexes.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                await Authorization.Ensure("complex_manage", complex.Id, null, null, ct);
                 if (await Db.Buildings.AnyAsync(x => x.ComplexId == complex.Id, ct))
                     throw AppException.Conflict("complex.has_buildings", "Complex has buildings.");
                 Db.Complexes.Remove(complex);
                 break;
             case "building":
                 var building = await Db.Buildings.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                await Authorization.Ensure("building_manage", building.ComplexId, building.Id, null, ct);
                 if (await Db.Units.AnyAsync(x => x.BuildingId == building.Id, ct))
                     throw AppException.Conflict("building.has_units", "Building has units.");
                 Db.Buildings.Remove(building);
                 break;
             case "unit":
-                Db.Units.Remove(await Db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource));
+                var unit = await Db.Units.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                await Authorization.Ensure("unit_manage", null, unit.BuildingId, unit.Id, ct);
+                Db.Units.Remove(unit);
                 break;
             default:
                 throw new InvalidOperationException();
         }
         await Save(ct);
+    }
+
+    private async Task AuthorizeEntity(string resource, long id, bool manage, CancellationToken ct)
+    {
+        if (resource == "complex") await Authorization.Ensure(manage ? "complex_manage" : "complex_view", id, null, null, ct);
+        else if (resource == "building")
+        {
+            var parent = await Db.Buildings.Where(x => x.Id == id).Select(x => x.ComplexId).SingleAsync(ct);
+            await Authorization.Ensure(manage ? "building_manage" : "building_view", parent, id, null, ct);
+        }
+        else if (resource == "unit")
+        {
+            var parent = await Db.Units.Where(x => x.Id == id).Select(x => x.BuildingId).SingleAsync(ct);
+            await Authorization.Ensure(manage ? "unit_manage" : "unit_view", null, parent, id, ct);
+        }
     }
 
     protected async Task Save(CancellationToken ct)

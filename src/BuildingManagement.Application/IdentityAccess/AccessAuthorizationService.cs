@@ -5,6 +5,8 @@ namespace BuildingManagement.Application;
 
 public sealed record AccessContextResponse(string ScopeKind, string ScopeCode, string ScopeName,
     IReadOnlyList<string> Roles, IReadOnlyList<string> Permissions);
+public sealed record AccessibleResourceIds(IReadOnlyList<long> ComplexIds,
+    IReadOnlyList<long> BuildingIds, IReadOnlyList<long> UnitIds);
 
 public sealed class AccessAuthorizationService(IApplicationDbContext db, TimeProvider clock)
 {
@@ -30,11 +32,37 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         }
         return false;
     }
+
+    public async Task EnsureParty(long userId, string permissionKey, long partyId, CancellationToken ct)
+    {
+        var unitScopes = await (from relation in db.UnitPartyRelations.AsNoTracking()
+                                join unit in db.Units.AsNoTracking() on relation.UnitId equals unit.Id
+                                where relation.PartyId == partyId && relation.IsActive
+                                select new { UnitId = unit.Id, unit.BuildingId }).Distinct().ToListAsync(ct);
+        foreach (var scope in unitScopes)
+        {
+            try
+            {
+                await Ensure(userId, permissionKey, null, scope.BuildingId, scope.UnitId, ct);
+                return;
+            }
+            catch (AppException exception) when (exception.Status == 403) { }
+        }
+        if (unitScopes.Count == 0)
+        {
+            await EnsureAny(userId, permissionKey, ct);
+            return;
+        }
+        throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
+    }
     public async Task<IReadOnlyList<AccessContextResponse>> GetContexts(long userId, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
         var memberships = await db.AccessMemberships.AsNoTracking()
-            .Where(x => x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now)
+            .Where(x => x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now &&
+                (!x.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                    relation.Id == x.SourceUnitPartyRelationId && relation.IsActive &&
+                    (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null)))
             .ToListAsync(ct);
         var result = new List<AccessContextResponse>();
         foreach (var scopeGroup in memberships.GroupBy(x => new { x.ComplexId, x.BuildingId, x.UnitId }))
@@ -54,10 +82,64 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         return result;
     }
 
+    public async Task EnsureAny(long userId, string permissionKey, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var allowed = await (from membership in db.AccessMemberships.AsNoTracking()
+                             join user in db.Users.AsNoTracking() on membership.UserId equals user.Id
+                             join rolePermission in db.AccessRolePermissions.AsNoTracking() on membership.RoleId equals rolePermission.RoleId
+                             join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
+                             where membership.UserId == userId && user.IsActive &&
+                                   user.StatusKey == IamKeys.UserStatuses.Active && membership.IsActive &&
+                                   membership.EndsAtUtc == null && membership.StartsAtUtc <= now &&
+                                   rolePermission.EffectKey == IamKeys.Effects.Allow && permission.Key == permissionKey &&
+                                   (!membership.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                                       relation.Id == membership.SourceUnitPartyRelationId && relation.IsActive &&
+                                       (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null))
+                             select membership.Id).AnyAsync(ct);
+        if (!allowed)
+            throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
+    }
+
+    public async Task EnsureSession(long userId, long sessionId, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var active = await db.AuthSessions.AsNoTracking().AnyAsync(x => x.Id == sessionId &&
+            x.UserId == userId && x.IsActive && x.RevokedAtUtc == null && x.AbsoluteExpiresAtUtc > now &&
+            x.AccessTokenExpiresAtUtc > now && (!x.IdleExpiresAtUtc.HasValue || x.IdleExpiresAtUtc > now), ct);
+        if (!active)
+            throw new AppException(401, "authentication.invalid_session", "The authenticated session is no longer valid.");
+    }
+
+    public async Task<AccessibleResourceIds> Accessible(long userId, string permissionKey, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var memberships = await (from membership in db.AccessMemberships.AsNoTracking()
+                                 join user in db.Users.AsNoTracking() on membership.UserId equals user.Id
+                                 join rolePermission in db.AccessRolePermissions.AsNoTracking() on membership.RoleId equals rolePermission.RoleId
+                                 join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
+                                 where membership.UserId == userId && user.IsActive &&
+                                       user.StatusKey == IamKeys.UserStatuses.Active && membership.IsActive &&
+                                       membership.EndsAtUtc == null && membership.StartsAtUtc <= now &&
+                                       rolePermission.EffectKey == IamKeys.Effects.Allow && permission.Key == permissionKey &&
+                                       (!membership.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                                           relation.Id == membership.SourceUnitPartyRelationId && relation.IsActive &&
+                                           (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null))
+                                 select new { membership.ComplexId, membership.BuildingId, membership.UnitId })
+            .ToListAsync(ct);
+        return new(memberships.Where(x => x.ComplexId.HasValue).Select(x => x.ComplexId!.Value).Distinct().ToArray(),
+            memberships.Where(x => x.BuildingId.HasValue).Select(x => x.BuildingId!.Value).Distinct().ToArray(),
+            memberships.Where(x => x.UnitId.HasValue).Select(x => x.UnitId!.Value).Distinct().ToArray());
+    }
+
     public async Task Ensure(long userId, string permissionKey, long? complexId, long? buildingId,
         long? unitId, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
+        var userIsActive = await db.Users.AsNoTracking().AnyAsync(x => x.Id == userId && x.IsActive &&
+            x.StatusKey == IamKeys.UserStatuses.Active, ct);
+        if (!userIsActive)
+            throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
         var targetBuildingId = buildingId;
         if (unitId.HasValue)
             targetBuildingId = await db.Units.AsNoTracking().Where(x => x.Id == unitId).Select(x => (long?)x.BuildingId).SingleOrDefaultAsync(ct);
@@ -68,7 +150,8 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         var memberships = await db.AccessMemberships.AsNoTracking()
             .Where(x => x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now &&
                 (!x.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
-                    relation.Id == x.SourceUnitPartyRelationId && relation.IsActive && relation.EndDate == null)) &&
+                    relation.Id == x.SourceUnitPartyRelationId && relation.IsActive &&
+                    (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null)) &&
                 ((unitId.HasValue && x.UnitId == unitId) ||
                  (targetBuildingId.HasValue && x.BuildingId == targetBuildingId) ||
                  (targetComplexId.HasValue && x.ComplexId == targetComplexId)))
@@ -79,7 +162,7 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
                                 join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
                                 where roleIds.Contains(rolePermission.RoleId) && permission.Key == permissionKey
                                 select new { rolePermission.RoleId, rolePermission.EffectKey }).ToListAsync(ct);
-        var overrides = targetBuildingId.HasValue
+        var overrides = targetBuildingId.HasValue && IamPermissionPolicy.CanOverrideAtBuilding(permissionKey)
             ? await (from item in db.BuildingRolePermissionOverrides.AsNoTracking()
                      join permission in db.AccessPermissions.AsNoTracking() on item.PermissionId equals permission.Id
                      where item.BuildingId == targetBuildingId && item.IsActive && roleIds.Contains(item.RoleId) && permission.Key == permissionKey
@@ -91,12 +174,13 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             return roleOverride?.EffectKey == IamKeys.Effects.Allow ||
                    (roleOverride is null && baseAllows.Any(x => x.RoleId == roleId && x.EffectKey == IamKeys.Effects.Allow));
         });
-        var grantAllowed = await (from grant in db.AccessGrants.AsNoTracking()
-                                  join permission in db.AccessPermissions.AsNoTracking() on grant.PermissionId equals permission.Id
-                                  where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&
-                                        (!grant.ExpiresAtUtc.HasValue || grant.ExpiresAtUtc > now) && permission.Key == permissionKey &&
-                                        ((complexId != null && grant.ComplexId == complexId) || (buildingId != null && grant.BuildingId == buildingId) || (unitId != null && grant.UnitId == unitId))
-                                  select grant.Id).AnyAsync(ct);
+        var grantAllowed = IamPermissionPolicy.CanGrantToIndividual(permissionKey) &&
+            await (from grant in db.AccessGrants.AsNoTracking()
+                   join permission in db.AccessPermissions.AsNoTracking() on grant.PermissionId equals permission.Id
+                   where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&
+                         (!grant.ExpiresAtUtc.HasValue || grant.ExpiresAtUtc > now) && permission.Key == permissionKey &&
+                         ((complexId != null && grant.ComplexId == complexId) || (buildingId != null && grant.BuildingId == buildingId) || (unitId != null && grant.UnitId == unitId))
+                   select grant.Id).AnyAsync(ct);
         if (!roleAllowed && !grantAllowed) throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
     }
 }

@@ -52,27 +52,27 @@ internal sealed class AccessPermissionConfiguration : IEntityTypeConfiguration<A
     public void Configure(EntityTypeBuilder<AccessCapability> b)
     {
         ConfigurationHelpers.Reference(b, "Permissions"); b.Property(x => x.CategoryKey).HasColumnType("varchar(50)"); b.Property(x => x.Description).HasMaxLength(500); var at = new DateTimeOffset(2026, 8, 14, 0, 0, 0, TimeSpan.Zero); b.HasData(
-    Seed(1, "building_read", "مشاهده ساختمان", "physical", 10, at), Seed(2, "building_manage", "مدیریت ساختمان", "physical", 20, at),
-    Seed(3, "unit_read", "مشاهده واحد", "physical", 30, at), Seed(4, "unit_manage", "مدیریت واحد", "physical", 40, at),
-    Seed(5, "party_read", "مشاهده اشخاص", "party", 50, at), Seed(6, "party_manage", "مدیریت اشخاص", "party", 60, at),
-    Seed(7, "file_read", "مشاهده فایل", "files", 70, at), Seed(8, "file_manage", "مدیریت فایل", "files", 80, at),
-    Seed(9, "asset_read", "مشاهده دارایی", "assets", 90, at), Seed(10, "asset_manage", "مدیریت دارایی", "assets", 100, at),
-    Seed(11, "finance_read", "مشاهده مالی", "finance", 110, at), Seed(12, "finance_manage", "مدیریت مالی", "finance", 120, at),
-    Seed(13, "membership_manage", "مدیریت دسترسی‌ها", "iam", 130, at), Seed(14, "invitation_manage", "مدیریت دعوت‌ها", "iam", 140, at),
     Seed(15, "complex_view", "مشاهده مجتمع", "physical", 150, at), Seed(16, "complex_manage", "مدیریت مجتمع", "physical", 160, at),
     Seed(17, "building_view", "مشاهده ساختمان", "physical", 170, at), Seed(18, "building_manage", "مدیریت ساختمان", "physical", 180, at),
     Seed(19, "unit_view", "مشاهده واحد", "physical", 190, at), Seed(20, "unit_manage", "مدیریت واحد", "physical", 200, at),
     Seed(21, "party_view", "مشاهده اشخاص", "party", 210, at), Seed(22, "party_manage", "مدیریت اشخاص", "party", 220, at),
     Seed(23, "occupancy_view", "مشاهده سکونت", "party", 230, at), Seed(24, "occupancy_manage", "مدیریت سکونت", "party", 240, at),
     Seed(25, "asset_view", "مشاهده دارایی", "assets", 250, at), Seed(26, "asset_manage", "مدیریت دارایی", "assets", 260, at),
-    Seed(27, "expense_view", "مشاهده هزینه", "finance", 270, at), Seed(28, "expense_manage", "مدیریت هزینه", "finance", 280, at),
-    Seed(29, "demand_view", "مشاهده مطالبه", "finance", 290, at), Seed(30, "demand_manage", "مدیریت مطالبه", "finance", 300, at),
-    Seed(31, "payment_view", "مشاهده پرداخت", "finance", 310, at), Seed(32, "payment_manage", "مدیریت پرداخت", "finance", 320, at),
-    Seed(33, "file_read", "مشاهده فایل", "files", 330, at), Seed(34, "file_read_confidential", "مشاهده فایل محرمانه", "files", 340, at),
-    Seed(35, "membership_view", "مشاهده عضویت", "iam", 350, at), Seed(36, "membership_manage_scoped", "مدیریت عضویت", "iam", 360, at),
-    Seed(37, "invitation_send", "ارسال دعوت", "iam", 370, at), Seed(38, "invitation_revoke", "لغو دعوت", "iam", 380, at),
-    Seed(39, "access_grant_view", "مشاهده دسترسی تفویضی", "iam", 390, at), Seed(40, "access_grant_manage", "مدیریت دسترسی تفویضی", "iam", 400, at),
-    Seed(41, "financial_unit_view", "مشاهده مالی واحد", "finance", 410, at), Seed(42, "financial_unit_pay", "پرداخت برای واحد", "finance", 420, at));
+    Seed(27, "asset_event_view", "مشاهده رویداد دارایی", "assets", 270, at), Seed(28, "asset_event_manage", "مدیریت رویداد دارایی", "assets", 280, at),
+    Seed(29, "expense_view", "مشاهده هزینه", "finance", 290, at), Seed(30, "expense_create", "ایجاد هزینه", "finance", 300, at),
+    Seed(31, "expense_update", "ویرایش هزینه", "finance", 310, at), Seed(32, "expense_finalize", "نهایی‌سازی هزینه", "finance", 320, at),
+    Seed(33, "demand_view", "مشاهده مطالبه", "finance", 330, at), Seed(34, "demand_create", "ایجاد مطالبه", "finance", 340, at),
+    Seed(35, "demand_update", "ویرایش مطالبه", "finance", 350, at), Seed(36, "demand_finalize", "نهایی‌سازی مطالبه", "finance", 360, at),
+    Seed(37, "payment_view", "مشاهده پرداخت", "finance", 370, at), Seed(38, "payment_submit", "ثبت پرداخت", "finance", 380, at),
+    Seed(39, "payment_confirm", "تأیید پرداخت", "finance", 390, at),
+    Seed(40, "file_read", "مشاهده فایل", "files", 400, at), Seed(41, "file_read_confidential", "مشاهده فایل محرمانه", "files", 410, at),
+    Seed(42, "membership_view", "مشاهده عضویت", "iam", 420, at), Seed(43, "membership_manage_scoped", "مدیریت عضویت", "iam", 430, at),
+    Seed(44, "invitation_send", "ارسال دعوت", "iam", 440, at), Seed(45, "invitation_revoke", "لغو دعوت", "iam", 450, at),
+    Seed(46, "access_grant_view", "مشاهده دسترسی تفویضی", "iam", 460, at), Seed(47, "access_grant_manage", "مدیریت دسترسی تفویضی", "iam", 470, at),
+    Seed(48, "financial_unit_view_own", "مشاهده مالی واحد خود", "finance", 480, at),
+    Seed(49, "financial_unit_view_other_summary", "مشاهده خلاصه مالی سایر واحدها", "finance", 490, at),
+    Seed(50, "financial_unit_view_other_detail", "مشاهده جزئیات مالی سایر واحدها", "finance", 500, at),
+    Seed(51, "financial_unit_pay", "پرداخت برای واحد", "finance", 510, at));
     }
     private static object Seed(long id, string key, string title, string category, int order, DateTimeOffset at) => new { Id = id, Key = key, Title = title, CategoryKey = category, SortOrder = order, IsActive = true, CreatedAtUtc = at };
 }
@@ -83,14 +83,14 @@ internal sealed class AccessRolePermissionConfiguration : IEntityTypeConfigurati
         b.ToTable("RolePermissions", "bms"); b.HasKey(x => x.Id); b.Property(x => x.Id).UseIdentityColumn(); b.Property(x => x.EffectKey).HasColumnType("varchar(10)"); b.HasIndex(x => new { x.RoleId, x.PermissionId }).IsUnique(); b.HasOne<AccessRole>().WithMany().HasForeignKey(x => x.RoleId).OnDelete(DeleteBehavior.Restrict); b.HasOne<AccessCapability>().WithMany().HasForeignKey(x => x.PermissionId).OnDelete(DeleteBehavior.Restrict);
         var rows = new List<object>(); long id = 1;
         void Add(long role, params long[] permissions) { foreach (var permission in permissions) rows.Add(new { Id = id++, RoleId = role, PermissionId = permission, EffectKey = "allow" }); }
-        Add(6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42);
-        Add(1, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42);
-        Add(7, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 37, 39, 41);
-        Add(2, 17, 19, 21, 23, 25, 27, 28, 29, 30, 31, 32, 33, 41, 42);
-        Add(3, 17, 19, 21, 23, 25, 27, 29, 31, 33, 41, 42);
-        Add(4, 17, 19, 23, 25, 27, 29, 31, 33, 41, 42);
-        Add(5, 17, 19, 23, 25, 27, 29, 31, 33, 41);
-        Add(8, 17, 19, 23, 25, 27, 29, 31, 33, 41, 42);
+        Add(6, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51);
+        Add(1, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51);
+        Add(7, 17, 19, 21, 23, 25, 27, 29, 30, 31, 33, 34, 35, 37, 38, 40, 42, 44, 46, 48);
+        Add(2, 17, 19, 21, 23, 25, 27, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 48, 49, 50, 51);
+        Add(3, 17, 19, 21, 23, 25, 27, 29, 33, 37, 38, 40, 48, 51);
+        Add(4, 17, 19, 23, 25, 27, 29, 33, 37, 38, 40, 48, 51);
+        Add(5, 17, 19, 23, 25, 27, 29, 33, 37, 40, 48);
+        Add(8, 17, 19, 23, 25, 27, 29, 33, 37, 38, 40, 48, 51);
         b.HasData(rows);
     }
 }

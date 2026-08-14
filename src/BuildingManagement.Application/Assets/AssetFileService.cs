@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed class AssetFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger) : AssetServiceBase(db, storage, options, clock, logger)
+public sealed class AssetFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger, ResourceAuthorization authorization) : AssetServiceBase(db, storage, options, clock, logger, authorization)
 {
     public Task<AssetGalleryResponse> UploadGallery(string assetCode, IncomingFile file,
         GalleryMetadataRequest metadata, CancellationToken ct) => UploadGalleryCore(assetCode, file, metadata, ct);
@@ -12,7 +12,7 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
     { var id = (await Entity(assetCode, ct)).Id; return await GalleryProjection(Db.AssetGalleryFiles.AsNoTracking().Where(x => x.AssetId == id && x.IsActive).OrderBy(x => x.SortOrder)).ToListAsync(ct); }
     public async Task SetCover(string assetCode, string fileCode, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct); var storedId = await StoredId(fileCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_manage"); var storedId = await StoredId(fileCode, ct);
         await Db.ExecuteInTransaction(async token =>
         {
             var target = await Db.AssetGalleryFiles.SingleOrDefaultAsync(x => x.AssetId == asset.Id && x.StoredFileId == storedId && x.IsActive, token) ?? throw AppException.NotFound("asset_gallery");
@@ -25,7 +25,7 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
     public async Task<AssetDocumentResponse> UploadDocument(string assetCode, IncomingFile file,
         DocumentMetadataRequest metadata, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct); var typeId = await RefId(Db.DocumentTypes, metadata.DocumentTypeKey, "document_type", ct);
+        var asset = await Entity(assetCode, ct, "asset_manage"); var typeId = await RefId(Db.DocumentTypes, metadata.DocumentTypeKey, "document_type", ct);
         var stored = await StageFile(asset.Code, "documents", null, file, false, ct);
         try
         {
@@ -54,7 +54,7 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
     public async Task<AssetFileResponse> UploadEventFile(string assetCode, long eventId, IncomingFile file,
         AssetFileMetadataRequest metadata, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_event_manage");
         var assetEvent = await EventEntity(asset.Id, eventId, ct);
         var stored = await StageFile(asset.Code, "events", eventId.ToString(System.Globalization.CultureInfo.InvariantCulture), file, false, ct);
         try
@@ -85,7 +85,7 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
 
     public async Task RemoveFile(string assetCode, string kind, string fileCode, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct); var storedId = await StoredId(fileCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_manage"); var storedId = await StoredId(fileCode, ct);
         AssetFileRelation relation = kind switch
         {
             "gallery" => await Db.AssetGalleryFiles.SingleOrDefaultAsync(x => x.AssetId == asset.Id && x.StoredFileId == storedId && x.IsActive, ct) ?? throw AppException.NotFound("asset_gallery"),
@@ -98,7 +98,7 @@ public sealed class AssetFileService(IApplicationDbContext db, IFileStorage stor
 
     public async Task RemoveEventFile(string assetCode, long eventId, string fileCode, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_event_manage");
         var assetEvent = await EventEntity(asset.Id, eventId, ct);
         var storedId = await StoredId(fileCode, ct);
         var relation = await Db.AssetEventFiles.SingleOrDefaultAsync(x =>

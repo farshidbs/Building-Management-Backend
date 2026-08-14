@@ -8,12 +8,14 @@ public abstract class FileManagementServiceBase(
     IApplicationDbContext db,
     IFileStorage storage,
     FileStorageOptions options,
-    TimeProvider clock)
+    TimeProvider clock,
+    ResourceAuthorization resourceAuthorization)
 {
     protected IApplicationDbContext Db { get; } = db;
     protected IFileStorage Storage { get; } = storage;
     protected FileStorageOptions Options { get; } = options;
     protected DateTimeOffset Now => clock.GetUtcNow();
+    protected ResourceAuthorization Authorization { get; } = resourceAuthorization;
 
     protected async Task<DocumentFileResponse> UploadDocument(string ownerCode, IncomingFile incoming,
         DocumentMetadataRequest metadata, bool building, CancellationToken ct)
@@ -205,13 +207,21 @@ public abstract class FileManagementServiceBase(
     protected async Task<long> ActiveComplexId(string code, CancellationToken ct) =>
         await ComplexId(code, true, ct);
 
-    protected async Task<long> BuildingId(string code, bool activeOnly, CancellationToken ct) =>
-        await Db.Buildings.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
-            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
+    protected async Task<long> BuildingId(string code, bool activeOnly, CancellationToken ct)
+    {
+        var building = await Db.Buildings.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
+            .Select(x => new { x.Id, x.ComplexId }).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
+        await Authorization.Ensure("file_read", building.ComplexId, building.Id, null, ct);
+        return building.Id;
+    }
 
-    protected async Task<long> ComplexId(string code, bool activeOnly, CancellationToken ct) =>
-        await Db.Complexes.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
+    protected async Task<long> ComplexId(string code, bool activeOnly, CancellationToken ct)
+    {
+        var id = await Db.Complexes.Where(x => x.Code == NormalizeCode(code) && (!activeOnly || x.IsActive))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
+        await Authorization.Ensure("file_read", id, null, null, ct);
+        return id;
+    }
 
     protected async Task<DocumentType> DocumentType(string key, CancellationToken ct)
     {

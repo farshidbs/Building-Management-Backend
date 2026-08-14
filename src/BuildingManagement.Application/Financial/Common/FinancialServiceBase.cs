@@ -3,9 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public abstract class FinancialServiceBase(IApplicationDbContext db, TimeProvider clock)
+public abstract class FinancialServiceBase(IApplicationDbContext db, TimeProvider clock,
+    ResourceAuthorization? resourceAuthorization = null)
 {
     protected IApplicationDbContext Db { get; } = db;
+    protected ResourceAuthorization Authorization { get; } = resourceAuthorization!;
     protected DateTimeOffset Now => clock.GetUtcNow();
     protected static string Code(string value) => PublicCode.Normalize(value);
     protected static AppException Validation(string field, string message) => new(400, "validation.failed", "One or more validation errors occurred.", new Dictionary<string, string[]> { [field] = [message] });
@@ -24,5 +26,20 @@ public abstract class FinancialServiceBase(IApplicationDbContext db, TimeProvide
             (building != null && x.BuildingId != null && Db.Buildings.Any(b => b.Id == x.BuildingId && b.Code == building) ||
              complex != null && x.ComplexId != null && Db.Complexes.Any(c => c.Id == x.ComplexId && c.Code == complex)), ct)
             ?? throw AppException.NotFound("financial_account");
+    }
+
+    protected Task Authorize(string permission, long? complexId, long? buildingId, long? unitId,
+        CancellationToken ct) => Authorization.Ensure(permission, complexId, buildingId, unitId, ct);
+
+    protected Task Authorize(FinancialAccount account, string permission, CancellationToken ct) =>
+        Authorize(permission, account.ComplexId, account.BuildingId, account.UnitId, ct);
+
+    protected Task Authorize(Expense expense, string permission, CancellationToken ct) =>
+        Authorize(permission, expense.ComplexId, expense.BuildingId, null, ct);
+
+    protected async Task Authorize(Demand demand, string permission, CancellationToken ct)
+    {
+        var account = await Db.FinancialAccounts.AsNoTracking().SingleAsync(x => x.Id == demand.FundAccountId, ct);
+        await Authorize(account, permission, ct);
     }
 }

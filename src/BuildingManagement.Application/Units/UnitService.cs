@@ -3,7 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, UnitOccupancyService occupancyService) : PhysicalStructureServiceBase(db, clock)
+public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, UnitOccupancyService occupancyService,
+    ResourceAuthorization authorization) : PhysicalStructureServiceBase(db, clock, authorization)
 {
     public Task Activate(string code, bool active, CancellationToken ct) => Activate("unit", code, active, ct);
     public Task Delete(string code, CancellationToken ct) => Delete("unit", code, ct);
@@ -13,6 +14,7 @@ public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, Un
         RequestValidation.Validate(request);
         var buildingId = await Db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
+        await Authorization.Ensure("unit_manage", null, buildingId, null, ct);
         var usageTypeId = await ReferenceId(Db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
         var statusId = await ReferenceId(Db.UnitStatuses, request.StatusKey, "unit_status", ct);
         RejectOccupancyStatus(request.StatusKey);
@@ -29,9 +31,13 @@ public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, Un
         return await GetUnit(entity.Code, ct);
     }
 
-    public async Task<UnitResponse> GetUnit(string code, CancellationToken ct) =>
-        await UnitProjection(Db.Units.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
-        ?? throw AppException.NotFound("unit");
+    public async Task<UnitResponse> GetUnit(string code, CancellationToken ct)
+    {
+        var entity = await Db.Units.AsNoTracking().SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
+            ?? throw AppException.NotFound("unit");
+        await Authorization.Ensure("unit_view", null, entity.BuildingId, entity.Id, ct);
+        return await UnitProjection(Db.Units.AsNoTracking().Where(x => x.Id == entity.Id)).SingleAsync(ct);
+    }
 
     public async Task<Page<UnitResponse>> GetUnits(string buildingCode, PageQuery page, int? floor,
         string? usageTypeKey, string? statusKey, CancellationToken ct)
@@ -39,13 +45,17 @@ public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, Un
         var (number, size) = page.Validated();
         var buildingId = await Db.Buildings.Where(x => x.Code == NormalizeCode(buildingCode))
             .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
+        await Authorization.Ensure("unit_view", null, buildingId, null, ct);
+        var accessible = await Authorization.Accessible("unit_view", ct);
         long? usageTypeId = string.IsNullOrWhiteSpace(usageTypeKey)
             ? null
             : await ReferenceId(Db.UnitUsageTypes, usageTypeKey, "unit_usage_type", ct);
         long? statusId = string.IsNullOrWhiteSpace(statusKey)
             ? null
             : await ReferenceId(Db.UnitStatuses, statusKey, "unit_status", ct);
-        var query = Db.Units.AsNoTracking().Where(x => x.BuildingId == buildingId);
+        var query = Db.Units.AsNoTracking().Where(x => x.BuildingId == buildingId &&
+            (accessible.UnitIds.Contains(x.Id) || accessible.BuildingIds.Contains(x.BuildingId) ||
+             Db.Buildings.Any(b => b.Id == x.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))));
         if (floor.HasValue) query = query.Where(x => x.FloorNumber == floor);
         if (usageTypeId.HasValue) query = query.Where(x => x.UsageTypeId == usageTypeId);
         if (statusId.HasValue) query = query.Where(x => x.StatusId == statusId);
@@ -59,6 +69,7 @@ public sealed class UnitService(IApplicationDbContext db, TimeProvider clock, Un
         RequestValidation.Validate(request);
         var entity = await Db.Units.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("unit");
+        await Authorization.Ensure("unit_manage", null, entity.BuildingId, entity.Id, ct);
         var usageTypeId = await ReferenceId(Db.UnitUsageTypes, request.UsageTypeKey, "unit_usage_type", ct);
         var statusId = await ReferenceId(Db.UnitStatuses, request.StatusKey, "unit_status", ct);
         RejectOccupancyStatus(request.StatusKey);

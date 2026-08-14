@@ -3,12 +3,17 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) : FinancialServiceBase(db, clock)
+public sealed class DemandService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : FinancialServiceBase(db, clock, authorization)
 {
     public async Task<Page<DemandResponse>> List(PageQuery query, string? status, CancellationToken ct)
     {
         var (pageNumber, pageSize) = query.Validated();
-        var demands = Db.Demands.AsNoTracking();
+        var accessible = await Authorization.Accessible("demand_view", ct);
+        var demands = Db.Demands.AsNoTracking().Where(demand => Db.FinancialAccounts.Any(account =>
+            account.Id == demand.FundAccountId &&
+            (account.ComplexId.HasValue && accessible.ComplexIds.Contains(account.ComplexId.Value) ||
+             account.BuildingId.HasValue && (accessible.BuildingIds.Contains(account.BuildingId.Value) ||
+                Db.Buildings.Any(b => b.Id == account.BuildingId && b.ComplexId.HasValue && accessible.ComplexIds.Contains(b.ComplexId.Value))))));
         if (!string.IsNullOrWhiteSpace(status)) demands = demands.Where(x => x.Status == status);
         if (!string.IsNullOrWhiteSpace(query.Search)) demands = demands.Where(x => x.Title.Contains(query.Search));
         var total = await demands.CountAsync(ct);
@@ -23,6 +28,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
     {
         var demand = await Db.Demands.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(code), ct)
             ?? throw AppException.NotFound("demand");
+        await Authorize(demand, "demand_view", ct);
         var allocations = demand.Status == FinancialKeys.Statuses.Finalized
             ? await FinalizedPreview(demand.Id, ct)
             : null;
@@ -36,6 +42,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
             if (request.Rule is null) throw Validation("rule", "Required.");
             var fund = await FundAccount(request.FundBuildingCode, request.FundComplexCode,
                 request.FundAccountKindKey, token);
+            await Authorize(fund, "demand_create", token);
             if (fund.UnitId != null) throw Validation("fundAccount", "A building or complex fund is required.");
             var typeId = await Db.DemandTypes.Where(x => x.Key == request.DemandTypeKey && x.IsActive)
                 .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("demand_type");
@@ -56,6 +63,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
     {
         var demand = await Db.Demands.SingleOrDefaultAsync(x => x.Code == Code(code), ct)
             ?? throw AppException.NotFound("demand");
+        await Authorize(demand, "demand_update", ct);
         if (demand.Status != FinancialKeys.Statuses.Draft)
             throw AppException.Conflict("demand.not_draft", "Only a Draft Demand can be updated.");
         if (request is null) throw Validation("request", "Required.");
@@ -73,6 +81,7 @@ public sealed class DemandService(IApplicationDbContext db, TimeProvider clock) 
         {
             var demand = await Db.Demands.SingleOrDefaultAsync(x => x.Code == Code(code), token)
                 ?? throw AppException.NotFound("demand");
+            await Authorize(demand, "demand_finalize", token);
             if (await Db.FinancialTransactions.AnyAsync(x => x.DemandId == demand.Id, token))
                 return new(demand.Code, demand.Title, demand.Status, demand.DemandDate, demand.DueDate,
                     await FinalizedPreview(demand.Id, token));

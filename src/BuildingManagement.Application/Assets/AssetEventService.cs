@@ -4,11 +4,11 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed class AssetEventService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger) : AssetServiceBase(db, storage, options, clock, logger)
+public sealed class AssetEventService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger, ResourceAuthorization authorization) : AssetServiceBase(db, storage, options, clock, logger, authorization)
 {
     public async Task<AssetEventResponse> CreateEvent(string assetCode, AssetEventRequest request, CancellationToken ct)
     {
-        Validate(request); var asset = await Entity(assetCode, ct);
+        Validate(request); var asset = await Entity(assetCode, ct, "asset_event_manage");
         var typeId = await RefId(Db.AssetEventTypes, request.EventTypeKey, "asset_event_type", ct);
         var partyId = await PartyId(request.ServiceProviderPartyCode, ct);
         var entity = new AssetEvent(asset.Id, typeId, request.EventDate, request.Title, request.Description,
@@ -18,14 +18,14 @@ public sealed class AssetEventService(IApplicationDbContext db, IFileStorage sto
 
     public async Task<IReadOnlyList<AssetEventResponse>> Events(string assetCode, CancellationToken ct)
     {
-        var id = (await Entity(assetCode, ct)).Id;
+        var id = (await Entity(assetCode, ct, "asset_event_view")).Id;
         return await EventProjection(Db.AssetEvents.AsNoTracking().Where(x => x.AssetId == id && x.IsActive)
             .OrderByDescending(x => x.EventDate).ThenByDescending(x => x.Id)).ToListAsync(ct);
     }
 
     public async Task<AssetEventResponse> GetEvent(string assetCode, long eventId, CancellationToken ct)
     {
-        var asset = await Entity(assetCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_event_view");
         return await EventProjection(Db.AssetEvents.AsNoTracking().Where(x =>
             x.Id == eventId && x.AssetId == asset.Id)).SingleOrDefaultAsync(ct)
             ?? throw AppException.NotFound("asset_event");
@@ -35,7 +35,7 @@ public sealed class AssetEventService(IApplicationDbContext db, IFileStorage sto
         AssetEventRequest request, CancellationToken ct)
     {
         Validate(request);
-        var asset = await Entity(assetCode, ct);
+        var asset = await Entity(assetCode, ct, "asset_event_manage");
         var entity = await EventEntity(asset.Id, eventId, ct);
         var typeId = await RefId(Db.AssetEventTypes, request.EventTypeKey, "asset_event_type", ct);
         var partyId = await PartyId(request.ServiceProviderPartyCode, ct);

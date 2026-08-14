@@ -89,6 +89,10 @@ public interface IApplicationDbContext
     DbSet<SecurityAuditEvent> SecurityAuditEvents { get; }
     DbSet<BuildingRolePermissionOverride> BuildingRolePermissionOverrides { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task<bool> TryReserveOtpAttempt(string publicReference, DateTimeOffset now,
+        CancellationToken cancellationToken);
+    Task MarkOtpAttemptFailed(string publicReference, DateTimeOffset now,
+        CancellationToken cancellationToken);
     void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken);

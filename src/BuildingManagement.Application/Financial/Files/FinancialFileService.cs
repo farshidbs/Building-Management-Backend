@@ -6,12 +6,14 @@ namespace BuildingManagement.Application;
 
 #pragma warning disable CA1848 // Cleanup logging is only used on an exceptional rollback path.
 
-public sealed class FinancialFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<FinancialFileService> logger) : FinancialServiceBase(db, clock)
+public sealed class FinancialFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ILogger<FinancialFileService> logger, ResourceAuthorization authorization) : FinancialServiceBase(db, clock, authorization)
 {
     public async Task<IReadOnlyList<FinancialFileResponse>> ExpenseDocuments(string expenseCode, CancellationToken ct)
     {
-        var expenseId = await Db.Expenses.Where(x => x.Code == Code(expenseCode)).Select(x => (long?)x.Id)
-            .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("expense");
+        var expense = await Db.Expenses.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct)
+            ?? throw AppException.NotFound("expense");
+        await Authorize(expense, "expense_view", ct);
+        var expenseId = expense.Id;
         return await Db.ExpenseDocuments.AsNoTracking().Where(x => x.ExpenseId == expenseId && x.IsActive)
             .OrderByDescending(x => x.CreatedAtUtc).Select(x => new FinancialFileResponse(
                 Db.StoredFiles.Where(f => f.Id == x.StoredFileId).Select(f => new StoredFileResponse(f.Code,
@@ -21,8 +23,11 @@ public sealed class FinancialFileService(IApplicationDbContext db, IFileStorage 
 
     public async Task<IReadOnlyList<FinancialFileResponse>> PaymentEvidence(string paymentCode, CancellationToken ct)
     {
-        var paymentId = await Db.Payments.Where(x => x.Code == Code(paymentCode)).Select(x => (long?)x.Id)
-            .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("payment");
+        var payment = await Db.Payments.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(paymentCode), ct)
+            ?? throw AppException.NotFound("payment");
+        var account = await Db.FinancialAccounts.AsNoTracking().SingleAsync(x => x.Id == payment.UnitAccountId, ct);
+        await Authorize(account, "payment_view", ct);
+        var paymentId = payment.Id;
         return await Db.PaymentEvidenceFiles.AsNoTracking().Where(x => x.PaymentId == paymentId && x.IsActive)
             .OrderByDescending(x => x.CreatedAtUtc).Select(x => new FinancialFileResponse(
                 Db.StoredFiles.Where(f => f.Id == x.StoredFileId).Select(f => new StoredFileResponse(f.Code,
@@ -32,14 +37,46 @@ public sealed class FinancialFileService(IApplicationDbContext db, IFileStorage 
 
     public async Task<IReadOnlyList<FinancialFileResponse>> DisbursementFiles(string expenseCode, string disbursementCode, CancellationToken ct)
     {
-        var expenseId = await Db.Expenses.Where(x => x.Code == Code(expenseCode)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("expense");
+        var expense = await Db.Expenses.AsNoTracking().SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct) ?? throw AppException.NotFound("expense");
+        await Authorize(expense, "expense_view", ct);
+        var expenseId = expense.Id;
         var disbursementId = await Db.ExpenseDisbursements.Where(x => x.Code == Code(disbursementCode) && x.ExpenseId == expenseId).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("expense_disbursement");
         return await Db.ExpenseDisbursementFiles.AsNoTracking().Where(x => x.ExpenseDisbursementId == disbursementId && x.IsActive).OrderByDescending(x => x.CreatedAtUtc).Select(x => new FinancialFileResponse(Db.StoredFiles.Where(f => f.Id == x.StoredFileId).Select(f => new StoredFileResponse(f.Code, "/api/v1/files/" + f.Code + "/content", f.OriginalFileName, f.ContentType, f.FileExtension, f.FileSizeBytes)).Single(), x.Title, null)).ToListAsync(ct);
     }
 
-    public async Task<FinancialFileResponse> UploadExpense(string expenseCode, IncomingFile incoming, string? title, string? description, CancellationToken ct) { var expense = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct) ?? throw AppException.NotFound("expense"); return await Store(expense.Code, "documents", incoming, async file => { var link = new ExpenseDocument(expense.Id, file.Id, title, description, Now); Db.ExpenseDocuments.Add(link); await Save(ct); }, title, description, ct); }
-    public async Task<FinancialFileResponse> UploadDisbursement(string expenseCode, string disbursementCode, IncomingFile incoming, string? title, CancellationToken ct) { var expense = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct) ?? throw AppException.NotFound("expense"); var disbursement = await Db.ExpenseDisbursements.SingleOrDefaultAsync(x => x.Code == Code(disbursementCode) && x.ExpenseId == expense.Id, ct) ?? throw AppException.NotFound("expense_disbursement"); return await Store(expense.Code, $"disbursements/{disbursement.Code}", incoming, async file => { Db.ExpenseDisbursementFiles.Add(new ExpenseDisbursementFile(disbursement.Id, file.Id, title, Now)); await Save(ct); }, title, null, ct); }
-    public async Task<FinancialFileResponse> UploadPayment(string paymentCode, IncomingFile incoming, string? title, string? description, CancellationToken ct) { var payment = await Db.Payments.SingleOrDefaultAsync(x => x.Code == Code(paymentCode), ct) ?? throw AppException.NotFound("payment"); return await Store(payment.Code, "evidence", incoming, async file => { Db.PaymentEvidenceFiles.Add(new PaymentEvidenceFile(payment.Id, file.Id, title, description, Now)); await Save(ct); }, title, description, ct); }
+    public async Task<FinancialFileResponse> UploadExpense(string expenseCode, IncomingFile incoming,
+        string? title, string? description, CancellationToken ct)
+    {
+        var expense = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct)
+            ?? throw AppException.NotFound("expense");
+        await Authorize(expense, "expense_update", ct);
+        return await Store(expense.Code, "documents", incoming, async file =>
+        { Db.ExpenseDocuments.Add(new ExpenseDocument(expense.Id, file.Id, title, description, Now)); await Save(ct); }, title, description, ct);
+    }
+
+    public async Task<FinancialFileResponse> UploadDisbursement(string expenseCode, string disbursementCode,
+        IncomingFile incoming, string? title, CancellationToken ct)
+    {
+        var expense = await Db.Expenses.SingleOrDefaultAsync(x => x.Code == Code(expenseCode), ct)
+            ?? throw AppException.NotFound("expense");
+        await Authorize(expense, "expense_finalize", ct);
+        var disbursement = await Db.ExpenseDisbursements.SingleOrDefaultAsync(x =>
+            x.Code == Code(disbursementCode) && x.ExpenseId == expense.Id, ct)
+            ?? throw AppException.NotFound("expense_disbursement");
+        return await Store(expense.Code, $"disbursements/{disbursement.Code}", incoming, async file =>
+        { Db.ExpenseDisbursementFiles.Add(new ExpenseDisbursementFile(disbursement.Id, file.Id, title, Now)); await Save(ct); }, title, null, ct);
+    }
+
+    public async Task<FinancialFileResponse> UploadPayment(string paymentCode, IncomingFile incoming,
+        string? title, string? description, CancellationToken ct)
+    {
+        var payment = await Db.Payments.SingleOrDefaultAsync(x => x.Code == Code(paymentCode), ct)
+            ?? throw AppException.NotFound("payment");
+        var account = await Db.FinancialAccounts.SingleAsync(x => x.Id == payment.UnitAccountId, ct);
+        await Authorize(account, "payment_submit", ct);
+        return await Store(payment.Code, "evidence", incoming, async file =>
+        { Db.PaymentEvidenceFiles.Add(new PaymentEvidenceFile(payment.Id, file.Id, title, description, Now)); await Save(ct); }, title, description, ct);
+    }
     private async Task<FinancialFileResponse> Store(string ownerCode, string category,
         IncomingFile incoming, Func<StoredFile, Task> link, string? title, string? description,
         CancellationToken ct)

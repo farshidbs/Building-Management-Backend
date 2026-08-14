@@ -3,12 +3,13 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class UnitPartyRelationService(IApplicationDbContext db, TimeProvider clock) : PartyOccupancyServiceBase(db, clock)
+public sealed class UnitPartyRelationService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : PartyOccupancyServiceBase(db, clock, authorization)
 {
     public async Task<IReadOnlyList<UnitPartyRelationResponse>> GetUnitParties(string unitCode,
         bool currentOnly, string? relationTypeKey, CancellationToken ct)
     {
         var unitId = await UnitId(unitCode, ct);
+        await Authorization.Ensure("occupancy_view", null, null, unitId, ct);
         long? typeId = string.IsNullOrWhiteSpace(relationTypeKey)
             ? null
             : await ReferenceId(Db.UnitPartyRelationTypes, relationTypeKey, "unit_party_relation_type", ct);
@@ -25,6 +26,7 @@ public sealed class UnitPartyRelationService(IApplicationDbContext db, TimeProvi
         return await Db.ExecuteInTransaction(async token =>
         {
             var unitId = await UnitId(unitCode, token);
+            await Authorization.Ensure("occupancy_manage", null, null, unitId, token);
             var type = await Reference(Db.UnitPartyRelationTypes, request.RelationTypeKey,
                 "unit_party_relation_type", token);
             if (type.IsOccupancyRelation)
@@ -45,6 +47,7 @@ public sealed class UnitPartyRelationService(IApplicationDbContext db, TimeProvi
         if (string.IsNullOrWhiteSpace(relationTypeKey))
             throw Validation("relationTypeKey", "Relation type is required.");
         var unitId = await UnitId(unitCode, ct);
+        await Authorization.Ensure("occupancy_manage", null, null, unitId, ct);
         var partyId = await PartyId(partyCode, ct);
         var relationTypeId = await ReferenceId(Db.UnitPartyRelationTypes, relationTypeKey,
             "unit_party_relation_type", ct);

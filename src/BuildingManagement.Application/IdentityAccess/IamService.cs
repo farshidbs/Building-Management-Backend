@@ -33,52 +33,61 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     public async Task<TokenResponse> VerifyOtp(VerifyOtpRequest request, CancellationToken ct)
     {
         var reference = Required(request.ChallengeReference, "challengeReference");
+        var code = Required(request.Code, "code");
+        if (!await db.TryReserveOtpAttempt(reference, Now, ct))
+            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
         var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x => x.PublicReference == reference, ct)
             ?? throw AppException.NotFound("otp_challenge");
-        if (!challenge.CanAttempt(Now) || !protector.Verify(Required(request.Code, "code"), challenge.CodeHash))
+        if (!protector.Verify(code, challenge.CodeHash))
         {
-            if (challenge.StatusKey == IamKeys.OtpStatuses.Pending)
-            {
-                challenge.Fail(Now);
-                await db.SaveChangesAsync(ct);
-            }
+            db.Detach(challenge);
+            await db.MarkOtpAttemptFailed(reference, Now, ct);
             throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
         }
 
-        return await db.ExecuteInTransaction(async token =>
+        try
         {
-            challenge.Verify(Now);
-            var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
-                x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue, token);
-            User user;
-            string? partyCode;
-            if (method is null)
+            return await db.ExecuteInTransaction(async token =>
             {
-                if (challenge.PurposeKey == "login") throw new AppException(401, "authentication.failed", "Authentication failed.");
-                user = new User(await UniqueCode(db.Users, token), Now); db.Users.Add(user); await db.SaveChangesAsync(token);
-                method = new UserLoginMethod(await UniqueCode(db.UserLoginMethods, token), user.Id,
-                    IamKeys.LoginTypes.Mobile, challenge.IdentifierValue, challenge.NormalizedIdentifierValue, true, Now);
-                method.Verify(Now); db.UserLoginMethods.Add(method);
-                var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", token);
-                var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "کاربر جدید" : request.DisplayName.Trim();
-                var party = new Party(await UniqueCode(db.Parties, token), personType.Id, displayName,
-                    null, null, null, null, null, Now); db.Parties.Add(party); await db.SaveChangesAsync(token);
-                db.UserPartyLinks.Add(new UserPartyLink(await UniqueCode(db.UserPartyLinks, token), user.Id, party.Id, true, Now));
-                partyCode = party.Code;
-            }
-            else
-            {
-                user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive && x.StatusKey == IamKeys.UserStatuses.Active, token);
-                partyCode = await (from link in db.UserPartyLinks
-                                   where link.UserId == user.Id && link.IsActive && link.IsPrimary
-                                   join party in db.Parties on link.PartyId equals party.Id
-                                   select party.Code).SingleOrDefaultAsync(token);
-            }
-            challenge.Consume(Now);
-            var result = await CreateSession(user, method.Id, request.ClientTypeKey, request.DeviceIdentifier, token);
-            await db.SaveChangesAsync(token);
-            return result with { PartyCode = partyCode };
-        }, ct);
+                challenge.Verify(Now);
+                challenge.Consume(Now);
+                await db.SaveChangesAsync(token);
+                var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
+                    x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue, token);
+                User user;
+                string? partyCode;
+                if (method is null)
+                {
+                    if (challenge.PurposeKey == "login") throw new AppException(401, "authentication.failed", "Authentication failed.");
+                    user = new User(await UniqueCode(db.Users, token), Now); db.Users.Add(user); await db.SaveChangesAsync(token);
+                    method = new UserLoginMethod(await UniqueCode(db.UserLoginMethods, token), user.Id,
+                        IamKeys.LoginTypes.Mobile, challenge.IdentifierValue, challenge.NormalizedIdentifierValue, true, Now);
+                    method.Verify(Now); db.UserLoginMethods.Add(method);
+                    var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", token);
+                    var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "کاربر جدید" : request.DisplayName.Trim();
+                    var party = new Party(await UniqueCode(db.Parties, token), personType.Id, displayName,
+                        null, null, null, null, null, Now); db.Parties.Add(party); await db.SaveChangesAsync(token);
+                    db.UserPartyLinks.Add(new UserPartyLink(await UniqueCode(db.UserPartyLinks, token), user.Id, party.Id, true, Now));
+                    partyCode = party.Code;
+                }
+                else
+                {
+                    user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive && x.StatusKey == IamKeys.UserStatuses.Active, token);
+                    partyCode = await (from link in db.UserPartyLinks
+                                       where link.UserId == user.Id && link.IsActive && link.IsPrimary
+                                       join party in db.Parties on link.PartyId equals party.Id
+                                       select party.Code).SingleOrDefaultAsync(token);
+                }
+                var result = await CreateSession(user, method.Id, request.ClientTypeKey, request.DeviceIdentifier, token);
+                await db.SaveChangesAsync(token);
+                return result with { PartyCode = partyCode };
+            }, ct);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            foreach (var entry in exception.Entries) db.Detach(entry.Entity);
+            throw new AppException(400, "otp.invalid", "OTP is invalid or expired.");
+        }
     }
 
     public async Task<TokenResponse> Refresh(RefreshTokenRequest request, CancellationToken ct)

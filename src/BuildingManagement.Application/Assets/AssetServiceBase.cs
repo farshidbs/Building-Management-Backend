@@ -5,7 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace BuildingManagement.Application;
 
 public abstract class AssetServiceBase(IApplicationDbContext db, IFileStorage storage,
-    FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger)
+    FileStorageOptions options, TimeProvider clock, ILogger<AssetServiceBase> logger,
+    ResourceAuthorization? resourceAuthorization = null)
 {
     protected IApplicationDbContext Db { get; } = db;
     protected IFileStorage Storage { get; } = storage;
@@ -18,10 +19,11 @@ public abstract class AssetServiceBase(IApplicationDbContext db, IFileStorage st
         LoggerMessage.Define<string, string>(LogLevel.Error, new EventId(2, "AssetUploadCleanupFailed"),
             "Cleanup failed for file {StorageKey} after upload persistence error {ErrorType}.");
     protected DateTimeOffset Now => clock.GetUtcNow();
+    protected ResourceAuthorization Authorization { get; } = resourceAuthorization!;
 
     protected async Task<AssetGalleryResponse> UploadGalleryCore(string code, IncomingFile file, GalleryMetadataRequest metadata, CancellationToken ct)
     {
-        var asset = await Entity(code, ct);
+        var asset = await Entity(code, ct, "asset_manage");
         var stored = await StageFile(asset.Code, "gallery", null, file, true, ct);
         try
         {
@@ -68,7 +70,13 @@ public abstract class AssetServiceBase(IApplicationDbContext db, IFileStorage st
                 cleanupException);
         }
     }
-    protected async Task<Asset> Entity(string code, CancellationToken ct) => await Db.Assets.SingleOrDefaultAsync(x => x.Code == Normalize(code), ct) ?? throw AppException.NotFound("asset");
+    protected async Task<Asset> Entity(string code, CancellationToken ct, string permission = "asset_view")
+    {
+        var asset = await Db.Assets.SingleOrDefaultAsync(x => x.Code == Normalize(code), ct)
+            ?? throw AppException.NotFound("asset");
+        await Authorization.Ensure(permission, asset.ComplexId, asset.BuildingId, null, ct);
+        return asset;
+    }
     protected async Task<AssetEvent> EventEntity(long assetId, long eventId, CancellationToken ct) =>
         await Db.AssetEvents.SingleOrDefaultAsync(x => x.Id == eventId && x.AssetId == assetId, ct)
         ?? throw AppException.NotFound("asset_event");

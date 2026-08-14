@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock) : PhysicalStructureServiceBase(db, clock)
+public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : PhysicalStructureServiceBase(db, clock, authorization)
 {
     public Task Activate(string code, bool active, CancellationToken ct) => Activate("complex", code, active, ct);
     public Task Delete(string code, CancellationToken ct) => Delete("complex", code, ct);
@@ -11,6 +11,7 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock)
     public async Task<ComplexResponse> CreateComplex(ComplexRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
+        await Authorization.EnsureAny("complex_manage", ct);
         var locationId = await LocationId(request.LocationCode, true, ct);
         var entity = new Complex(await UniqueCode(Db.Complexes, ct), locationId!.Value, request.Name,
             request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);
@@ -19,15 +20,20 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock)
         return await GetComplex(entity.Code, ct);
     }
 
-    public async Task<ComplexResponse> GetComplex(string code, CancellationToken ct) =>
-        await ComplexProjection(Db.Complexes.AsNoTracking().Where(x => x.Code == NormalizeCode(code))).SingleOrDefaultAsync(ct)
-        ?? throw AppException.NotFound("complex");
+    public async Task<ComplexResponse> GetComplex(string code, CancellationToken ct)
+    {
+        var entity = await Db.Complexes.AsNoTracking().SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
+            ?? throw AppException.NotFound("complex");
+        await Authorization.Ensure("complex_view", entity.Id, null, null, ct);
+        return await ComplexProjection(Db.Complexes.AsNoTracking().Where(x => x.Id == entity.Id)).SingleAsync(ct);
+    }
 
     public async Task<Page<ComplexResponse>> GetComplexes(PageQuery page, string? locationCode, CancellationToken ct)
     {
         var (number, size) = page.Validated();
+        var accessible = await Authorization.Accessible("complex_view", ct);
         var locationId = await LocationId(locationCode, false, ct);
-        var query = Db.Complexes.AsNoTracking();
+        var query = Db.Complexes.AsNoTracking().Where(x => accessible.ComplexIds.Contains(x.Id));
         if (!string.IsNullOrWhiteSpace(locationCode)) query = query.Where(x => x.LocationId == locationId);
         if (page.IsActive.HasValue) query = query.Where(x => x.IsActive == page.IsActive);
         if (!string.IsNullOrWhiteSpace(page.Search)) query = query.Where(x => x.Name.Contains(page.Search) || x.Code.Contains(page.Search));
@@ -39,6 +45,7 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock)
         RequestValidation.Validate(request);
         var entity = await Db.Complexes.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("complex");
+        await Authorization.Ensure("complex_manage", entity.Id, null, null, ct);
         var locationId = await LocationId(request.LocationCode, true, ct);
         entity.Update(locationId!.Value, request.Name, request.Address, request.PostalCode,
             request.Latitude, request.Longitude, request.Description, Now);

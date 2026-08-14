@@ -3,11 +3,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class UnitCreditSettlementService(IApplicationDbContext db, TimeProvider clock) : FinancialServiceBase(db, clock)
+public sealed class UnitCreditSettlementService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : FinancialServiceBase(db, clock, authorization)
 {
     public async Task<UnitCreditSettlementResponse> Create(string unitCode, UnitCreditSettlementRequest request, CancellationToken ct)
     {
         Validate(request); var unit = Code(unitCode); var account = await UnitAccount(unit, ct);
+        await Authorize(account, "financial_unit_pay", ct);
         var prior = await Find(account.Id, request.RequestId, ct);
         if (prior is not null) return await Replay(prior, unit, request, ct);
         try
@@ -39,6 +40,7 @@ public sealed class UnitCreditSettlementService(IApplicationDbContext db, TimePr
     public async Task<Page<UnitCreditSettlementResponse>> History(string unitCode, PageQuery query, CancellationToken ct)
     {
         var (number, size) = query.Validated(); var unit = Code(unitCode); var account = await UnitAccount(unit, ct);
+        await Authorize(account, "financial_unit_view_own", ct);
         var source = Db.UnitCreditSettlements.AsNoTracking().Where(x => x.UnitAccountId == account.Id);
         var total = await source.CountAsync(ct); var rows = await source.OrderByDescending(x => x.CreatedAtUtc).ThenByDescending(x => x.Id).Skip((number - 1) * size).Take(size).ToListAsync(ct);
         var items = new List<UnitCreditSettlementResponse>(); foreach (var row in rows) items.Add(await Response(row, unit, ct));

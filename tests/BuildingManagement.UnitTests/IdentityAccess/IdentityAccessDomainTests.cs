@@ -67,4 +67,16 @@ public sealed class IdentityAccessDomainTests
         party.SetBirthDate(new DateOnly(1990, 1, 2), Now);
         Assert.Equal(new DateOnly(1990, 1, 2), party.BirthDate);
     }
+
+    [Fact]
+    public void SensitivePermissionsCannotBeBuildingOverriddenOrIndividuallyGranted()
+    {
+        Assert.False(IamPermissionPolicy.CanOverrideAtBuilding("file_read_confidential"));
+        Assert.False(IamPermissionPolicy.CanOverrideAtBuilding("membership_manage_scoped"));
+        Assert.False(IamPermissionPolicy.CanGrantToIndividual("building_manage"));
+        Assert.True(IamPermissionPolicy.CanGrantToIndividual("financial_unit_view_own"));
+        Assert.True(IamPermissionPolicy.CanOverrideAtBuilding("unit_view"));
+        Assert.Throws<AppException>(() => IamPermissionPolicy.RequireOverrideable("file_read_confidential"));
+        Assert.Throws<AppException>(() => IamPermissionPolicy.RequireGrantable("building_manage"));
+    }
 }

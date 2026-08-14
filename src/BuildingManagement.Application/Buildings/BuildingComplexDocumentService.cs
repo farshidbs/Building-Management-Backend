@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock) : FileManagementServiceBase(db, storage, options, clock)
+public sealed class BuildingComplexDocumentService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock, ResourceAuthorization authorization) : FileManagementServiceBase(db, storage, options, clock, authorization)
 {
     public Task<DocumentFileResponse> UploadBuildingDocument(
         string buildingCode, IncomingFile incoming, DocumentMetadataRequest metadata, CancellationToken ct) =>

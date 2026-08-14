@@ -3,8 +3,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvider clock)
-    : FinancialServiceBase(db, clock)
+public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization)
+    : FinancialServiceBase(db, clock, authorization)
 {
     public async Task<FinancialAccountResponse> Create(FinancialAccountRequest request, CancellationToken ct)
     {
@@ -35,6 +35,8 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
                 .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
         }
 
+        await Authorize(unitId.HasValue ? "financial_unit_pay" : "expense_create", complexId, buildingId, unitId, ct);
+
         var account = new FinancialAccount(unitId, buildingId, complexId, request.AccountKindKey, Now);
         Db.FinancialAccounts.Add(account);
         await Save(ct);
@@ -42,18 +44,18 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
     }
 
     public async Task<FinancialAccountResponse> GetUnit(string unitCode, CancellationToken ct)
-    { var account = await UnitAccount(unitCode, ct); return Response(Code(unitCode), account); }
+    { var account = await UnitAccount(unitCode, ct); await Authorize(account, "financial_unit_view_own", ct); return Response(Code(unitCode), account); }
 
     public async Task<FinancialAccountResponse> GetFund(string? buildingCode, string? complexCode,
         string kind, CancellationToken ct)
-    { var account = await FundAccount(buildingCode, complexCode, kind, ct); return Response(Code(buildingCode ?? complexCode!), account); }
+    { var account = await FundAccount(buildingCode, complexCode, kind, ct); await Authorize(account, "expense_view", ct); return Response(Code(buildingCode ?? complexCode!), account); }
 
-    public async Task<IReadOnlyList<FinancialEntryResponse>> UnitStatement(string unitCode, CancellationToken ct) =>
-        await Statement(await UnitAccount(unitCode, ct), ct);
+    public async Task<IReadOnlyList<FinancialEntryResponse>> UnitStatement(string unitCode, CancellationToken ct)
+    { var account = await UnitAccount(unitCode, ct); await Authorize(account, "financial_unit_view_own", ct); return await Statement(account, ct); }
 
     public async Task<IReadOnlyList<FinancialEntryResponse>> FundStatement(string? buildingCode,
         string? complexCode, string kind, CancellationToken ct) =>
-        await Statement(await FundAccount(buildingCode, complexCode, kind, ct), ct);
+        await AuthorizedFundStatement(buildingCode, complexCode, kind, ct);
 
     public async Task<AccountAdjustmentResponse> CreateAdjustment(AccountAdjustmentRequest request,
         CancellationToken ct)
@@ -68,6 +70,7 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
         var adjustedAccount = !string.IsNullOrWhiteSpace(request.AccountUnitCode)
             ? await UnitAccount(request.AccountUnitCode, ct)
             : await FundAccount(request.AccountBuildingCode, request.AccountComplexCode, request.AccountKindKey, ct);
+        await Authorize(adjustedAccount, adjustedAccount.UnitId.HasValue ? "financial_unit_pay" : "expense_finalize", ct);
         if (request.AdjustmentTypeKey == FinancialKeys.Adjustments.OpeningDebt && adjustedAccount.UnitId is null)
             throw Validation("accountScope", "Opening debt requires a Unit account.");
         FinancialAccount? fund = null;
@@ -95,6 +98,7 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
             if (await Db.FinancialTransactions.AnyAsync(x => x.AccountAdjustmentId == adjustment.Id, token))
                 return new(adjustment.Code, adjustment.Status, adjustment.Amount, adjustment.AdjustmentTypeKey);
             var account = await Db.FinancialAccounts.SingleAsync(x => x.Id == adjustment.FinancialAccountId, token);
+            await Authorize(account, account.UnitId.HasValue ? "financial_unit_pay" : "expense_finalize", token);
             var effect = adjustment.AdjustmentTypeKey == FinancialKeys.Adjustments.OpeningDebt
                 ? FinancialKeys.Effects.Decrease : FinancialKeys.Effects.Increase;
             adjustment.Finalize(Now);
@@ -115,6 +119,10 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
             await Save(token);
             return new(adjustment.Code, adjustment.Status, adjustment.Amount, adjustment.AdjustmentTypeKey);
         }, ct);
+
+    private async Task<IReadOnlyList<FinancialEntryResponse>> AuthorizedFundStatement(string? buildingCode,
+        string? complexCode, string kind, CancellationToken ct)
+    { var account = await FundAccount(buildingCode, complexCode, kind, ct); await Authorize(account, "expense_view", ct); return await Statement(account, ct); }
 
     private async Task<IReadOnlyList<FinancialEntryResponse>> Statement(FinancialAccount account,
         CancellationToken ct) => await Db.FinancialTransactionEntries.AsNoTracking()

@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    [Migration("20260814125158_AddIdentityAccessManagement")]
+    [Migration("20260814142537_AddIdentityAccessManagement")]
     partial class AddIdentityAccessManagement
     {
         /// <inheritdoc />
@@ -83,146 +83,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         });
 
                     b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            CategoryKey = "physical",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "building_read",
-                            SortOrder = 10,
-                            Title = "مشاهده ساختمان"
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            CategoryKey = "physical",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "building_manage",
-                            SortOrder = 20,
-                            Title = "مدیریت ساختمان"
-                        },
-                        new
-                        {
-                            Id = 3L,
-                            CategoryKey = "physical",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "unit_read",
-                            SortOrder = 30,
-                            Title = "مشاهده واحد"
-                        },
-                        new
-                        {
-                            Id = 4L,
-                            CategoryKey = "physical",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "unit_manage",
-                            SortOrder = 40,
-                            Title = "مدیریت واحد"
-                        },
-                        new
-                        {
-                            Id = 5L,
-                            CategoryKey = "party",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "party_read",
-                            SortOrder = 50,
-                            Title = "مشاهده اشخاص"
-                        },
-                        new
-                        {
-                            Id = 6L,
-                            CategoryKey = "party",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "party_manage",
-                            SortOrder = 60,
-                            Title = "مدیریت اشخاص"
-                        },
-                        new
-                        {
-                            Id = 7L,
-                            CategoryKey = "files",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "file_read",
-                            SortOrder = 70,
-                            Title = "مشاهده فایل"
-                        },
-                        new
-                        {
-                            Id = 8L,
-                            CategoryKey = "files",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "file_manage",
-                            SortOrder = 80,
-                            Title = "مدیریت فایل"
-                        },
-                        new
-                        {
-                            Id = 9L,
-                            CategoryKey = "assets",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "asset_read",
-                            SortOrder = 90,
-                            Title = "مشاهده دارایی"
-                        },
-                        new
-                        {
-                            Id = 10L,
-                            CategoryKey = "assets",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "asset_manage",
-                            SortOrder = 100,
-                            Title = "مدیریت دارایی"
-                        },
-                        new
-                        {
-                            Id = 11L,
-                            CategoryKey = "finance",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "finance_read",
-                            SortOrder = 110,
-                            Title = "مشاهده مالی"
-                        },
-                        new
-                        {
-                            Id = 12L,
-                            CategoryKey = "finance",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "finance_manage",
-                            SortOrder = 120,
-                            Title = "مدیریت مالی"
-                        },
-                        new
-                        {
-                            Id = 13L,
-                            CategoryKey = "iam",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "membership_manage",
-                            SortOrder = 130,
-                            Title = "مدیریت دسترسی‌ها"
-                        },
-                        new
-                        {
-                            Id = 14L,
-                            CategoryKey = "iam",
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "invitation_manage",
-                            SortOrder = 140,
-                            Title = "مدیریت دعوت‌ها"
-                        },
                         new
                         {
                             Id = 15L,
@@ -346,22 +206,22 @@ namespace BuildingManagement.Infrastructure.Migrations
                         new
                         {
                             Id = 27L,
-                            CategoryKey = "finance",
+                            CategoryKey = "assets",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "expense_view",
+                            Key = "asset_event_view",
                             SortOrder = 270,
-                            Title = "مشاهده هزینه"
+                            Title = "مشاهده رویداد دارایی"
                         },
                         new
                         {
                             Id = 28L,
-                            CategoryKey = "finance",
+                            CategoryKey = "assets",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "expense_manage",
+                            Key = "asset_event_manage",
                             SortOrder = 280,
-                            Title = "مدیریت هزینه"
+                            Title = "مدیریت رویداد دارایی"
                         },
                         new
                         {
@@ -369,9 +229,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                             CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "demand_view",
+                            Key = "expense_view",
                             SortOrder = 290,
-                            Title = "مشاهده مطالبه"
+                            Title = "مشاهده هزینه"
                         },
                         new
                         {
@@ -379,9 +239,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                             CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "demand_manage",
+                            Key = "expense_create",
                             SortOrder = 300,
-                            Title = "مدیریت مطالبه"
+                            Title = "ایجاد هزینه"
                         },
                         new
                         {
@@ -389,9 +249,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                             CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "payment_view",
+                            Key = "expense_update",
                             SortOrder = 310,
-                            Title = "مشاهده پرداخت"
+                            Title = "ویرایش هزینه"
                         },
                         new
                         {
@@ -399,108 +259,198 @@ namespace BuildingManagement.Infrastructure.Migrations
                             CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "payment_manage",
+                            Key = "expense_finalize",
                             SortOrder = 320,
-                            Title = "مدیریت پرداخت"
+                            Title = "نهایی‌سازی هزینه"
                         },
                         new
                         {
                             Id = 33L,
-                            CategoryKey = "files",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "file_read",
+                            Key = "demand_view",
                             SortOrder = 330,
-                            Title = "مشاهده فایل"
+                            Title = "مشاهده مطالبه"
                         },
                         new
                         {
                             Id = 34L,
-                            CategoryKey = "files",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "file_read_confidential",
+                            Key = "demand_create",
                             SortOrder = 340,
-                            Title = "مشاهده فایل محرمانه"
+                            Title = "ایجاد مطالبه"
                         },
                         new
                         {
                             Id = 35L,
-                            CategoryKey = "iam",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "membership_view",
+                            Key = "demand_update",
                             SortOrder = 350,
-                            Title = "مشاهده عضویت"
+                            Title = "ویرایش مطالبه"
                         },
                         new
                         {
                             Id = 36L,
-                            CategoryKey = "iam",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "membership_manage_scoped",
+                            Key = "demand_finalize",
                             SortOrder = 360,
-                            Title = "مدیریت عضویت"
+                            Title = "نهایی‌سازی مطالبه"
                         },
                         new
                         {
                             Id = 37L,
-                            CategoryKey = "iam",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "invitation_send",
+                            Key = "payment_view",
                             SortOrder = 370,
-                            Title = "ارسال دعوت"
+                            Title = "مشاهده پرداخت"
                         },
                         new
                         {
                             Id = 38L,
-                            CategoryKey = "iam",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "invitation_revoke",
+                            Key = "payment_submit",
                             SortOrder = 380,
-                            Title = "لغو دعوت"
+                            Title = "ثبت پرداخت"
                         },
                         new
                         {
                             Id = 39L,
-                            CategoryKey = "iam",
+                            CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "access_grant_view",
+                            Key = "payment_confirm",
                             SortOrder = 390,
-                            Title = "مشاهده دسترسی تفویضی"
+                            Title = "تأیید پرداخت"
                         },
                         new
                         {
                             Id = 40L,
-                            CategoryKey = "iam",
+                            CategoryKey = "files",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "access_grant_manage",
+                            Key = "file_read",
                             SortOrder = 400,
-                            Title = "مدیریت دسترسی تفویضی"
+                            Title = "مشاهده فایل"
                         },
                         new
                         {
                             Id = 41L,
-                            CategoryKey = "finance",
+                            CategoryKey = "files",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
-                            Key = "financial_unit_view",
+                            Key = "file_read_confidential",
                             SortOrder = 410,
-                            Title = "مشاهده مالی واحد"
+                            Title = "مشاهده فایل محرمانه"
                         },
                         new
                         {
                             Id = 42L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "membership_view",
+                            SortOrder = 420,
+                            Title = "مشاهده عضویت"
+                        },
+                        new
+                        {
+                            Id = 43L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "membership_manage_scoped",
+                            SortOrder = 430,
+                            Title = "مدیریت عضویت"
+                        },
+                        new
+                        {
+                            Id = 44L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "invitation_send",
+                            SortOrder = 440,
+                            Title = "ارسال دعوت"
+                        },
+                        new
+                        {
+                            Id = 45L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "invitation_revoke",
+                            SortOrder = 450,
+                            Title = "لغو دعوت"
+                        },
+                        new
+                        {
+                            Id = 46L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "access_grant_view",
+                            SortOrder = 460,
+                            Title = "مشاهده دسترسی تفویضی"
+                        },
+                        new
+                        {
+                            Id = 47L,
+                            CategoryKey = "iam",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "access_grant_manage",
+                            SortOrder = 470,
+                            Title = "مدیریت دسترسی تفویضی"
+                        },
+                        new
+                        {
+                            Id = 48L,
+                            CategoryKey = "finance",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "financial_unit_view_own",
+                            SortOrder = 480,
+                            Title = "مشاهده مالی واحد خود"
+                        },
+                        new
+                        {
+                            Id = 49L,
+                            CategoryKey = "finance",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "financial_unit_view_other_summary",
+                            SortOrder = 490,
+                            Title = "مشاهده خلاصه مالی سایر واحدها"
+                        },
+                        new
+                        {
+                            Id = 50L,
+                            CategoryKey = "finance",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "financial_unit_view_other_detail",
+                            SortOrder = 500,
+                            Title = "مشاهده جزئیات مالی سایر واحدها"
+                        },
+                        new
+                        {
+                            Id = 51L,
                             CategoryKey = "finance",
                             CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             IsActive = true,
                             Key = "financial_unit_pay",
-                            SortOrder = 420,
+                            SortOrder = 510,
                             Title = "پرداخت برای واحد"
                         });
                 });
@@ -1043,651 +993,924 @@ namespace BuildingManagement.Infrastructure.Migrations
                         {
                             Id = 29L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 1L
+                            PermissionId = 43L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 30L,
                             EffectKey = "allow",
-                            PermissionId = 18L,
-                            RoleId = 1L
+                            PermissionId = 44L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 31L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 1L
+                            PermissionId = 45L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 32L,
                             EffectKey = "allow",
-                            PermissionId = 20L,
-                            RoleId = 1L
+                            PermissionId = 46L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 33L,
                             EffectKey = "allow",
-                            PermissionId = 21L,
-                            RoleId = 1L
+                            PermissionId = 47L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 34L,
                             EffectKey = "allow",
-                            PermissionId = 22L,
-                            RoleId = 1L
+                            PermissionId = 48L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 35L,
                             EffectKey = "allow",
-                            PermissionId = 23L,
-                            RoleId = 1L
+                            PermissionId = 49L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 36L,
                             EffectKey = "allow",
-                            PermissionId = 24L,
-                            RoleId = 1L
+                            PermissionId = 50L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 37L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
-                            RoleId = 1L
+                            PermissionId = 51L,
+                            RoleId = 6L
                         },
                         new
                         {
                             Id = 38L,
                             EffectKey = "allow",
-                            PermissionId = 26L,
+                            PermissionId = 17L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 39L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
+                            PermissionId = 18L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 40L,
                             EffectKey = "allow",
-                            PermissionId = 28L,
+                            PermissionId = 19L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 41L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
+                            PermissionId = 20L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 42L,
                             EffectKey = "allow",
-                            PermissionId = 30L,
+                            PermissionId = 21L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 43L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
+                            PermissionId = 22L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 44L,
                             EffectKey = "allow",
-                            PermissionId = 32L,
+                            PermissionId = 23L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 45L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
+                            PermissionId = 24L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 46L,
                             EffectKey = "allow",
-                            PermissionId = 34L,
+                            PermissionId = 25L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 47L,
                             EffectKey = "allow",
-                            PermissionId = 35L,
+                            PermissionId = 26L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 48L,
                             EffectKey = "allow",
-                            PermissionId = 36L,
+                            PermissionId = 27L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 49L,
                             EffectKey = "allow",
-                            PermissionId = 37L,
+                            PermissionId = 28L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 50L,
                             EffectKey = "allow",
-                            PermissionId = 38L,
+                            PermissionId = 29L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 51L,
                             EffectKey = "allow",
-                            PermissionId = 39L,
+                            PermissionId = 30L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 52L,
                             EffectKey = "allow",
-                            PermissionId = 40L,
+                            PermissionId = 31L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 53L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
+                            PermissionId = 32L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 54L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
+                            PermissionId = 33L,
                             RoleId = 1L
                         },
                         new
                         {
                             Id = 55L,
                             EffectKey = "allow",
+                            PermissionId = 34L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 56L,
+                            EffectKey = "allow",
+                            PermissionId = 35L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 57L,
+                            EffectKey = "allow",
+                            PermissionId = 36L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 58L,
+                            EffectKey = "allow",
+                            PermissionId = 37L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 59L,
+                            EffectKey = "allow",
+                            PermissionId = 38L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 60L,
+                            EffectKey = "allow",
+                            PermissionId = 39L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 61L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 62L,
+                            EffectKey = "allow",
+                            PermissionId = 41L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 63L,
+                            EffectKey = "allow",
+                            PermissionId = 42L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 64L,
+                            EffectKey = "allow",
+                            PermissionId = 43L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 65L,
+                            EffectKey = "allow",
+                            PermissionId = 44L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 66L,
+                            EffectKey = "allow",
+                            PermissionId = 45L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 67L,
+                            EffectKey = "allow",
+                            PermissionId = 46L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 68L,
+                            EffectKey = "allow",
+                            PermissionId = 47L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 69L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 70L,
+                            EffectKey = "allow",
+                            PermissionId = 49L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 71L,
+                            EffectKey = "allow",
+                            PermissionId = 50L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 72L,
+                            EffectKey = "allow",
+                            PermissionId = 51L,
+                            RoleId = 1L
+                        },
+                        new
+                        {
+                            Id = 73L,
+                            EffectKey = "allow",
                             PermissionId = 17L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 56L,
+                            Id = 74L,
                             EffectKey = "allow",
                             PermissionId = 19L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 57L,
+                            Id = 75L,
                             EffectKey = "allow",
                             PermissionId = 21L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 58L,
+                            Id = 76L,
                             EffectKey = "allow",
                             PermissionId = 23L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 59L,
+                            Id = 77L,
                             EffectKey = "allow",
                             PermissionId = 25L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 60L,
+                            Id = 78L,
                             EffectKey = "allow",
                             PermissionId = 27L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 61L,
+                            Id = 79L,
                             EffectKey = "allow",
                             PermissionId = 29L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 62L,
+                            Id = 80L,
+                            EffectKey = "allow",
+                            PermissionId = 30L,
+                            RoleId = 7L
+                        },
+                        new
+                        {
+                            Id = 81L,
                             EffectKey = "allow",
                             PermissionId = 31L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 63L,
+                            Id = 82L,
                             EffectKey = "allow",
                             PermissionId = 33L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 64L,
+                            Id = 83L,
+                            EffectKey = "allow",
+                            PermissionId = 34L,
+                            RoleId = 7L
+                        },
+                        new
+                        {
+                            Id = 84L,
                             EffectKey = "allow",
                             PermissionId = 35L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 65L,
+                            Id = 85L,
                             EffectKey = "allow",
                             PermissionId = 37L,
                             RoleId = 7L
                         },
                         new
                         {
-                            Id = 66L,
-                            EffectKey = "allow",
-                            PermissionId = 39L,
-                            RoleId = 7L
-                        },
-                        new
-                        {
-                            Id = 67L,
-                            EffectKey = "allow",
-                            PermissionId = 41L,
-                            RoleId = 7L
-                        },
-                        new
-                        {
-                            Id = 68L,
-                            EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 69L,
-                            EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 70L,
-                            EffectKey = "allow",
-                            PermissionId = 21L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 71L,
-                            EffectKey = "allow",
-                            PermissionId = 23L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 72L,
-                            EffectKey = "allow",
-                            PermissionId = 25L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 73L,
-                            EffectKey = "allow",
-                            PermissionId = 27L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 74L,
-                            EffectKey = "allow",
-                            PermissionId = 28L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 75L,
-                            EffectKey = "allow",
-                            PermissionId = 29L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 76L,
-                            EffectKey = "allow",
-                            PermissionId = 30L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 77L,
-                            EffectKey = "allow",
-                            PermissionId = 31L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 78L,
-                            EffectKey = "allow",
-                            PermissionId = 32L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 79L,
-                            EffectKey = "allow",
-                            PermissionId = 33L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 80L,
-                            EffectKey = "allow",
-                            PermissionId = 41L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 81L,
-                            EffectKey = "allow",
-                            PermissionId = 42L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 82L,
-                            EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 3L
-                        },
-                        new
-                        {
-                            Id = 83L,
-                            EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 3L
-                        },
-                        new
-                        {
-                            Id = 84L,
-                            EffectKey = "allow",
-                            PermissionId = 21L,
-                            RoleId = 3L
-                        },
-                        new
-                        {
-                            Id = 85L,
-                            EffectKey = "allow",
-                            PermissionId = 23L,
-                            RoleId = 3L
-                        },
-                        new
-                        {
                             Id = 86L,
                             EffectKey = "allow",
-                            PermissionId = 25L,
-                            RoleId = 3L
+                            PermissionId = 38L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 87L,
                             EffectKey = "allow",
-                            PermissionId = 27L,
-                            RoleId = 3L
+                            PermissionId = 40L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 88L,
                             EffectKey = "allow",
-                            PermissionId = 29L,
-                            RoleId = 3L
+                            PermissionId = 42L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 89L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
-                            RoleId = 3L
+                            PermissionId = 44L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 90L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
-                            RoleId = 3L
+                            PermissionId = 46L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 91L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
-                            RoleId = 3L
+                            PermissionId = 48L,
+                            RoleId = 7L
                         },
                         new
                         {
                             Id = 92L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
-                            RoleId = 3L
+                            PermissionId = 17L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 93L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 4L
+                            PermissionId = 19L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 94L,
                             EffectKey = "allow",
-                            PermissionId = 19L,
-                            RoleId = 4L
+                            PermissionId = 21L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 95L,
                             EffectKey = "allow",
                             PermissionId = 23L,
-                            RoleId = 4L
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 96L,
                             EffectKey = "allow",
                             PermissionId = 25L,
-                            RoleId = 4L
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 97L,
                             EffectKey = "allow",
                             PermissionId = 27L,
-                            RoleId = 4L
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 98L,
                             EffectKey = "allow",
                             PermissionId = 29L,
-                            RoleId = 4L
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 99L,
                             EffectKey = "allow",
-                            PermissionId = 31L,
-                            RoleId = 4L
+                            PermissionId = 30L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 100L,
                             EffectKey = "allow",
-                            PermissionId = 33L,
-                            RoleId = 4L
+                            PermissionId = 31L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 101L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
-                            RoleId = 4L
+                            PermissionId = 32L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 102L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
-                            RoleId = 4L
+                            PermissionId = 33L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 103L,
                             EffectKey = "allow",
-                            PermissionId = 17L,
-                            RoleId = 5L
+                            PermissionId = 34L,
+                            RoleId = 2L
                         },
                         new
                         {
                             Id = 104L,
                             EffectKey = "allow",
+                            PermissionId = 35L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 105L,
+                            EffectKey = "allow",
+                            PermissionId = 36L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 106L,
+                            EffectKey = "allow",
+                            PermissionId = 37L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 107L,
+                            EffectKey = "allow",
+                            PermissionId = 38L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 108L,
+                            EffectKey = "allow",
+                            PermissionId = 39L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 109L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 110L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 111L,
+                            EffectKey = "allow",
+                            PermissionId = 49L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 112L,
+                            EffectKey = "allow",
+                            PermissionId = 50L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 113L,
+                            EffectKey = "allow",
+                            PermissionId = 51L,
+                            RoleId = 2L
+                        },
+                        new
+                        {
+                            Id = 114L,
+                            EffectKey = "allow",
+                            PermissionId = 17L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 115L,
+                            EffectKey = "allow",
+                            PermissionId = 19L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 116L,
+                            EffectKey = "allow",
+                            PermissionId = 21L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 117L,
+                            EffectKey = "allow",
+                            PermissionId = 23L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 118L,
+                            EffectKey = "allow",
+                            PermissionId = 25L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 119L,
+                            EffectKey = "allow",
+                            PermissionId = 27L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 120L,
+                            EffectKey = "allow",
+                            PermissionId = 29L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 121L,
+                            EffectKey = "allow",
+                            PermissionId = 33L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 122L,
+                            EffectKey = "allow",
+                            PermissionId = 37L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 123L,
+                            EffectKey = "allow",
+                            PermissionId = 38L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 124L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 125L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 126L,
+                            EffectKey = "allow",
+                            PermissionId = 51L,
+                            RoleId = 3L
+                        },
+                        new
+                        {
+                            Id = 127L,
+                            EffectKey = "allow",
+                            PermissionId = 17L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 128L,
+                            EffectKey = "allow",
+                            PermissionId = 19L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 129L,
+                            EffectKey = "allow",
+                            PermissionId = 23L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 130L,
+                            EffectKey = "allow",
+                            PermissionId = 25L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 131L,
+                            EffectKey = "allow",
+                            PermissionId = 27L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 132L,
+                            EffectKey = "allow",
+                            PermissionId = 29L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 133L,
+                            EffectKey = "allow",
+                            PermissionId = 33L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 134L,
+                            EffectKey = "allow",
+                            PermissionId = 37L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 135L,
+                            EffectKey = "allow",
+                            PermissionId = 38L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 136L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 137L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 138L,
+                            EffectKey = "allow",
+                            PermissionId = 51L,
+                            RoleId = 4L
+                        },
+                        new
+                        {
+                            Id = 139L,
+                            EffectKey = "allow",
+                            PermissionId = 17L,
+                            RoleId = 5L
+                        },
+                        new
+                        {
+                            Id = 140L,
+                            EffectKey = "allow",
                             PermissionId = 19L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 105L,
+                            Id = 141L,
                             EffectKey = "allow",
                             PermissionId = 23L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 106L,
+                            Id = 142L,
                             EffectKey = "allow",
                             PermissionId = 25L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 107L,
+                            Id = 143L,
                             EffectKey = "allow",
                             PermissionId = 27L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 108L,
+                            Id = 144L,
                             EffectKey = "allow",
                             PermissionId = 29L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 109L,
-                            EffectKey = "allow",
-                            PermissionId = 31L,
-                            RoleId = 5L
-                        },
-                        new
-                        {
-                            Id = 110L,
+                            Id = 145L,
                             EffectKey = "allow",
                             PermissionId = 33L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 111L,
+                            Id = 146L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
+                            PermissionId = 37L,
                             RoleId = 5L
                         },
                         new
                         {
-                            Id = 112L,
+                            Id = 147L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 5L
+                        },
+                        new
+                        {
+                            Id = 148L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 5L
+                        },
+                        new
+                        {
+                            Id = 149L,
                             EffectKey = "allow",
                             PermissionId = 17L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 113L,
+                            Id = 150L,
                             EffectKey = "allow",
                             PermissionId = 19L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 114L,
+                            Id = 151L,
                             EffectKey = "allow",
                             PermissionId = 23L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 115L,
+                            Id = 152L,
                             EffectKey = "allow",
                             PermissionId = 25L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 116L,
+                            Id = 153L,
                             EffectKey = "allow",
                             PermissionId = 27L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 117L,
+                            Id = 154L,
                             EffectKey = "allow",
                             PermissionId = 29L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 118L,
-                            EffectKey = "allow",
-                            PermissionId = 31L,
-                            RoleId = 8L
-                        },
-                        new
-                        {
-                            Id = 119L,
+                            Id = 155L,
                             EffectKey = "allow",
                             PermissionId = 33L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 120L,
+                            Id = 156L,
                             EffectKey = "allow",
-                            PermissionId = 41L,
+                            PermissionId = 37L,
                             RoleId = 8L
                         },
                         new
                         {
-                            Id = 121L,
+                            Id = 157L,
                             EffectKey = "allow",
-                            PermissionId = 42L,
+                            PermissionId = 38L,
+                            RoleId = 8L
+                        },
+                        new
+                        {
+                            Id = 158L,
+                            EffectKey = "allow",
+                            PermissionId = 40L,
+                            RoleId = 8L
+                        },
+                        new
+                        {
+                            Id = 159L,
+                            EffectKey = "allow",
+                            PermissionId = 48L,
+                            RoleId = 8L
+                        },
+                        new
+                        {
+                            Id = 160L,
+                            EffectKey = "allow",
+                            PermissionId = 51L,
                             RoleId = 8L
                         });
                 });

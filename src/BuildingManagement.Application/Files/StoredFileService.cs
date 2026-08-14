@@ -5,8 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace BuildingManagement.Application;
 
 public sealed class StoredFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options,
-    TimeProvider clock, ICurrentActor actor, AccessAuthorizationService authorization)
-    : FileManagementServiceBase(db, storage, options, clock)
+    TimeProvider clock, ICurrentActor actor, AccessAuthorizationService authorization,
+    ResourceAuthorization resourceAuthorization)
+    : FileManagementServiceBase(db, storage, options, clock, resourceAuthorization)
 {
     public async Task<FileContentResponse> GetContent(string fileCode, CancellationToken ct)
     {

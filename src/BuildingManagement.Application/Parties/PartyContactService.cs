@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class PartyContactService(IApplicationDbContext db, TimeProvider clock) : PartyOccupancyServiceBase(db, clock)
+public sealed class PartyContactService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : PartyOccupancyServiceBase(db, clock, authorization)
 {
     public async Task<PartyContactResponse> AddContact(string partyCode, PartyContactRequest request,
         CancellationToken ct)
@@ -12,6 +12,7 @@ public sealed class PartyContactService(IApplicationDbContext db, TimeProvider c
         return await Db.ExecuteInTransaction(async token =>
         {
             var partyId = await ActivePartyId(partyCode, token);
+            await Authorization.EnsureParty("party_manage", partyId, token);
             var type = await Reference(Db.PartyContactTypes, request.ContactTypeKey,
                 "party_contact_type", token);
             if (request.IsPrimary)
@@ -32,6 +33,7 @@ public sealed class PartyContactService(IApplicationDbContext db, TimeProvider c
     public async Task<IReadOnlyList<PartyContactResponse>> GetContacts(string partyCode, CancellationToken ct)
     {
         var partyId = await PartyId(partyCode, ct);
+        await Authorization.EnsureParty("party_view", partyId, ct);
         return await ContactProjection(Db.PartyContacts.AsNoTracking().Where(x => x.PartyId == partyId))
             .OrderByDescending(x => x.IsActive).ThenByDescending(x => x.IsPrimary).ToListAsync(ct);
     }
@@ -43,6 +45,7 @@ public sealed class PartyContactService(IApplicationDbContext db, TimeProvider c
         return await Db.ExecuteInTransaction(async token =>
         {
             var partyId = await ActivePartyId(partyCode, token);
+            await Authorization.EnsureParty("party_manage", partyId, token);
             var type = await Reference(Db.PartyContactTypes, request.ContactTypeKey,
                 "party_contact_type", token);
             var target = await FindContact(partyId, type.Id,
@@ -70,6 +73,7 @@ public sealed class PartyContactService(IApplicationDbContext db, TimeProvider c
         return await Db.ExecuteInTransaction(async token =>
         {
             var partyId = await ActivePartyId(partyCode, token);
+            await Authorization.EnsureParty("party_manage", partyId, token);
             var type = await Reference(Db.PartyContactTypes, request.ContactTypeKey,
                 "party_contact_type", token);
             var contact = await FindContact(partyId, type.Id,
