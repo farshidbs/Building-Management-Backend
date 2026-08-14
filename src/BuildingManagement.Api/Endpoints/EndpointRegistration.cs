@@ -8,7 +8,7 @@ public static class EndpointRegistration
     {
         var api = app.MapGroup("/api/v1");
         api.MapGet("/reference-data", (ReferenceDataService service, CancellationToken ct) =>
-            service.GetReferenceData(ct)).WithTags("Reference Data");
+            service.GetReferenceData(ct)).WithTags("Reference Data").AllowAnonymous();
         api.MapLocationEndpoints();
         api.MapComplexEndpoints();
         api.MapBuildingEndpoints();

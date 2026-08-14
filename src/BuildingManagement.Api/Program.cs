@@ -22,7 +22,10 @@ builder.Services.AddSingleton(iamOptions);
 builder.Services.AddSingleton<IIamSecretProtector>(new HmacIamSecretProtector(iamSecret));
 builder.Services.AddSingleton<IOtpDelivery, UnconfiguredOtpDelivery>();
 builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, DatabaseBearerHandler>("Bearer", null);
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser().Build());
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentActor, HttpCurrentActor>();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();
 builder.Services.AddOpenApi(); builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -75,16 +78,9 @@ var app = builder.Build();
 app.UseExceptionHandler();
 app.UseHttpsRedirection();
 app.UseCors();
-app.UseAuthentication();
-app.UseAuthorization();
-app.Use(async (context, next) =>
-{
-    context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
-    await next();
-});
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.MapOpenApi().AllowAnonymous();
     app.UseSwagger();
     app.UseSwaggerUI(options =>
     {
@@ -93,7 +89,14 @@ if (app.Environment.IsDevelopment())
         options.DisplayRequestDuration();
     });
 }
-app.MapHealthChecks("/health");
+app.UseAuthentication();
+app.UseAuthorization();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Correlation-Id"] = context.TraceIdentifier;
+    await next();
+});
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapApiEndpoints();
 
 if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedDevelopmentData"))

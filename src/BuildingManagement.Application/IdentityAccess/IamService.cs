@@ -69,30 +69,49 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
             return result with { PartyCode = partyCode };
         }, ct);
 
-    public async Task<TokenResponse> Refresh(RefreshTokenRequest request, CancellationToken ct) =>
-        await db.ExecuteInTransaction(async token =>
+    public async Task<TokenResponse> Refresh(RefreshTokenRequest request, CancellationToken ct)
+    {
+        var hash = protector.Hash(Required(request.RefreshToken, "refreshToken"));
+        var state = await db.AuthRefreshTokens.AsNoTracking()
+            .Where(x => x.TokenHash == hash)
+            .Select(x => new { x.AuthSessionId, x.ConsumedAtUtc, x.RevokedAtUtc, x.ExpiresAtUtc })
+            .SingleOrDefaultAsync(ct)
+            ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
+        if (state.ConsumedAtUtc.HasValue || state.RevokedAtUtc.HasValue)
         {
-            var hash = protector.Hash(Required(request.RefreshToken, "refreshToken"));
-            var old = await db.AuthRefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == hash, token)
-                ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
-            var session = await db.AuthSessions.SingleAsync(x => x.Id == old.AuthSessionId, token);
-            if (!session.IsUsable(Now) || old.ExpiresAtUtc <= Now || old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
+            await RevokeReplaySession(state.AuthSessionId, ct);
+            throw new AppException(401, "refresh_token.reused", "Refresh token reuse was detected.");
+        }
+
+        try
+        {
+            return await db.ExecuteInTransaction(async token =>
             {
-                if (old.ConsumedAtUtc.HasValue) session.Revoke("refresh_reuse", Now);
+                var old = await db.AuthRefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == hash, token)
+                    ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
+                var session = await db.AuthSessions.SingleAsync(x => x.Id == old.AuthSessionId, token);
+                if (!session.IsUsable(Now) || old.ExpiresAtUtc <= Now || old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
+                    throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
+                old.Consume(Now);
+                var plainAccess = protector.CreateToken(); var plainRefresh = protector.CreateToken();
+                var accessExpiry = Now.AddMinutes(options.AccessTokenMinutes);
+                session.RotateAccessToken(protector.Hash(plainAccess), accessExpiry, Now);
+                var replacement = new AuthRefreshToken(session.Id, protector.Hash(plainRefresh), Now, Now.AddDays(options.RefreshTokenDays));
+                db.AuthRefreshTokens.Add(replacement); await db.SaveChangesAsync(token); old.ReplaceWith(replacement.Id);
+                var user = await db.Users.SingleAsync(x => x.Id == session.UserId, token);
+                var partyCode = await (from link in db.UserPartyLinks where link.UserId == user.Id && link.IsActive && link.IsPrimary join p in db.Parties on link.PartyId equals p.Id select p.Code).SingleOrDefaultAsync(token);
+                // Access tokens are session-bound; refresh rotates the refresh secret while the current access token remains bounded by session expiry.
                 await db.SaveChangesAsync(token);
-                throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
-            }
-            old.Consume(Now);
-            var plainAccess = protector.CreateToken(); var plainRefresh = protector.CreateToken();
-            session.RotateAccessToken(protector.Hash(plainAccess), Now);
-            var replacement = new AuthRefreshToken(session.Id, protector.Hash(plainRefresh), Now, Now.AddDays(options.RefreshTokenDays));
-            db.AuthRefreshTokens.Add(replacement); await db.SaveChangesAsync(token); old.ReplaceWith(replacement.Id);
-            var user = await db.Users.SingleAsync(x => x.Id == session.UserId, token);
-            var partyCode = await (from link in db.UserPartyLinks where link.UserId == user.Id && link.IsActive && link.IsPrimary join p in db.Parties on link.PartyId equals p.Id select p.Code).SingleOrDefaultAsync(token);
-            // Access tokens are session-bound; refresh rotates the refresh secret while the current access token remains bounded by session expiry.
-            await db.SaveChangesAsync(token);
-            return new TokenResponse(plainAccess, plainRefresh, session.AbsoluteExpiresAtUtc, user.Code, partyCode);
-        }, ct);
+                return new TokenResponse(plainAccess, plainRefresh, accessExpiry, user.Code, partyCode);
+            }, ct);
+        }
+        catch (DbUpdateConcurrencyException exception)
+        {
+            foreach (var entry in exception.Entries) db.Detach(entry.Entity);
+            await RevokeReplaySession(state.AuthSessionId, ct);
+            throw new AppException(401, "refresh_token.reused", "Refresh token reuse was detected.");
+        }
+    }
 
     public async Task<CurrentUserResponse> Current(long userId, CancellationToken ct)
     {
@@ -116,11 +135,22 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         if (client is not ("web" or "mobile")) throw Validation("clientTypeKey", "Client type must be web or mobile.");
         var access = protector.CreateToken(); var refresh = protector.CreateToken();
         var expiry = client == "mobile" ? Now.AddDays(options.MobileSessionDays) : Now.AddHours(options.WebSessionHours);
+        var accessExpiry = Now.AddMinutes(options.AccessTokenMinutes);
         var session = new AuthSession(await UniqueCode(db.AuthSessions, ct), user.Id, null, methodId, client,
-            protector.Hash(access), Now, expiry, client == "web" ? Now.AddHours(2) : null, device, null);
+            protector.Hash(access), accessExpiry, Now, expiry, client == "web" ? Now.AddHours(2) : null, device, null);
         db.AuthSessions.Add(session); await db.SaveChangesAsync(ct);
         db.AuthRefreshTokens.Add(new AuthRefreshToken(session.Id, protector.Hash(refresh), Now, Now.AddDays(options.RefreshTokenDays)));
-        return new(access, refresh, expiry, user.Code, null);
+        return new(access, refresh, accessExpiry, user.Code, null);
+    }
+
+    private async Task RevokeReplaySession(long sessionId, CancellationToken ct)
+    {
+        var session = await db.AuthSessions.SingleOrDefaultAsync(x => x.Id == sessionId, ct);
+        if (session is not null && session.IsActive)
+        {
+            session.Revoke("refresh_reuse", Now);
+            await db.SaveChangesAsync(ct);
+        }
     }
 
     private static async Task<string> UniqueCode<TEntity>(DbSet<TEntity> set, CancellationToken ct) where TEntity : Entity

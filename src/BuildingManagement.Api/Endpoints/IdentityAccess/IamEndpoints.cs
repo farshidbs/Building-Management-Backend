@@ -8,9 +8,9 @@ public static class IamEndpoints
     public static void MapIamEndpoints(this IEndpointRouteBuilder app)
     {
         var auth = app.MapGroup("/api/v1/auth").WithTags("Identity & Access");
-        auth.MapPost("/otp/request", (RequestOtpRequest request, IamService service, CancellationToken ct) => service.RequestOtp(request, ct));
-        auth.MapPost("/otp/verify", (VerifyOtpRequest request, IamService service, CancellationToken ct) => service.VerifyOtp(request, ct));
-        auth.MapPost("/refresh", (RefreshTokenRequest request, IamService service, CancellationToken ct) => service.Refresh(request, ct));
+        auth.MapPost("/otp/request", (RequestOtpRequest request, IamService service, CancellationToken ct) => service.RequestOtp(request, ct)).AllowAnonymous();
+        auth.MapPost("/otp/verify", (VerifyOtpRequest request, IamService service, CancellationToken ct) => service.VerifyOtp(request, ct)).AllowAnonymous();
+        auth.MapPost("/refresh", (RefreshTokenRequest request, IamService service, CancellationToken ct) => service.Refresh(request, ct)).AllowAnonymous();
         auth.MapGet("/me", (ClaimsPrincipal principal, IamService service, CancellationToken ct) => service.Current(UserId(principal), ct)).RequireAuthorization();
         auth.MapPost("/logout", async (ClaimsPrincipal principal, IamService service, CancellationToken ct) => { await service.Logout(SessionId(principal), false, ct); return Results.NoContent(); }).RequireAuthorization();
         auth.MapPost("/logout-all", async (ClaimsPrincipal principal, IamService service, CancellationToken ct) => { await service.Logout(SessionId(principal), true, ct); return Results.NoContent(); }).RequireAuthorization();

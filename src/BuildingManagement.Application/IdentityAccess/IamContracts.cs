@@ -36,4 +36,5 @@ public sealed class IamOptions
     public int WebSessionHours { get; init; } = 12;
     public int MobileSessionDays { get; init; } = 30;
     public int RefreshTokenDays { get; init; } = 30;
+    public int AccessTokenMinutes { get; init; } = 15;
 }

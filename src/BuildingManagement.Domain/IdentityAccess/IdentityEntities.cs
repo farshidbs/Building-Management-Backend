@@ -92,6 +92,7 @@ public sealed class AuthSession : Entity
     public long? ActiveBuildingId { get; private set; }
     public long? ActiveRoleId { get; private set; }
     public string AccessTokenHash { get; private set; } = "";
+    public DateTimeOffset AccessTokenExpiresAtUtc { get; private set; }
     public DateTimeOffset? LastSeenAtUtc { get; private set; }
     public DateTimeOffset AbsoluteExpiresAtUtc { get; private set; }
     public DateTimeOffset? IdleExpiresAtUtc { get; private set; }
@@ -100,10 +101,10 @@ public sealed class AuthSession : Entity
     public string? DeviceIdentifier { get; private set; }
     public string? UserAgent { get; private set; }
     public string StatusKey { get; private set; } = IamKeys.SessionStatuses.Active;
-    public AuthSession(string code, long? userId, long? platformUserId, long? loginMethodId, string client, string accessTokenHash, DateTimeOffset now, DateTimeOffset absoluteExpiry, DateTimeOffset? idleExpiry, string? device, string? agent) { if (userId.HasValue == platformUserId.HasValue) throw new DomainValidationException("actor", "Exactly one actor is required."); Initialize(code, now); UserId = userId; PlatformUserId = platformUserId; AuthenticatedViaLoginMethodId = loginMethodId; ClientTypeKey = client; AccessTokenHash = Required(accessTokenHash, "accessTokenHash"); AbsoluteExpiresAtUtc = absoluteExpiry; IdleExpiresAtUtc = idleExpiry; DeviceIdentifier = Optional(device); UserAgent = Optional(agent); }
+    public AuthSession(string code, long? userId, long? platformUserId, long? loginMethodId, string client, string accessTokenHash, DateTimeOffset accessTokenExpiry, DateTimeOffset now, DateTimeOffset absoluteExpiry, DateTimeOffset? idleExpiry, string? device, string? agent) { if (userId.HasValue == platformUserId.HasValue) throw new DomainValidationException("actor", "Exactly one actor is required."); Initialize(code, now); UserId = userId; PlatformUserId = platformUserId; AuthenticatedViaLoginMethodId = loginMethodId; ClientTypeKey = client; AccessTokenHash = Required(accessTokenHash, "accessTokenHash"); AccessTokenExpiresAtUtc = accessTokenExpiry; AbsoluteExpiresAtUtc = absoluteExpiry; IdleExpiresAtUtc = idleExpiry; DeviceIdentifier = Optional(device); UserAgent = Optional(agent); }
     public bool IsUsable(DateTimeOffset now) => IsActive && StatusKey == IamKeys.SessionStatuses.Active && RevokedAtUtc is null && now < AbsoluteExpiresAtUtc && (!IdleExpiresAtUtc.HasValue || now < IdleExpiresAtUtc);
     public void Revoke(string reason, DateTimeOffset now) { RevokedAtUtc = now; RevokeReasonKey = reason; StatusKey = IamKeys.SessionStatuses.Revoked; SetActivation(false, now); }
-    public void RotateAccessToken(string accessTokenHash, DateTimeOffset now) { AccessTokenHash = Required(accessTokenHash, "accessTokenHash"); LastSeenAtUtc = now; Touch(now); }
+    public void RotateAccessToken(string accessTokenHash, DateTimeOffset expiresAtUtc, DateTimeOffset now) { AccessTokenHash = Required(accessTokenHash, "accessTokenHash"); AccessTokenExpiresAtUtc = expiresAtUtc; LastSeenAtUtc = now; Touch(now); }
     public void SelectContext(long? complexId, long? buildingId, long? roleId, DateTimeOffset now) { ActiveComplexId = complexId; ActiveBuildingId = buildingId; ActiveRoleId = roleId; LastSeenAtUtc = now; Touch(now); }
 }
 
@@ -118,6 +119,7 @@ public sealed class AuthRefreshToken
     public DateTimeOffset? RevokedAtUtc { get; private set; }
     public long? ReplacedByRefreshTokenId { get; private set; }
     public DateTimeOffset CreatedAtUtc { get; private set; }
+    public byte[] RowVersion { get; private set; } = [];
     public AuthRefreshToken(long sessionId, string hash, DateTimeOffset now, DateTimeOffset expires) { AuthSessionId = sessionId; TokenHash = hash; IssuedAtUtc = CreatedAtUtc = now; ExpiresAtUtc = expires; }
     public void Consume(DateTimeOffset now) { if (ConsumedAtUtc.HasValue || RevokedAtUtc.HasValue) throw new DomainValidationException("refreshToken", "Refresh token was already used."); ConsumedAtUtc = now; }
     public void ReplaceWith(long id) => ReplacedByRefreshTokenId = id;

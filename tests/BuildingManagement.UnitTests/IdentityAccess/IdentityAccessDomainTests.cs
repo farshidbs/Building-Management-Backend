@@ -27,9 +27,9 @@ public sealed class IdentityAccessDomainTests
     public void SessionRequiresExactlyOneActor()
     {
         Assert.Throws<DomainValidationException>(() => new AuthSession("SES01", null, null, null,
-            "web", "hash", Now, Now.AddHours(1), null, null, null));
+            "web", "hash", Now.AddMinutes(15), Now, Now.AddHours(1), null, null, null));
         Assert.Throws<DomainValidationException>(() => new AuthSession("SES01", 1, 2, null,
-            "web", "hash", Now, Now.AddHours(1), null, null, null));
+            "web", "hash", Now.AddMinutes(15), Now, Now.AddHours(1), null, null, null));
     }
 
     [Fact]

@@ -20,7 +20,7 @@ public sealed class DatabaseBearerHandler(IOptionsMonitor<AuthenticationSchemeOp
         if (token.Length < 20) return AuthenticateResult.Fail("Invalid bearer token.");
         var hash = protector.Hash(token);
         var session = await db.AuthSessions.AsNoTracking().SingleOrDefaultAsync(x => x.AccessTokenHash == hash, Context.RequestAborted);
-        if (session is null || !session.IsUsable(clock.GetUtcNow())) return AuthenticateResult.Fail("Session is invalid or expired.");
+        if (session is null || !session.IsUsable(clock.GetUtcNow()) || session.AccessTokenExpiresAtUtc <= clock.GetUtcNow()) return AuthenticateResult.Fail("Session or access credential is invalid or expired.");
         if (session.UserId.HasValue)
         {
             var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == session.UserId && x.IsActive && x.StatusKey == IamKeys.UserStatuses.Active, Context.RequestAborted);

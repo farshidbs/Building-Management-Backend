@@ -282,10 +282,20 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BuildingId");
+
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("ComplexId");
+
+                    b.HasIndex("GrantedByUserId");
+
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("UnitId");
 
                     b.HasIndex("UserId", "PermissionId", "IsActive");
 
@@ -356,12 +366,20 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BuildingId");
+
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("ComplexId");
 
                     b.HasIndex("IsActive");
 
                     b.HasIndex("RoleId");
+
+                    b.HasIndex("SourceUnitPartyRelationId");
+
+                    b.HasIndex("UnitId");
 
                     b.HasIndex("UserId", "RoleId", "ComplexId", "BuildingId", "UnitId")
                         .IsUnique()
@@ -656,6 +674,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("ResolvedByPlatformUserId");
+
+                    b.HasIndex("UserId");
 
                     b.ToTable("AccountRecoveryCases", "bms", t =>
                         {
@@ -1299,6 +1321,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<DateTimeOffset?>("RevokedAtUtc")
                         .HasColumnType("datetimeoffset");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<string>("TokenHash")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -1307,6 +1335,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AuthSessionId");
+
+                    b.HasIndex("ReplacedByRefreshTokenId");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
@@ -1323,6 +1353,9 @@ namespace BuildingManagement.Infrastructure.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<DateTimeOffset>("AbsoluteExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("AccessTokenExpiresAtUtc")
                         .HasColumnType("datetimeoffset");
 
                     b.Property<string>("AccessTokenHash")
@@ -1399,6 +1432,14 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("AccessTokenHash")
                         .IsUnique();
+
+                    b.HasIndex("ActiveBuildingId");
+
+                    b.HasIndex("ActiveComplexId");
+
+                    b.HasIndex("ActiveRoleId");
+
+                    b.HasIndex("AuthenticatedViaLoginMethodId");
 
                     b.HasIndex("Code")
                         .IsUnique();
@@ -1778,6 +1819,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("PermissionId");
+
+                    b.HasIndex("RoleId");
 
                     b.HasIndex("BuildingId", "RoleId", "PermissionId")
                         .IsUnique();
@@ -3354,6 +3399,10 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive");
 
+                    b.HasIndex("PartyId");
+
+                    b.HasIndex("UserId");
+
                     b.ToTable("IdentityConflictReviews", "bms", t =>
                         {
                             t.HasCheckConstraint("CK_IdentityConflictReviews_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
@@ -3425,13 +3474,23 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BuildingId");
+
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("ComplexId");
+
+                    b.HasIndex("InvitedByUserId");
+
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("RoleId");
 
                     b.HasIndex("TokenHash")
                         .IsUnique();
+
+                    b.HasIndex("UnitId");
 
                     b.ToTable("Invitations", "bms", t =>
                         {
@@ -3669,7 +3728,13 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
+                    b.HasIndex("DecidedByUserId");
+
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("MembershipId");
+
+                    b.HasIndex("RequestedByUserId");
 
                     b.ToTable("MembershipExitRequests", "bms", t =>
                         {
@@ -4538,6 +4603,8 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("PermissionId");
+
                     b.HasIndex("RoleId", "PermissionId")
                         .IsUnique();
 
@@ -4630,6 +4697,8 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("RoleId");
+
                     b.HasIndex("PlatformUserId", "RoleId")
                         .IsUnique();
 
@@ -4699,6 +4768,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AuthSessionId");
+
+                    b.HasIndex("PlatformUserId");
 
                     b.HasIndex("UserId", "OccurredAtUtc");
 
@@ -4839,6 +4912,10 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique();
 
                     b.HasIndex("IsActive");
+
+                    b.HasIndex("PlatformUserId");
+
+                    b.HasIndex("TargetUserId");
 
                     b.ToTable("SupportActingSessions", "bms", t =>
                         {
@@ -5774,13 +5851,69 @@ namespace BuildingManagement.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("BuildingManagement.Domain.AccessGrant", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ComplexId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("GrantedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.AccessCapability", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("BuildingManagement.Domain.AccessMembership", b =>
                 {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ComplexId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BuildingManagement.Domain.AccessRole", null)
                         .WithMany()
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.UnitPartyRelation", null)
+                        .WithMany()
+                        .HasForeignKey("SourceUnitPartyRelationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("BuildingManagement.Domain.User", null)
                         .WithMany()
@@ -5820,6 +5953,19 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.Party", null)
                         .WithMany()
                         .HasForeignKey("ResponsiblePartyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.AccountRecoveryCase", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.PlatformUser", null)
+                        .WithMany()
+                        .HasForeignKey("ResolvedByPlatformUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict);
                 });
 
@@ -5918,12 +6064,37 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.AuthSession", null)
                         .WithMany()
                         .HasForeignKey("AuthSessionId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.AuthRefreshToken", null)
+                        .WithMany()
+                        .HasForeignKey("ReplacedByRefreshTokenId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.AuthSession", b =>
                 {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveComplexId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.AccessRole", null)
+                        .WithMany()
+                        .HasForeignKey("ActiveRoleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.UserLoginMethod", null)
+                        .WithMany()
+                        .HasForeignKey("AuthenticatedViaLoginMethodId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("BuildingManagement.Domain.PlatformUser", null)
                         .WithMany()
                         .HasForeignKey("PlatformUserId")
@@ -5951,6 +6122,15 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.Location", null)
                         .WithMany()
                         .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.BuildingAccessSetting", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -5987,6 +6167,27 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.StoredFile", null)
                         .WithMany()
                         .HasForeignKey("StoredFileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.BuildingRolePermissionOverride", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.AccessCapability", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.AccessRole", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
@@ -6358,6 +6559,49 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("BuildingManagement.Domain.IdentityConflictReview", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.Party", null)
+                        .WithMany()
+                        .HasForeignKey("PartyId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.Invitation", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.Building", null)
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.Complex", null)
+                        .WithMany()
+                        .HasForeignKey("ComplexId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("InvitedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.AccessRole", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.Unit", null)
+                        .WithMany()
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
             modelBuilder.Entity("BuildingManagement.Domain.Location", b =>
                 {
                     b.HasOne("BuildingManagement.Domain.LocationType", null)
@@ -6378,6 +6622,26 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.MembershipExitRequest", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("DecidedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.AccessMembership", null)
+                        .WithMany()
+                        .HasForeignKey("MembershipId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("RequestedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.Party", b =>
@@ -6471,6 +6735,78 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.HasOne("BuildingManagement.Domain.StoredFile", null)
                         .WithMany()
                         .HasForeignKey("StoredFileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.PlatformRolePermissionLink", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.PlatformCapability", null)
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.PlatformRole", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.PlatformUserRoleLink", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.PlatformUser", null)
+                        .WithMany()
+                        .HasForeignKey("PlatformUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.PlatformRole", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.RoleAllowedScope", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.AccessRole", null)
+                        .WithMany()
+                        .HasForeignKey("RoleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.SecurityAuditEvent", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.AuthSession", null)
+                        .WithMany()
+                        .HasForeignKey("AuthSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.PlatformUser", null)
+                        .WithMany()
+                        .HasForeignKey("PlatformUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("BuildingManagement.Domain.SupportActingSession", b =>
+                {
+                    b.HasOne("BuildingManagement.Domain.PlatformUser", null)
+                        .WithMany()
+                        .HasForeignKey("PlatformUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("BuildingManagement.Domain.User", null)
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

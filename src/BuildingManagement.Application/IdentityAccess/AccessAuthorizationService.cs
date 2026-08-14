@@ -8,6 +8,28 @@ public sealed record AccessContextResponse(string ScopeKind, string ScopeCode, s
 
 public sealed class AccessAuthorizationService(IApplicationDbContext db, TimeProvider clock)
 {
+    private sealed record ResourceScope(long? ComplexId, long? BuildingId, long? UnitId);
+
+    public async Task<bool> CanReadStoredFile(long userId, long storedFileId, CancellationToken ct)
+    {
+        var scopes = new List<ResourceScope>();
+        scopes.AddRange(await db.BuildingGalleryFiles.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(null, x.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await db.BuildingDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(null, x.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await db.ComplexGalleryFiles.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(x.ComplexId, null, null)).ToListAsync(ct));
+        scopes.AddRange(await db.ComplexDocuments.AsNoTracking().Where(x => x.StoredFileId == storedFileId && x.IsActive).Select(x => new ResourceScope(x.ComplexId, null, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.AssetGalleryFiles.AsNoTracking() join asset in db.Assets on relation.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.AssetDocuments.AsNoTracking() join asset in db.Assets on relation.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.AssetEventFiles.AsNoTracking() join assetEvent in db.AssetEvents on relation.AssetEventId equals assetEvent.Id join asset in db.Assets on assetEvent.AssetId equals asset.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(asset.ComplexId, asset.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.ExpenseDocuments.AsNoTracking() join expense in db.Expenses on relation.ExpenseId equals expense.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(expense.ComplexId, expense.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.ExpenseDisbursementFiles.AsNoTracking() join disbursement in db.ExpenseDisbursements on relation.ExpenseDisbursementId equals disbursement.Id join expense in db.Expenses on disbursement.ExpenseId equals expense.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(expense.ComplexId, expense.BuildingId, null)).ToListAsync(ct));
+        scopes.AddRange(await (from relation in db.PaymentEvidenceFiles.AsNoTracking() join payment in db.Payments on relation.PaymentId equals payment.Id join account in db.FinancialAccounts on payment.UnitAccountId equals account.Id where relation.StoredFileId == storedFileId && relation.IsActive select new ResourceScope(account.ComplexId, account.BuildingId, account.UnitId)).ToListAsync(ct));
+        foreach (var scope in scopes.Distinct())
+        {
+            try { await Ensure(userId, "file_read", scope.ComplexId, scope.BuildingId, scope.UnitId, ct); return true; }
+            catch (AppException exception) when (exception.Status is 403 or 404) { }
+        }
+        return false;
+    }
     public async Task<IReadOnlyList<AccessContextResponse>> GetContexts(long userId, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
@@ -36,13 +58,39 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         long? unitId, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
-        var roleAllowed = await (from membership in db.AccessMemberships.AsNoTracking()
-                                 join rolePermission in db.AccessRolePermissions.AsNoTracking() on membership.RoleId equals rolePermission.RoleId
-                                 join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
-                                 where membership.UserId == userId && membership.IsActive && membership.EndsAtUtc == null && membership.StartsAtUtc <= now &&
-                                       permission.Key == permissionKey && rolePermission.EffectKey == IamKeys.Effects.Allow &&
-                                       ((complexId != null && membership.ComplexId == complexId) || (buildingId != null && membership.BuildingId == buildingId) || (unitId != null && membership.UnitId == unitId))
-                                 select membership.Id).AnyAsync(ct);
+        var targetBuildingId = buildingId;
+        if (unitId.HasValue)
+            targetBuildingId = await db.Units.AsNoTracking().Where(x => x.Id == unitId).Select(x => (long?)x.BuildingId).SingleOrDefaultAsync(ct);
+        var targetComplexId = complexId;
+        if (targetBuildingId.HasValue)
+            targetComplexId = await db.Buildings.AsNoTracking().Where(x => x.Id == targetBuildingId).Select(x => x.ComplexId).SingleOrDefaultAsync(ct);
+
+        var memberships = await db.AccessMemberships.AsNoTracking()
+            .Where(x => x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now &&
+                (!x.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                    relation.Id == x.SourceUnitPartyRelationId && relation.IsActive && relation.EndDate == null)) &&
+                ((unitId.HasValue && x.UnitId == unitId) ||
+                 (targetBuildingId.HasValue && x.BuildingId == targetBuildingId) ||
+                 (targetComplexId.HasValue && x.ComplexId == targetComplexId)))
+            .Select(x => new { x.RoleId })
+            .ToListAsync(ct);
+        var roleIds = memberships.Select(x => x.RoleId).Distinct().ToArray();
+        var baseAllows = await (from rolePermission in db.AccessRolePermissions.AsNoTracking()
+                                join permission in db.AccessPermissions.AsNoTracking() on rolePermission.PermissionId equals permission.Id
+                                where roleIds.Contains(rolePermission.RoleId) && permission.Key == permissionKey
+                                select new { rolePermission.RoleId, rolePermission.EffectKey }).ToListAsync(ct);
+        var overrides = targetBuildingId.HasValue
+            ? await (from item in db.BuildingRolePermissionOverrides.AsNoTracking()
+                     join permission in db.AccessPermissions.AsNoTracking() on item.PermissionId equals permission.Id
+                     where item.BuildingId == targetBuildingId && item.IsActive && roleIds.Contains(item.RoleId) && permission.Key == permissionKey
+                     select new { item.RoleId, item.EffectKey }).ToListAsync(ct)
+            : [];
+        var roleAllowed = roleIds.Any(roleId =>
+        {
+            var roleOverride = overrides.SingleOrDefault(x => x.RoleId == roleId);
+            return roleOverride?.EffectKey == IamKeys.Effects.Allow ||
+                   (roleOverride is null && baseAllows.Any(x => x.RoleId == roleId && x.EffectKey == IamKeys.Effects.Allow));
+        });
         var grantAllowed = await (from grant in db.AccessGrants.AsNoTracking()
                                   join permission in db.AccessPermissions.AsNoTracking() on grant.PermissionId equals permission.Id
                                   where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&

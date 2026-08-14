@@ -91,6 +91,7 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
     public DbSet<PlatformUserRoleLink> PlatformUserRoles => Set<PlatformUserRoleLink>();
     public DbSet<SupportActingSession> SupportActingSessions => Set<SupportActingSession>();
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
+    public DbSet<BuildingRolePermissionOverride> BuildingRolePermissionOverrides => Set<BuildingRolePermissionOverride>();
 
     public void Detach(object entity) => Entry(entity).State = EntityState.Detached;
 

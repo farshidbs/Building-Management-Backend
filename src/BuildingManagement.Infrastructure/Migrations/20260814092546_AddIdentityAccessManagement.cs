@@ -24,35 +24,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 nullable: true);
 
             migrationBuilder.CreateTable(
-                name: "AccessGrants",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: false),
-                    GrantedByUserId = table.Column<long>(type: "bigint", nullable: false),
-                    PermissionId = table.Column<long>(type: "bigint", nullable: false),
-                    ComplexId = table.Column<long>(type: "bigint", nullable: true),
-                    BuildingId = table.Column<long>(type: "bigint", nullable: true),
-                    UnitId = table.Column<long>(type: "bigint", nullable: true),
-                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AccessGrants", x => x.Id);
-                    table.CheckConstraint("CK_AccessGrants_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                    table.CheckConstraint("CK_AccessGrants_OneScope", "(CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END) = 1");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "AccessRoles",
                 schema: "bms",
                 columns: table => new
@@ -76,32 +47,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AccountRecoveryCases",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: true),
-                    RecoveryTypeKey = table.Column<string>(type: "varchar(40)", nullable: false),
-                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
-                    NewNormalizedIdentifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    ResolvedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    ResolvedByPlatformUserId = table.Column<long>(type: "bigint", nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AccountRecoveryCases", x => x.Id);
-                    table.CheckConstraint("CK_AccountRecoveryCases_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "BuildingAccessSettings",
                 schema: "bms",
                 columns: table => new
@@ -121,109 +66,13 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_BuildingAccessSettings", x => x.Id);
                     table.CheckConstraint("CK_BuildingAccessSettings_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "BuildingRolePermissionOverrides",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    BuildingId = table.Column<long>(type: "bigint", nullable: false),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false),
-                    PermissionId = table.Column<long>(type: "bigint", nullable: false),
-                    EffectKey = table.Column<string>(type: "varchar(10)", nullable: false),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_BuildingRolePermissionOverrides", x => x.Id);
-                    table.CheckConstraint("CK_BuildingRolePermissionOverrides_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "IdentityConflictReviews",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: true),
-                    PartyId = table.Column<long>(type: "bigint", nullable: true),
-                    ConflictTypeKey = table.Column<string>(type: "varchar(50)", nullable: false),
-                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
-                    Details = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    ResolvedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_IdentityConflictReviews", x => x.Id);
-                    table.CheckConstraint("CK_IdentityConflictReviews_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Invitations",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    TokenHash = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
-                    NormalizedIdentifierValue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false),
-                    ComplexId = table.Column<long>(type: "bigint", nullable: true),
-                    BuildingId = table.Column<long>(type: "bigint", nullable: true),
-                    UnitId = table.Column<long>(type: "bigint", nullable: true),
-                    InvitedByUserId = table.Column<long>(type: "bigint", nullable: false),
-                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    AcceptedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Invitations", x => x.Id);
-                    table.CheckConstraint("CK_Invitations_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                    table.CheckConstraint("CK_Invitations_OneScope", "(CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END) = 1");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "MembershipExitRequests",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    MembershipId = table.Column<long>(type: "bigint", nullable: false),
-                    RequestedByUserId = table.Column<long>(type: "bigint", nullable: false),
-                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
-                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
-                    DecidedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    DecidedByUserId = table.Column<long>(type: "bigint", nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_MembershipExitRequests", x => x.Id);
-                    table.CheckConstraint("CK_MembershipExitRequests_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.ForeignKey(
+                        name: "FK_BuildingAccessSettings_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -336,21 +185,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "PlatformRolePermissions",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false),
-                    PermissionId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PlatformRolePermissions", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "PlatformRoles",
                 schema: "bms",
                 columns: table => new
@@ -369,21 +203,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_PlatformRoles", x => x.Id);
                     table.CheckConstraint("CK_PlatformRoles_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
-                });
-
-            migrationBuilder.CreateTable(
-                name: "PlatformUserRoles",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    PlatformUserId = table.Column<long>(type: "bigint", nullable: false),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_PlatformUserRoles", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -412,67 +231,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "RoleAllowedScopes",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    RoleId = table.Column<long>(type: "bigint", nullable: false),
-                    ScopeKindKey = table.Column<string>(type: "varchar(20)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_RoleAllowedScopes", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "SecurityAuditEvents",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    UserId = table.Column<long>(type: "bigint", nullable: true),
-                    PlatformUserId = table.Column<long>(type: "bigint", nullable: true),
-                    AuthSessionId = table.Column<long>(type: "bigint", nullable: true),
-                    EventTypeKey = table.Column<string>(type: "varchar(80)", nullable: false),
-                    ResourceKindKey = table.Column<string>(type: "varchar(50)", nullable: true),
-                    ResourceCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
-                    IpAddress = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
-                    OccurredAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_SecurityAuditEvents", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "SupportActingSessions",
-                schema: "bms",
-                columns: table => new
-                {
-                    Id = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    PlatformUserId = table.Column<long>(type: "bigint", nullable: false),
-                    TargetUserId = table.Column<long>(type: "bigint", nullable: false),
-                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
-                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    EndedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
-                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
-                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_SupportActingSessions", x => x.Id);
-                    table.CheckConstraint("CK_SupportActingSessions_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "Users",
                 schema: "bms",
                 columns: table => new
@@ -490,6 +248,72 @@ namespace BuildingManagement.Infrastructure.Migrations
                 {
                     table.PrimaryKey("PK_Users", x => x.Id);
                     table.CheckConstraint("CK_Users_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "RoleAllowedScopes",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false),
+                    ScopeKindKey = table.Column<string>(type: "varchar(20)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_RoleAllowedScopes", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_RoleAllowedScopes_AccessRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "bms",
+                        principalTable: "AccessRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BuildingRolePermissionOverrides",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    BuildingId = table.Column<long>(type: "bigint", nullable: false),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false),
+                    PermissionId = table.Column<long>(type: "bigint", nullable: false),
+                    EffectKey = table.Column<string>(type: "varchar(10)", nullable: false),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BuildingRolePermissionOverrides", x => x.Id);
+                    table.CheckConstraint("CK_BuildingRolePermissionOverrides_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.ForeignKey(
+                        name: "FK_BuildingRolePermissionOverrides_AccessRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "bms",
+                        principalTable: "AccessRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_BuildingRolePermissionOverrides_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_BuildingRolePermissionOverrides_Permissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalSchema: "bms",
+                        principalTable: "Permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -520,6 +344,135 @@ namespace BuildingManagement.Infrastructure.Migrations
                         principalTable: "Permissions",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlatformRolePermissions",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false),
+                    PermissionId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlatformRolePermissions", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlatformRolePermissions_PlatformPermissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformPermissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PlatformRolePermissions_PlatformRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "PlatformUserRoles",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PlatformUserId = table.Column<long>(type: "bigint", nullable: false),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_PlatformUserRoles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_PlatformUserRoles_PlatformRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_PlatformUserRoles_PlatformUsers_PlatformUserId",
+                        column: x => x.PlatformUserId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AccessGrants",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<long>(type: "bigint", nullable: false),
+                    GrantedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    PermissionId = table.Column<long>(type: "bigint", nullable: false),
+                    ComplexId = table.Column<long>(type: "bigint", nullable: true),
+                    BuildingId = table.Column<long>(type: "bigint", nullable: true),
+                    UnitId = table.Column<long>(type: "bigint", nullable: true),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AccessGrants", x => x.Id);
+                    table.CheckConstraint("CK_AccessGrants_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.CheckConstraint("CK_AccessGrants_OneScope", "(CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END) = 1");
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Complexes_ComplexId",
+                        column: x => x.ComplexId,
+                        principalSchema: "bms",
+                        principalTable: "Complexes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Permissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalSchema: "bms",
+                        principalTable: "Permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Units_UnitId",
+                        column: x => x.UnitId,
+                        principalSchema: "bms",
+                        principalTable: "Units",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Users_GrantedByUserId",
+                        column: x => x.GrantedByUserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessGrants_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -557,6 +510,34 @@ namespace BuildingManagement.Infrastructure.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
+                        name: "FK_AccessMemberships_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessMemberships_Complexes_ComplexId",
+                        column: x => x.ComplexId,
+                        principalSchema: "bms",
+                        principalTable: "Complexes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessMemberships_UnitPartyRelations_SourceUnitPartyRelationId",
+                        column: x => x.SourceUnitPartyRelationId,
+                        principalSchema: "bms",
+                        principalTable: "UnitPartyRelations",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccessMemberships_Units_UnitId",
+                        column: x => x.UnitId,
+                        principalSchema: "bms",
+                        principalTable: "Units",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_AccessMemberships_Users_UserId",
                         column: x => x.UserId,
                         principalSchema: "bms",
@@ -566,28 +547,19 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AuthSessions",
+                name: "AccountRecoveryCases",
                 schema: "bms",
                 columns: table => new
                 {
                     Id = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     UserId = table.Column<long>(type: "bigint", nullable: true),
-                    PlatformUserId = table.Column<long>(type: "bigint", nullable: true),
-                    AuthenticatedViaLoginMethodId = table.Column<long>(type: "bigint", nullable: true),
-                    ClientTypeKey = table.Column<string>(type: "varchar(30)", nullable: false),
-                    ActiveComplexId = table.Column<long>(type: "bigint", nullable: true),
-                    ActiveBuildingId = table.Column<long>(type: "bigint", nullable: true),
-                    ActiveRoleId = table.Column<long>(type: "bigint", nullable: true),
-                    AccessTokenHash = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
-                    LastSeenAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    AbsoluteExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
-                    IdleExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
-                    RevokeReasonKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    DeviceIdentifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    UserAgent = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    RecoveryTypeKey = table.Column<string>(type: "varchar(40)", nullable: false),
                     StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
+                    NewNormalizedIdentifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ResolvedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    ResolvedByPlatformUserId = table.Column<long>(type: "bigint", nullable: true),
                     Code = table.Column<string>(type: "varchar(5)", nullable: false),
                     IsActive = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
@@ -596,19 +568,160 @@ namespace BuildingManagement.Infrastructure.Migrations
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_AuthSessions", x => x.Id);
-                    table.CheckConstraint("CK_AuthSessions_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
-                    table.CheckConstraint("CK_AuthSessions_OneActor", "(CASE WHEN [UserId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [PlatformUserId] IS NULL THEN 0 ELSE 1 END) = 1");
+                    table.PrimaryKey("PK_AccountRecoveryCases", x => x.Id);
+                    table.CheckConstraint("CK_AccountRecoveryCases_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
                     table.ForeignKey(
-                        name: "FK_AuthSessions_PlatformUsers_PlatformUserId",
+                        name: "FK_AccountRecoveryCases_PlatformUsers_ResolvedByPlatformUserId",
+                        column: x => x.ResolvedByPlatformUserId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AccountRecoveryCases_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "IdentityConflictReviews",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    PartyId = table.Column<long>(type: "bigint", nullable: true),
+                    ConflictTypeKey = table.Column<string>(type: "varchar(50)", nullable: false),
+                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
+                    Details = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    ResolvedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_IdentityConflictReviews", x => x.Id);
+                    table.CheckConstraint("CK_IdentityConflictReviews_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.ForeignKey(
+                        name: "FK_IdentityConflictReviews_Parties_PartyId",
+                        column: x => x.PartyId,
+                        principalSchema: "bms",
+                        principalTable: "Parties",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_IdentityConflictReviews_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Invitations",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TokenHash = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    NormalizedIdentifierValue = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    RoleId = table.Column<long>(type: "bigint", nullable: false),
+                    ComplexId = table.Column<long>(type: "bigint", nullable: true),
+                    BuildingId = table.Column<long>(type: "bigint", nullable: true),
+                    UnitId = table.Column<long>(type: "bigint", nullable: true),
+                    InvitedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    AcceptedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Invitations", x => x.Id);
+                    table.CheckConstraint("CK_Invitations_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.CheckConstraint("CK_Invitations_OneScope", "(CASE WHEN [ComplexId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [BuildingId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [UnitId] IS NULL THEN 0 ELSE 1 END) = 1");
+                    table.ForeignKey(
+                        name: "FK_Invitations_AccessRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalSchema: "bms",
+                        principalTable: "AccessRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invitations_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invitations_Complexes_ComplexId",
+                        column: x => x.ComplexId,
+                        principalSchema: "bms",
+                        principalTable: "Complexes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invitations_Units_UnitId",
+                        column: x => x.UnitId,
+                        principalSchema: "bms",
+                        principalTable: "Units",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_Invitations_Users_InvitedByUserId",
+                        column: x => x.InvitedByUserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SupportActingSessions",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    PlatformUserId = table.Column<long>(type: "bigint", nullable: false),
+                    TargetUserId = table.Column<long>(type: "bigint", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: false),
+                    ExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    EndedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SupportActingSessions", x => x.Id);
+                    table.CheckConstraint("CK_SupportActingSessions_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.ForeignKey(
+                        name: "FK_SupportActingSessions_PlatformUsers_PlatformUserId",
                         column: x => x.PlatformUserId,
                         principalSchema: "bms",
                         principalTable: "PlatformUsers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_AuthSessions_Users_UserId",
-                        column: x => x.UserId,
+                        name: "FK_SupportActingSessions_Users_TargetUserId",
+                        column: x => x.TargetUserId,
                         principalSchema: "bms",
                         principalTable: "Users",
                         principalColumn: "Id",
@@ -692,6 +805,131 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "MembershipExitRequests",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    MembershipId = table.Column<long>(type: "bigint", nullable: false),
+                    RequestedByUserId = table.Column<long>(type: "bigint", nullable: false),
+                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
+                    Reason = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    DecidedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    DecidedByUserId = table.Column<long>(type: "bigint", nullable: true),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MembershipExitRequests", x => x.Id);
+                    table.CheckConstraint("CK_MembershipExitRequests_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.ForeignKey(
+                        name: "FK_MembershipExitRequests_AccessMemberships_MembershipId",
+                        column: x => x.MembershipId,
+                        principalSchema: "bms",
+                        principalTable: "AccessMemberships",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_MembershipExitRequests_Users_DecidedByUserId",
+                        column: x => x.DecidedByUserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_MembershipExitRequests_Users_RequestedByUserId",
+                        column: x => x.RequestedByUserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AuthSessions",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    PlatformUserId = table.Column<long>(type: "bigint", nullable: true),
+                    AuthenticatedViaLoginMethodId = table.Column<long>(type: "bigint", nullable: true),
+                    ClientTypeKey = table.Column<string>(type: "varchar(30)", nullable: false),
+                    ActiveComplexId = table.Column<long>(type: "bigint", nullable: true),
+                    ActiveBuildingId = table.Column<long>(type: "bigint", nullable: true),
+                    ActiveRoleId = table.Column<long>(type: "bigint", nullable: true),
+                    AccessTokenHash = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    AccessTokenExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    LastSeenAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    AbsoluteExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    IdleExpiresAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
+                    RevokeReasonKey = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    DeviceIdentifier = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    UserAgent = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StatusKey = table.Column<string>(type: "varchar(30)", nullable: false),
+                    Code = table.Column<string>(type: "varchar(5)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false),
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: false),
+                    UpdatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset(0)", precision: 0, nullable: true),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AuthSessions", x => x.Id);
+                    table.CheckConstraint("CK_AuthSessions_CodeFormat", "[Code] NOT LIKE '%[^A-Z0-9]%' AND LEN([Code]) = 5");
+                    table.CheckConstraint("CK_AuthSessions_OneActor", "(CASE WHEN [UserId] IS NULL THEN 0 ELSE 1 END + CASE WHEN [PlatformUserId] IS NULL THEN 0 ELSE 1 END) = 1");
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_AccessRoles_ActiveRoleId",
+                        column: x => x.ActiveRoleId,
+                        principalSchema: "bms",
+                        principalTable: "AccessRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_Buildings_ActiveBuildingId",
+                        column: x => x.ActiveBuildingId,
+                        principalSchema: "bms",
+                        principalTable: "Buildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_Complexes_ActiveComplexId",
+                        column: x => x.ActiveComplexId,
+                        principalSchema: "bms",
+                        principalTable: "Complexes",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_PlatformUsers_PlatformUserId",
+                        column: x => x.PlatformUserId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_UserLoginMethods_AuthenticatedViaLoginMethodId",
+                        column: x => x.AuthenticatedViaLoginMethodId,
+                        principalSchema: "bms",
+                        principalTable: "UserLoginMethods",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AuthSessions_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AuthRefreshTokens",
                 schema: "bms",
                 columns: table => new
@@ -705,18 +943,69 @@ namespace BuildingManagement.Infrastructure.Migrations
                     ConsumedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     RevokedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: true),
                     ReplacedByRefreshTokenId = table.Column<long>(type: "bigint", nullable: true),
-                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                    CreatedAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false),
+                    RowVersion = table.Column<byte[]>(type: "rowversion", rowVersion: true, nullable: false)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AuthRefreshTokens", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AuthRefreshTokens_AuthRefreshTokens_ReplacedByRefreshTokenId",
+                        column: x => x.ReplacedByRefreshTokenId,
+                        principalSchema: "bms",
+                        principalTable: "AuthRefreshTokens",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_AuthRefreshTokens_AuthSessions_AuthSessionId",
                         column: x => x.AuthSessionId,
                         principalSchema: "bms",
                         principalTable: "AuthSessions",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SecurityAuditEvents",
+                schema: "bms",
+                columns: table => new
+                {
+                    Id = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<long>(type: "bigint", nullable: true),
+                    PlatformUserId = table.Column<long>(type: "bigint", nullable: true),
+                    AuthSessionId = table.Column<long>(type: "bigint", nullable: true),
+                    EventTypeKey = table.Column<string>(type: "varchar(80)", nullable: false),
+                    ResourceKindKey = table.Column<string>(type: "varchar(50)", nullable: true),
+                    ResourceCode = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    Reason = table.Column<string>(type: "nvarchar(1000)", maxLength: 1000, nullable: true),
+                    IpAddress = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    OccurredAtUtc = table.Column<DateTimeOffset>(type: "datetimeoffset", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SecurityAuditEvents", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SecurityAuditEvents_AuthSessions_AuthSessionId",
+                        column: x => x.AuthSessionId,
+                        principalSchema: "bms",
+                        principalTable: "AuthSessions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SecurityAuditEvents_PlatformUsers_PlatformUserId",
+                        column: x => x.PlatformUserId,
+                        principalSchema: "bms",
+                        principalTable: "PlatformUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_SecurityAuditEvents_Users_UserId",
+                        column: x => x.UserId,
+                        principalSchema: "bms",
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.InsertData(
@@ -755,11 +1044,29 @@ namespace BuildingManagement.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_AccessGrants_BuildingId",
+                schema: "bms",
+                table: "AccessGrants",
+                column: "BuildingId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AccessGrants_Code",
                 schema: "bms",
                 table: "AccessGrants",
                 column: "Code",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessGrants_ComplexId",
+                schema: "bms",
+                table: "AccessGrants",
+                column: "ComplexId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessGrants_GrantedByUserId",
+                schema: "bms",
+                table: "AccessGrants",
+                column: "GrantedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccessGrants_IsActive",
@@ -768,10 +1075,28 @@ namespace BuildingManagement.Infrastructure.Migrations
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AccessGrants_PermissionId",
+                schema: "bms",
+                table: "AccessGrants",
+                column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessGrants_UnitId",
+                schema: "bms",
+                table: "AccessGrants",
+                column: "UnitId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AccessGrants_UserId_PermissionId_IsActive",
                 schema: "bms",
                 table: "AccessGrants",
                 columns: new[] { "UserId", "PermissionId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessMemberships_BuildingId",
+                schema: "bms",
+                table: "AccessMemberships",
+                column: "BuildingId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccessMemberships_Code",
@@ -779,6 +1104,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 table: "AccessMemberships",
                 column: "Code",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessMemberships_ComplexId",
+                schema: "bms",
+                table: "AccessMemberships",
+                column: "ComplexId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccessMemberships_IsActive",
@@ -791,6 +1122,18 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "AccessMemberships",
                 column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessMemberships_SourceUnitPartyRelationId",
+                schema: "bms",
+                table: "AccessMemberships",
+                column: "SourceUnitPartyRelationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccessMemberships_UnitId",
+                schema: "bms",
+                table: "AccessMemberships",
+                column: "UnitId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AccessMemberships_UserId_RoleId_ComplexId_BuildingId_UnitId",
@@ -827,10 +1170,28 @@ namespace BuildingManagement.Infrastructure.Migrations
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AccountRecoveryCases_ResolvedByPlatformUserId",
+                schema: "bms",
+                table: "AccountRecoveryCases",
+                column: "ResolvedByPlatformUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AccountRecoveryCases_UserId",
+                schema: "bms",
+                table: "AccountRecoveryCases",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_AuthRefreshTokens_AuthSessionId",
                 schema: "bms",
                 table: "AuthRefreshTokens",
                 column: "AuthSessionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuthRefreshTokens_ReplacedByRefreshTokenId",
+                schema: "bms",
+                table: "AuthRefreshTokens",
+                column: "ReplacedByRefreshTokenId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AuthRefreshTokens_TokenHash",
@@ -845,6 +1206,30 @@ namespace BuildingManagement.Infrastructure.Migrations
                 table: "AuthSessions",
                 column: "AccessTokenHash",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuthSessions_ActiveBuildingId",
+                schema: "bms",
+                table: "AuthSessions",
+                column: "ActiveBuildingId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuthSessions_ActiveComplexId",
+                schema: "bms",
+                table: "AuthSessions",
+                column: "ActiveComplexId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuthSessions_ActiveRoleId",
+                schema: "bms",
+                table: "AuthSessions",
+                column: "ActiveRoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AuthSessions_AuthenticatedViaLoginMethodId",
+                schema: "bms",
+                table: "AuthSessions",
+                column: "AuthenticatedViaLoginMethodId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AuthSessions_Code",
@@ -912,6 +1297,18 @@ namespace BuildingManagement.Infrastructure.Migrations
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
+                name: "IX_BuildingRolePermissionOverrides_PermissionId",
+                schema: "bms",
+                table: "BuildingRolePermissionOverrides",
+                column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BuildingRolePermissionOverrides_RoleId",
+                schema: "bms",
+                table: "BuildingRolePermissionOverrides",
+                column: "RoleId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_IdentityConflictReviews_Code",
                 schema: "bms",
                 table: "IdentityConflictReviews",
@@ -925,6 +1322,24 @@ namespace BuildingManagement.Infrastructure.Migrations
                 column: "IsActive");
 
             migrationBuilder.CreateIndex(
+                name: "IX_IdentityConflictReviews_PartyId",
+                schema: "bms",
+                table: "IdentityConflictReviews",
+                column: "PartyId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_IdentityConflictReviews_UserId",
+                schema: "bms",
+                table: "IdentityConflictReviews",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invitations_BuildingId",
+                schema: "bms",
+                table: "Invitations",
+                column: "BuildingId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Invitations_Code",
                 schema: "bms",
                 table: "Invitations",
@@ -932,10 +1347,28 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Invitations_ComplexId",
+                schema: "bms",
+                table: "Invitations",
+                column: "ComplexId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invitations_InvitedByUserId",
+                schema: "bms",
+                table: "Invitations",
+                column: "InvitedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Invitations_IsActive",
                 schema: "bms",
                 table: "Invitations",
                 column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Invitations_RoleId",
+                schema: "bms",
+                table: "Invitations",
+                column: "RoleId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Invitations_TokenHash",
@@ -945,6 +1378,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Invitations_UnitId",
+                schema: "bms",
+                table: "Invitations",
+                column: "UnitId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MembershipExitRequests_Code",
                 schema: "bms",
                 table: "MembershipExitRequests",
@@ -952,10 +1391,28 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_MembershipExitRequests_DecidedByUserId",
+                schema: "bms",
+                table: "MembershipExitRequests",
+                column: "DecidedByUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_MembershipExitRequests_IsActive",
                 schema: "bms",
                 table: "MembershipExitRequests",
                 column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MembershipExitRequests_MembershipId",
+                schema: "bms",
+                table: "MembershipExitRequests",
+                column: "MembershipId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MembershipExitRequests_RequestedByUserId",
+                schema: "bms",
+                table: "MembershipExitRequests",
+                column: "RequestedByUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_OtpChallenges_NormalizedIdentifierValue_PurposeKey_StatusKey",
@@ -1015,6 +1472,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_PlatformRolePermissions_PermissionId",
+                schema: "bms",
+                table: "PlatformRolePermissions",
+                column: "PermissionId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_PlatformRolePermissions_RoleId_PermissionId",
                 schema: "bms",
                 table: "PlatformRolePermissions",
@@ -1040,6 +1503,12 @@ namespace BuildingManagement.Infrastructure.Migrations
                 table: "PlatformUserRoles",
                 columns: new[] { "PlatformUserId", "RoleId" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlatformUserRoles_RoleId",
+                schema: "bms",
+                table: "PlatformUserRoles",
+                column: "RoleId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_PlatformUsers_Code",
@@ -1082,6 +1551,18 @@ namespace BuildingManagement.Infrastructure.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_SecurityAuditEvents_AuthSessionId",
+                schema: "bms",
+                table: "SecurityAuditEvents",
+                column: "AuthSessionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SecurityAuditEvents_PlatformUserId",
+                schema: "bms",
+                table: "SecurityAuditEvents",
+                column: "PlatformUserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SecurityAuditEvents_UserId_OccurredAtUtc",
                 schema: "bms",
                 table: "SecurityAuditEvents",
@@ -1099,6 +1580,18 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms",
                 table: "SupportActingSessions",
                 column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SupportActingSessions_PlatformUserId",
+                schema: "bms",
+                table: "SupportActingSessions",
+                column: "PlatformUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SupportActingSessions_TargetUserId",
+                schema: "bms",
+                table: "SupportActingSessions",
+                column: "TargetUserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_UserLoginMethods_Code",
@@ -1186,10 +1679,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "AccessMemberships",
-                schema: "bms");
-
-            migrationBuilder.DropTable(
                 name: "AccountRecoveryCases",
                 schema: "bms");
 
@@ -1226,15 +1715,7 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "PlatformPermissions",
-                schema: "bms");
-
-            migrationBuilder.DropTable(
                 name: "PlatformRolePermissions",
-                schema: "bms");
-
-            migrationBuilder.DropTable(
-                name: "PlatformRoles",
                 schema: "bms");
 
             migrationBuilder.DropTable(
@@ -1258,11 +1739,23 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "UserLoginMethods",
+                name: "UserPartyLinks",
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "UserPartyLinks",
+                name: "AccessMemberships",
+                schema: "bms");
+
+            migrationBuilder.DropTable(
+                name: "PlatformPermissions",
+                schema: "bms");
+
+            migrationBuilder.DropTable(
+                name: "PlatformRoles",
+                schema: "bms");
+
+            migrationBuilder.DropTable(
+                name: "Permissions",
                 schema: "bms");
 
             migrationBuilder.DropTable(
@@ -1274,11 +1767,11 @@ namespace BuildingManagement.Infrastructure.Migrations
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "Permissions",
+                name: "PlatformUsers",
                 schema: "bms");
 
             migrationBuilder.DropTable(
-                name: "PlatformUsers",
+                name: "UserLoginMethods",
                 schema: "bms");
 
             migrationBuilder.DropTable(

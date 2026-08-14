@@ -4,7 +4,9 @@ using Microsoft.Extensions.Logging;
 
 namespace BuildingManagement.Application;
 
-public sealed class StoredFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options, TimeProvider clock) : FileManagementServiceBase(db, storage, options, clock)
+public sealed class StoredFileService(IApplicationDbContext db, IFileStorage storage, FileStorageOptions options,
+    TimeProvider clock, ICurrentActor actor, AccessAuthorizationService authorization)
+    : FileManagementServiceBase(db, storage, options, clock)
 {
     public async Task<FileContentResponse> GetContent(string fileCode, CancellationToken ct)
     {
@@ -12,6 +14,8 @@ public sealed class StoredFileService(IApplicationDbContext db, IFileStorage sto
         var stored = await Db.StoredFiles.AsNoTracking()
             .SingleOrDefaultAsync(x => x.Code == code && x.IsActive, ct)
             ?? throw AppException.NotFound("file");
+        if (!actor.UserId.HasValue || !await authorization.CanReadStoredFile(actor.UserId.Value, stored.Id, ct))
+            throw AppException.NotFound("file");
         if (!await Storage.ExistsAsync(stored.StorageKey, ct))
             throw AppException.NotFound("file");
         var content = await Storage.OpenReadAsync(stored.StorageKey, ct)

@@ -87,6 +87,7 @@ public interface IApplicationDbContext
     DbSet<PlatformUserRoleLink> PlatformUserRoles { get; }
     DbSet<SupportActingSession> SupportActingSessions { get; }
     DbSet<SecurityAuditEvent> SecurityAuditEvents { get; }
+    DbSet<BuildingRolePermissionOverride> BuildingRolePermissionOverrides { get; }
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
     void Detach(object entity);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
