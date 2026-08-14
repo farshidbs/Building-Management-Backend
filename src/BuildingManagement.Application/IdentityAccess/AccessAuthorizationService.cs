@@ -50,6 +50,27 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
         }
         throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
     }
+
+    public async Task<long> ResolvePartyReference(long userId, string partyCode, CancellationToken ct)
+    {
+        var normalized = PublicCode.Normalize(partyCode);
+        var partyId = await db.Parties.AsNoTracking()
+            .Where(x => x.Code == normalized && x.IsActive)
+            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct)
+            ?? throw AppException.NotFound("party");
+        await EnsureParty(userId, "party_view", partyId, ct);
+        return partyId;
+    }
+
+    public async Task<bool> HasActiveMembership(long userId, CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        return await db.AccessMemberships.AsNoTracking().AnyAsync(x =>
+            x.UserId == userId && x.IsActive && x.EndsAtUtc == null && x.StartsAtUtc <= now &&
+            (!x.SourceUnitPartyRelationId.HasValue || db.UnitPartyRelations.Any(relation =>
+                relation.Id == x.SourceUnitPartyRelationId && relation.IsActive &&
+                (!relation.StartDate.HasValue || relation.StartDate <= now) && relation.EndDate == null)), ct);
+    }
     public async Task<IReadOnlyList<AccessContextResponse>> GetContexts(long userId, CancellationToken ct)
     {
         var now = clock.GetUtcNow();

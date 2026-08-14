@@ -82,7 +82,8 @@ public abstract class AssetServiceBase(IApplicationDbContext db, IFileStorage st
         ?? throw AppException.NotFound("asset_event");
     protected async Task<long?> ComplexId(string? code, bool active, CancellationToken ct) => string.IsNullOrWhiteSpace(code) ? null : await Db.Complexes.Where(x => x.Code == Normalize(code) && (!active || x.IsActive)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("complex");
     protected async Task<long?> BuildingId(string? code, bool active, CancellationToken ct) => string.IsNullOrWhiteSpace(code) ? null : await Db.Buildings.Where(x => x.Code == Normalize(code) && (!active || x.IsActive)).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("building");
-    protected async Task<long?> PartyId(string? code, CancellationToken ct) => string.IsNullOrWhiteSpace(code) ? null : await Db.Parties.Where(x => x.Code == Normalize(code) && x.IsActive).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party");
+    protected async Task<long?> PartyId(string? code, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(code) ? null : await Authorization.ResolvePartyReference(code, ct);
     protected async Task<long> StoredId(string code, CancellationToken ct) => await Db.StoredFiles.Where(x => x.Code == Normalize(code) && x.IsActive).Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("file");
     protected static async Task<long> RefId<T>(IQueryable<T> set, string key, string resource, CancellationToken ct)
         where T : ReferenceDataItem

@@ -32,9 +32,7 @@ public sealed class PaymentService(IApplicationDbContext db, TimeProvider clock,
                 request.FundAccountKindKey, token);
             if (!await FundMatchesUnit(fund, unitId, token))
                 throw Validation("fundScope", "Fund must contain the payment Unit.");
-            long? payerId = string.IsNullOrWhiteSpace(request.PayerPartyCode) ? null :
-                await Db.Parties.Where(x => x.Code == Code(request.PayerPartyCode))
-                    .Select(x => (long?)x.Id).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("party");
+            var payerId = await AuthorizedPartyId(request.PayerPartyCode, token);
             var method = await Db.PaymentMethods.SingleOrDefaultAsync(
                 x => x.Key == request.PaymentMethodKey && x.IsActive, token)
                 ?? throw AppException.NotFound("payment_method");

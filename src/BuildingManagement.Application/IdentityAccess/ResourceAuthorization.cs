@@ -39,6 +39,18 @@ public sealed class ResourceAuthorization(ICurrentActor actor, AccessAuthorizati
         await authorization.EnsureParty(UserId, permissionKey, partyId, cancellationToken);
     }
 
+    public async Task<long> ResolvePartyReference(string partyCode, CancellationToken cancellationToken)
+    {
+        await EnsureSession(cancellationToken);
+        return await authorization.ResolvePartyReference(UserId, partyCode, cancellationToken);
+    }
+
+    public async Task<bool> HasActiveMembership(CancellationToken cancellationToken)
+    {
+        await EnsureSession(cancellationToken);
+        return await authorization.HasActiveMembership(UserId, cancellationToken);
+    }
+
     public async Task<AccessibleResourceIds> Accessible(string permissionKey, CancellationToken cancellationToken)
     {
         await EnsureSession(cancellationToken);

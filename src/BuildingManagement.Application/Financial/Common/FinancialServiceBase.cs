@@ -37,6 +37,11 @@ public abstract class FinancialServiceBase(IApplicationDbContext db, TimeProvide
     protected Task Authorize(Expense expense, string permission, CancellationToken ct) =>
         Authorize(permission, expense.ComplexId, expense.BuildingId, null, ct);
 
+    protected async Task<long?> AuthorizedPartyId(string? partyCode, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(partyCode)
+            ? null
+            : await Authorization.ResolvePartyReference(partyCode, ct);
+
     protected async Task Authorize(Demand demand, string permission, CancellationToken ct)
     {
         var account = await Db.FinancialAccounts.AsNoTracking().SingleAsync(x => x.Id == demand.FundAccountId, ct);

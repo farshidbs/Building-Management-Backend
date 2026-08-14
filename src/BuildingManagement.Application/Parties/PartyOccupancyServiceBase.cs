@@ -32,7 +32,7 @@ public abstract class PartyOccupancyServiceBase(IApplicationDbContext db, TimePr
         if (hasExisting == hasNew)
             throw Validation("party", "Specify either an existing party code or one new party.");
         if (hasExisting)
-            return await ActivePartyId(selection.ExistingPartyCode!, ct);
+            return await Authorization.ResolvePartyReference(selection.ExistingPartyCode!, ct);
 
         var input = selection.NewParty!;
         ValidateParty(input.Party);

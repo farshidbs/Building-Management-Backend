@@ -79,9 +79,7 @@ public sealed class FinancialAccountService(IApplicationDbContext db, TimeProvid
                 request.FundAccountKindKey ?? "", ct);
         if (fund is not null && !await FundMatchesUnit(fund, adjustedAccount.UnitId!.Value, ct))
             throw Validation("fundScope", "Destination Fund must contain the Unit.");
-        long? responsiblePartyId = string.IsNullOrWhiteSpace(request.ResponsiblePartyCode) ? null :
-            await Db.Parties.Where(x => x.Code == Code(request.ResponsiblePartyCode)).Select(x => (long?)x.Id)
-                .SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("party");
+        var responsiblePartyId = await AuthorizedPartyId(request.ResponsiblePartyCode, ct);
         var adjustment = new AccountAdjustment(await Unique(Db.AccountAdjustments, ct), adjustedAccount.Id,
             fund?.Id, request.AdjustmentTypeKey, request.Amount, request.EffectiveDate, request.Reason,
             request.ResponsiblePartyTypeKey, responsiblePartyId, Now);

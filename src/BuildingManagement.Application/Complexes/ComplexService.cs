@@ -11,7 +11,10 @@ public sealed class ComplexService(IApplicationDbContext db, TimeProvider clock,
     public async Task<ComplexResponse> CreateComplex(ComplexRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
-        await Authorization.EnsureAny("complex_manage", ct);
+        // An authenticated user with no active scope may establish exactly one initial root scope.
+        // Once any active membership exists, normal permission enforcement applies.
+        if (await Authorization.HasActiveMembership(ct))
+            await Authorization.EnsureAny("complex_manage", ct);
         var locationId = await LocationId(request.LocationCode, true, ct);
         var entity = new Complex(await UniqueCode(Db.Complexes, ct), locationId!.Value, request.Name,
             request.Address, request.PostalCode, request.Latitude, request.Longitude, request.Description, Now);

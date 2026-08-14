@@ -13,7 +13,8 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
         RequestValidation.Validate(request);
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
         if (parents.ComplexId.HasValue) await Authorization.Ensure("building_manage", parents.ComplexId, null, null, ct);
-        else await Authorization.EnsureAny("building_manage", ct);
+        else if (await Authorization.HasActiveMembership(ct))
+            await Authorization.EnsureAny("building_manage", ct);
         var typeId = await ReferenceId(Db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
         var entity = new Building(await UniqueCode(Db.Buildings, ct), parents.ComplexId, parents.LocationId,
             typeId, request.Name, request.Address, request.PostalCode, request.Latitude, request.Longitude,

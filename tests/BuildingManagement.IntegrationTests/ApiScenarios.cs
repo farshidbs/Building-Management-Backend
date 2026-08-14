@@ -125,6 +125,13 @@ public sealed partial class ApiScenarios : IAsyncLifetime
     private async Task<HttpClient> CreateAuthenticatedClient(string roleKey, long? complexId = null,
         long? buildingId = null, long? unitId = null)
     {
+        var result = await CreateAuthenticatedClientWithIdentity(roleKey, complexId, buildingId, unitId);
+        return result.Client;
+    }
+
+    private async Task<(HttpClient Client, long UserId)> CreateAuthenticatedClientWithIdentity(
+        string? roleKey = null, long? complexId = null, long? buildingId = null, long? unitId = null)
+    {
         await using var scope = factory!.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
         var protector = scope.ServiceProvider.GetRequiredService<IIamSecretProtector>();
@@ -142,13 +149,16 @@ public sealed partial class ApiScenarios : IAsyncLifetime
         db.AuthSessions.Add(new AuthSession(PublicCode.Create(), user.Id, null, method.Id, "web",
             protector.Hash(token), now.AddHours(1), now, now.AddHours(2), now.AddHours(1),
             "integration-security", null));
-        var roleId = await db.AccessRoles.Where(x => x.Key == roleKey).Select(x => x.Id).SingleAsync();
-        db.AccessMemberships.Add(new AccessMembership(PublicCode.Create(), user.Id, roleId,
-            complexId, buildingId, unitId, null, now));
+        if (roleKey is not null)
+        {
+            var roleId = await db.AccessRoles.Where(x => x.Key == roleKey).Select(x => x.Id).SingleAsync();
+            db.AccessMemberships.Add(new AccessMembership(PublicCode.Create(), user.Id, roleId,
+                complexId, buildingId, unitId, null, now));
+        }
         await db.SaveChangesAsync();
         var authenticated = factory.CreateClient();
         authenticated.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        return authenticated;
+        return (authenticated, user.Id);
     }
 
     private async Task<LocationResponse> CreateLocationFixture(LocationRequest request)
