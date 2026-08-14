@@ -13,6 +13,35 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task NormalRegistrationUsesCanonicalIranianPersonPartyType()
+    {
+        RequireSql();
+        var mobile = NextMobile();
+        using var publicClient = factory!.CreateClient();
+        using var requested = await publicClient.PostAsJsonAsync("/api/v1/auth/otp/request",
+            new RequestOtpRequest(mobile, "register"));
+        requested.EnsureSuccessStatusCode();
+        var challenge = (await requested.Content.ReadFromJsonAsync<RequestOtpResponse>())!;
+        var code = testOtpDelivery!.CodeFor(mobile);
+        using var verified = await publicClient.PostAsJsonAsync("/api/v1/auth/otp/verify",
+            new VerifyOtpRequest(challenge.ChallengeReference, code, DisplayName: "ثبت‌نام آزمایشی"));
+        verified.EnsureSuccessStatusCode();
+        var tokens = (await verified.Content.ReadFromJsonAsync<TokenResponse>())!;
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var userId = await db.Users.Where(x => x.Code == tokens.UserCode).Select(x => x.Id).SingleAsync();
+        var partyTypeKey = await (from link in db.UserPartyLinks
+                                  join party in db.Parties on link.PartyId equals party.Id
+                                  join type in db.PartyTypes on party.PartyTypeId equals type.Id
+                                  where link.UserId == userId && link.IsActive && link.IsPrimary
+                                  select type.Key).SingleAsync();
+        Assert.Equal(PartyReferenceKeys.PartyTypes.IranianPerson, partyTypeKey);
+        Assert.Equal(1, await db.UserLoginMethods.CountAsync(x => x.UserId == userId && x.IsVerified && x.IsActive));
+        Assert.Equal(1, await db.AuthSessions.CountAsync(x => x.UserId == userId && x.IsActive));
+    }
+
+    [Fact]
     public async Task BuildingCollaboratorDelegationRequiresBothScopedPermissionsAndAllowlist()
     {
         RequireSql();
@@ -328,6 +357,36 @@ public sealed partial class ApiScenarios
     }
 
     [Fact]
+    public async Task FutureRelationIsDeniedAndExactDuplicateCurrentRelationReturnsConflict()
+    {
+        RequireSql();
+        var future = await CreateEligibleRelation(DateTimeOffset.UtcNow.AddDays(1));
+        using var futureManager = await CreateAuthenticatedClient("building_manager", buildingId: future.BuildingId);
+        using var futureResponse = await futureManager.PostAsJsonAsync("/api/v1/invitations/unit",
+            new CreateUnitInvitationRequest(future.UnitCode, future.PartyCode, "owner"));
+        Assert.Equal(HttpStatusCode.NotFound, futureResponse.StatusCode);
+
+        var current = await CreateEligibleRelation();
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var unitId = await db.Units.Where(x => x.Code == current.UnitCode).Select(x => x.Id).SingleAsync();
+            var ownerTypeId = await db.UnitPartyRelationTypes.Where(x =>
+                x.Key == PartyReferenceKeys.RelationTypes.Owner).Select(x => x.Id).SingleAsync();
+            db.UnitPartyRelations.Add(new UnitPartyRelation(unitId, current.PartyId, ownerTypeId,
+                null, null, null, DateTimeOffset.UtcNow));
+            await db.SaveChangesAsync();
+        }
+        using var manager = await CreateAuthenticatedClient("building_manager", buildingId: current.BuildingId);
+        using var duplicate = await manager.PostAsJsonAsync("/api/v1/invitations/unit",
+            new CreateUnitInvitationRequest(current.UnitCode, current.PartyCode, "owner"));
+        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.False(await verifyDb.Invitations.AnyAsync(x => x.SourceUnitPartyRelationId == current.RelationId));
+    }
+
+    [Fact]
     public async Task ConcurrentExpiredReissueCreatesExactlyOnePendingReplacement()
     {
         RequireSql();
@@ -438,7 +497,7 @@ public sealed partial class ApiScenarios
         return reference;
     }
 
-    private async Task<InvitationRelationFixture> CreateEligibleRelation()
+    private async Task<InvitationRelationFixture> CreateEligibleRelation(DateTimeOffset? startDate = null)
     {
         await using var scope = factory!.Services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
@@ -455,7 +514,7 @@ public sealed partial class ApiScenarios
         var party = new Party(PublicCode.Create(), partyTypeId, "مالک آزمایشی", null, null, null, null, null, now);
         db.Parties.Add(party);
         await db.SaveChangesAsync();
-        var relation = new UnitPartyRelation(unit.Id, party.Id, relationTypeId, null, null, null, now);
+        var relation = new UnitPartyRelation(unit.Id, party.Id, relationTypeId, startDate, null, null, now);
         db.UnitPartyRelations.Add(relation);
         db.PartyContacts.Add(new PartyContact(party.Id, mobileTypeId, mobile, mobile, "همراه", true, now));
         await db.SaveChangesAsync();

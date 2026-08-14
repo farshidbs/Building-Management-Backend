@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Data.Common;
 using System.Net.Http.Headers;
+using System.Collections.Concurrent;
 using BuildingManagement.Application;
 using BuildingManagement.Domain;
 using BuildingManagement.Infrastructure;
@@ -24,6 +25,7 @@ public sealed partial class ApiScenarios : IAsyncLifetime
     private bool enabled;
     private string? skipReason;
     private string? fileRoot;
+    private TestOtpDelivery? testOtpDelivery;
 
     public async ValueTask InitializeAsync()
     {
@@ -50,7 +52,9 @@ public sealed partial class ApiScenarios : IAsyncLifetime
             return;
         }
 
+        testOtpDelivery = new TestOtpDelivery();
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
             builder.ConfigureAppConfiguration((_, configuration) =>
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
@@ -58,7 +62,9 @@ public sealed partial class ApiScenarios : IAsyncLifetime
                     ["SeedDevelopmentData"] = "true",
                     ["FileStorage:LocalRootPath"] = fileRoot,
                     ["Iam:Secret"] = "integration-test-secret-at-least-thirty-two-characters"
-                })));
+                }));
+            builder.ConfigureServices(services => services.AddSingleton<IOtpDelivery>(testOtpDelivery));
+        });
         client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer",
             await CreateAuthenticatedComplexManager());
@@ -159,6 +165,18 @@ public sealed partial class ApiScenarios : IAsyncLifetime
         var authenticated = factory.CreateClient();
         authenticated.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
         return (authenticated, user.Id);
+    }
+
+    private sealed class TestOtpDelivery : IOtpDelivery
+    {
+        private readonly ConcurrentDictionary<string, string> codes = new(StringComparer.Ordinal);
+        public Task Send(string normalizedIdentifier, string code, CancellationToken cancellationToken)
+        {
+            codes[normalizedIdentifier] = code;
+            return Task.CompletedTask;
+        }
+
+        public string CodeFor(string normalizedIdentifier) => codes[normalizedIdentifier];
     }
 
     private async Task<LocationResponse> CreateLocationFixture(LocationRequest request)

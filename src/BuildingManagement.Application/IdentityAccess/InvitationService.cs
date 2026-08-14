@@ -27,12 +27,18 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
         var unit = await db.Units.AsNoTracking().SingleOrDefaultAsync(x => x.Code == unitCode && x.IsActive, ct)
             ?? throw AppException.NotFound("unit");
         await authorization.Ensure("invitation_send", null, unit.BuildingId, unit.Id, ct);
-        var relation = await db.UnitPartyRelations.AsNoTracking().SingleOrDefaultAsync(x =>
-            x.UnitId == unit.Id && x.IsActive && x.EndDate == null &&
+        var relations = await db.UnitPartyRelations.AsNoTracking().Where(x =>
+            x.UnitId == unit.Id && x.IsActive &&
+            (!x.StartDate.HasValue || x.StartDate <= Now) && x.EndDate == null &&
             db.UnitPartyRelationTypes.Any(type => type.Id == x.UnitPartyRelationTypeId &&
                 type.Key == relationTypeKey) &&
-            db.Parties.Any(party => party.Id == x.PartyId && party.Code == partyCode && party.IsActive), ct)
-            ?? throw AppException.NotFound("unit_party_relation");
+            db.Parties.Any(party => party.Id == x.PartyId && party.Code == partyCode && party.IsActive))
+            .Take(2).ToListAsync(ct);
+        if (relations.Count == 0) throw AppException.NotFound("unit_party_relation");
+        if (relations.Count > 1)
+            throw AppException.Conflict("unit_party_relation.ambiguous",
+                "Multiple current relations match the invitation request.");
+        var relation = relations[0];
         var relationKey = await db.UnitPartyRelationTypes.Where(x => x.Id == relation.UnitPartyRelationTypeId)
             .Select(x => x.Key).SingleAsync(ct);
         if (!RelationRoles.TryGetValue(relationKey, out var roleKey))
@@ -68,6 +74,7 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
                                join party in db.Parties.AsNoTracking() on relation.PartyId equals party.Id
                                join type in db.UnitPartyRelationTypes.AsNoTracking() on relation.UnitPartyRelationTypeId equals type.Id
                                where unit.BuildingId == building.Id && unit.IsActive && relation.IsActive &&
+                                     (!relation.StartDate.HasValue || relation.StartDate <= Now) &&
                                      relation.EndDate == null && party.IsActive
                                select new { Relation = relation, Unit = unit, Party = party, TypeKey = type.Key })
             .ToListAsync(ct);
@@ -168,7 +175,8 @@ public sealed class InvitationService(IApplicationDbContext db, TimeProvider clo
                     throw AppException.Conflict("invitation.already_accepted", "Invitation was already accepted.");
                 if (invitation.SourceUnitPartyRelationId.HasValue &&
                     !await db.UnitPartyRelations.AnyAsync(x => x.Id == invitation.SourceUnitPartyRelationId &&
-                        x.IsActive && x.EndDate == null, transactionToken))
+                        x.IsActive && (!x.StartDate.HasValue || x.StartDate <= Now) &&
+                        x.EndDate == null, transactionToken))
                     throw AppException.Conflict("invitation.source_relation_ended",
                         "The Unit relationship is no longer active.");
                 var challenge = await db.OtpChallenges.SingleOrDefaultAsync(x =>

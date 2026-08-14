@@ -38,7 +38,7 @@ Acceptance serializes on the Invitation row with SQL Server `UPDLOCK, HOLDLOCK` 
 
 For a new User, the accepted mobile creates a new registration identity Party and UserPartyLink. A source `UnitPartyRelation` may be retained on the Membership for authorization validity, but its Party is never treated as the User's identity merely because a `PartyContact` mobile matched. Existing Users retain their existing identity link.
 
-Unit invitation requests explicitly identify `RelationTypeKey`; the server resolves that exact active Party/Unit relation and derives the Unit IAM role. A caller never supplies the resulting role. New mobile identities use the canonical `iranian_person` Party type.
+Unit invitation requests explicitly identify `RelationTypeKey`; the server resolves that exact current Party/Unit relation and derives the Unit IAM role. Current means active, already started when a start date is known, and not ended. Zero matches are not found and multiple exact matches produce a deterministic conflict rather than choosing an arbitrary row. A caller never supplies the resulting role. Both normal registration and invitation registration use the canonical `iranian_person` Party type.
 
 An OTP attempt is reserved durably before invitation provisioning. A wrong code commits its attempt count and blocked state independently, while successful OTP consumption and all identity, session, Membership, and invitation mutations remain atomic in the serialized acceptance transaction. A source-linked Membership is equivalent only while its source relation is active, has started when a start date is known, and has no end date. Historical stale Memberships are ended and preserved before a replacement is provisioned.
 

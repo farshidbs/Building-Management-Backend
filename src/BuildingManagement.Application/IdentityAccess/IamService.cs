@@ -63,7 +63,8 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                     method = new UserLoginMethod(await UniqueCode(db.UserLoginMethods, token), user.Id,
                         IamKeys.LoginTypes.Mobile, challenge.IdentifierValue, challenge.NormalizedIdentifierValue, true, Now);
                     method.Verify(Now); db.UserLoginMethods.Add(method);
-                    var personType = await db.PartyTypes.SingleAsync(x => x.Key == "person", token);
+                    var personType = await db.PartyTypes.SingleAsync(x =>
+                        x.Key == PartyReferenceKeys.PartyTypes.IranianPerson, token);
                     var displayName = string.IsNullOrWhiteSpace(request.DisplayName) ? "کاربر جدید" : request.DisplayName.Trim();
                     var party = new Party(await UniqueCode(db.Parties, token), personType.Id, displayName,
                         null, null, null, null, null, Now); db.Parties.Add(party); await db.SaveChangesAsync(token);
