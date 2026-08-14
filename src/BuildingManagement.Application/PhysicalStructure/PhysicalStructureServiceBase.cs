@@ -89,6 +89,7 @@ public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, Tim
         {
             case "location":
                 var location = await Db.Locations.SingleOrDefaultAsync(x => x.Code == normalized, ct) ?? throw AppException.NotFound(resource);
+                await Authorization.EnsureAny("location_manage", ct);
                 if (await Db.Locations.AnyAsync(x => x.ParentId == location.Id, ct) ||
                     await Db.Complexes.AnyAsync(x => x.LocationId == location.Id, ct) ||
                     await Db.Buildings.AnyAsync(x => x.LocationId == location.Id, ct))
@@ -122,7 +123,8 @@ public abstract class PhysicalStructureServiceBase(IApplicationDbContext db, Tim
 
     private async Task AuthorizeEntity(string resource, long id, bool manage, CancellationToken ct)
     {
-        if (resource == "complex") await Authorization.Ensure(manage ? "complex_manage" : "complex_view", id, null, null, ct);
+        if (resource == "location") await Authorization.EnsureAny("location_manage", ct);
+        else if (resource == "complex") await Authorization.Ensure(manage ? "complex_manage" : "complex_view", id, null, null, ct);
         else if (resource == "building")
         {
             var parent = await Db.Buildings.Where(x => x.Id == id).Select(x => x.ComplexId).SingleAsync(ct);

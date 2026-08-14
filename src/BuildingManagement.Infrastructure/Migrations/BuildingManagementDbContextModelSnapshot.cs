@@ -449,6 +449,16 @@ namespace BuildingManagement.Infrastructure.Migrations
                             Key = "financial_unit_pay",
                             SortOrder = 510,
                             Title = "پرداخت برای واحد"
+                        },
+                        new
+                        {
+                            Id = 52L,
+                            CategoryKey = "physical",
+                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            IsActive = true,
+                            Key = "location_manage",
+                            SortOrder = 520,
+                            Title = "مدیریت موقعیت‌های مکانی"
                         });
                 });
 

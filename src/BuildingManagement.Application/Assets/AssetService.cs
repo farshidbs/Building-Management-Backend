@@ -50,7 +50,11 @@ public sealed class AssetService(IApplicationDbContext db, IFileStorage storage,
     {
         Validate(request); var asset = await Entity(code, ct, "asset_manage");
         var typeId = await RefId(Db.AssetTypes, request.AssetTypeKey, "asset_type", ct);
-        asset.Update(typeId, await ComplexId(request.ComplexCode, true, ct), await BuildingId(request.BuildingCode, true, ct),
+        var destinationComplexId = await ComplexId(request.ComplexCode, true, ct);
+        var destinationBuildingId = await BuildingId(request.BuildingCode, true, ct);
+        if (destinationComplexId != asset.ComplexId || destinationBuildingId != asset.BuildingId)
+            await Authorization.Ensure("asset_manage", destinationComplexId, destinationBuildingId, null, ct);
+        asset.Update(typeId, destinationComplexId, destinationBuildingId,
             request.Name, request.Brand, request.Model, request.SerialNumber, request.InstallationDate, request.PurchaseDate,
             request.SuggestedReviewIntervalDays, request.Description, Now);
         await Save(ct); return await Get(asset.Code, ct);

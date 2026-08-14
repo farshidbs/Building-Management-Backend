@@ -72,7 +72,8 @@ internal sealed class AccessPermissionConfiguration : IEntityTypeConfiguration<A
     Seed(48, "financial_unit_view_own", "مشاهده مالی واحد خود", "finance", 480, at),
     Seed(49, "financial_unit_view_other_summary", "مشاهده خلاصه مالی سایر واحدها", "finance", 490, at),
     Seed(50, "financial_unit_view_other_detail", "مشاهده جزئیات مالی سایر واحدها", "finance", 500, at),
-    Seed(51, "financial_unit_pay", "پرداخت برای واحد", "finance", 510, at));
+    Seed(51, "financial_unit_pay", "پرداخت برای واحد", "finance", 510, at),
+    Seed(52, "location_manage", "مدیریت موقعیت‌های مکانی", "physical", 520, at));
     }
     private static object Seed(long id, string key, string title, string category, int order, DateTimeOffset at) => new { Id = id, Key = key, Title = title, CategoryKey = category, SortOrder = order, IsActive = true, CreatedAtUtc = at };
 }

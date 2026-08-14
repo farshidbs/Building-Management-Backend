@@ -18,7 +18,7 @@ Roles, Permissions, RolePermissions, RoleAllowedScopes, Memberships, building ov
 
 `AccessAuthorizationService` is the central authorization/read-context abstraction. Active context is only navigation state and never grants access. Knowing a public resource or StoredFile code is not authorization. Every resource endpoint must resolve its real scope and call this boundary.
 
-Seed data defines building manager, accountant, owner, tenant, and resident roles plus permissions for physical structure, parties, files, assets, finance, invitations, and memberships.
+Seed data defines building manager, accountant, owner, tenant, and resident roles plus permissions for physical structure, parties, files, assets, finance, invitations, and memberships. Global Location mutation is guarded by `location_manage`; that permission is intentionally not assigned to normal customer roles.
 
 ## History, recovery, and support
 
@@ -41,6 +41,6 @@ Migration `AddIdentityAccessManagement` is additive and also adds nullable `Birt
 
 ## Current branch status
 
-Implemented: persistence model and constraints, OTP registration/login, opaque DB-backed sessions, refresh rotation/reuse handling, logout, current profile, context listing, central permission evaluation, platform/support/recovery/audit foundations, migration, role/permission seeds, and focused tests.
+Implemented: persistence model and constraints, OTP registration/login, opaque DB-backed sessions, refresh rotation/reuse handling, logout, current profile, context listing, central permission evaluation, migration, role/permission seeds, and resource authorization across the current physical-structure, Party, file, Asset, and Finance application services. Destination authorization is enforced when a Building or Asset changes scope; unattached Parties are not exposed to ordinary scoped users; confidential files require their distinct permission.
 
-The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Resource-by-resource enforcement across every older endpoint must be completed through `AccessAuthorizationService`; do not infer it from authentication alone.
+The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Login-method lifecycle APIs, Invitations, context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notifications remain deferred. Their persistence foundations do not imply that those workflows are available.

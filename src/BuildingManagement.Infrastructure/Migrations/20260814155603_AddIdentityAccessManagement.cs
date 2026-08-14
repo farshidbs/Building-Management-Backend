@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-#pragma warning disable CA1814, CA1861 // Generated EF Core seed arrays.
+#pragma warning disable CA1814, CA1861 // EF generates multidimensional and repeated constant seed arrays.
 
 namespace BuildingManagement.Infrastructure.Migrations
 {
@@ -1065,7 +1065,8 @@ namespace BuildingManagement.Infrastructure.Migrations
                     { 48L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_view_own", 480, "مشاهده مالی واحد خود", null },
                     { 49L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_view_other_summary", 490, "مشاهده خلاصه مالی سایر واحدها", null },
                     { 50L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_view_other_detail", 500, "مشاهده جزئیات مالی سایر واحدها", null },
-                    { 51L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_pay", 510, "پرداخت برای واحد", null }
+                    { 51L, "finance", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "financial_unit_pay", 510, "پرداخت برای واحد", null },
+                    { 52L, "physical", new DateTimeOffset(new DateTime(2026, 8, 14, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)), null, true, "location_manage", 520, "مدیریت موقعیت‌های مکانی", null }
                 });
 
             migrationBuilder.InsertData(

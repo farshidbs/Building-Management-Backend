@@ -59,6 +59,8 @@ public sealed class BuildingService(IApplicationDbContext db, TimeProvider clock
             ?? throw AppException.NotFound("building");
         await Authorization.Ensure("building_manage", entity.ComplexId, entity.Id, null, ct);
         var parents = await BuildingParents(request.LocationCode, request.ComplexCode, ct);
+        if (parents.ComplexId != entity.ComplexId && parents.ComplexId.HasValue)
+            await Authorization.Ensure("building_manage", parents.ComplexId, null, null, ct);
         var typeId = await ReferenceId(Db.BuildingTypes, request.BuildingTypeKey, "building_type", ct);
         entity.Update(parents.ComplexId, parents.LocationId, typeId, request.Name, request.Address,
             request.PostalCode, request.Latitude, request.Longitude, request.FloorsCount,

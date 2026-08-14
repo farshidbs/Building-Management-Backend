@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace BuildingManagement.Application;
 
-public sealed class LocationService(IApplicationDbContext db, TimeProvider clock) : PhysicalStructureServiceBase(db, clock)
+public sealed class LocationService(IApplicationDbContext db, TimeProvider clock, ResourceAuthorization authorization) : PhysicalStructureServiceBase(db, clock, authorization)
 {
     public Task Activate(string code, bool active, CancellationToken ct) => Activate("location", code, active, ct);
     public Task Delete(string code, CancellationToken ct) => Delete("location", code, ct);
@@ -11,6 +11,7 @@ public sealed class LocationService(IApplicationDbContext db, TimeProvider clock
     public async Task<LocationResponse> CreateLocation(LocationRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
+        await Authorization.EnsureAny("location_manage", ct);
         var parentId = await LocationId(request.ParentCode, false, ct);
         var typeId = await ReferenceId(Db.LocationTypes, request.LocationTypeKey, "location_type", ct);
         var entity = new Location(await UniqueCode(Db.Locations, ct), parentId, typeId, request.Name, Now);
@@ -43,6 +44,7 @@ public sealed class LocationService(IApplicationDbContext db, TimeProvider clock
     public async Task<LocationResponse> UpdateLocation(string code, LocationRequest request, CancellationToken ct)
     {
         RequestValidation.Validate(request);
+        await Authorization.EnsureAny("location_manage", ct);
         var entity = await Db.Locations.SingleOrDefaultAsync(x => x.Code == NormalizeCode(code), ct)
             ?? throw AppException.NotFound("location");
         var parentId = await LocationId(request.ParentCode, false, ct);

@@ -48,11 +48,6 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             }
             catch (AppException exception) when (exception.Status == 403) { }
         }
-        if (unitScopes.Count == 0)
-        {
-            await EnsureAny(userId, permissionKey, ct);
-            return;
-        }
         throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
     }
     public async Task<IReadOnlyList<AccessContextResponse>> GetContexts(long userId, CancellationToken ct)

@@ -122,6 +122,35 @@ public sealed partial class ApiScenarios : IAsyncLifetime
         }
     }
 
+    private async Task<HttpClient> CreateAuthenticatedClient(string roleKey, long? complexId = null,
+        long? buildingId = null, long? unitId = null)
+    {
+        await using var scope = factory!.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        var protector = scope.ServiceProvider.GetRequiredService<IIamSecretProtector>();
+        var now = DateTimeOffset.UtcNow;
+        var user = new User(PublicCode.Create(), now);
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var identifier = $"test-{Guid.NewGuid():N}";
+        var method = new UserLoginMethod(PublicCode.Create(), user.Id, IamKeys.LoginTypes.Mobile,
+            identifier, identifier, true, now);
+        method.Verify(now);
+        db.UserLoginMethods.Add(method);
+        await db.SaveChangesAsync();
+        var token = protector.CreateToken();
+        db.AuthSessions.Add(new AuthSession(PublicCode.Create(), user.Id, null, method.Id, "web",
+            protector.Hash(token), now.AddHours(1), now, now.AddHours(2), now.AddHours(1),
+            "integration-security", null));
+        var roleId = await db.AccessRoles.Where(x => x.Key == roleKey).Select(x => x.Id).SingleAsync();
+        db.AccessMemberships.Add(new AccessMembership(PublicCode.Create(), user.Id, roleId,
+            complexId, buildingId, unitId, null, now));
+        await db.SaveChangesAsync();
+        var authenticated = factory.CreateClient();
+        authenticated.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        return authenticated;
+    }
+
     private async Task<T> Put<T>(string uri, object value)
     {
         var response = await client!.PutAsJsonAsync(uri, value);
