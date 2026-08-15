@@ -86,6 +86,8 @@ Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vend
 
 All operations below are authenticated as the customer User represented by the current session. Unknown or foreign public codes are concealed as not found. Security mutations are serialized by locking the User row in SQL Server; filtered unique indexes remain the final protection for active identifiers and primaries.
 
+Customer self-service routes use the `CustomerUser` authorization policy, which requires an authenticated `actor_type=user` claim. A Platform session is therefore rejected before customer IDs are resolved or application services run, including when a PlatformUser numeric ID happens to equal a customer User ID.
+
 | IDs | Actor and target | Expected result and database invariant |
 |---|---|---|
 | LM01–LM02 | User lists methods / targets another User's method | Only own current and historical methods are returned; foreign mutation is concealed and unchanged. |
@@ -99,6 +101,10 @@ All operations below are authenticated as the customer User represented by the c
 | SES06–SES10 | Logout current/all and refresh | Current logout preserves other sessions; logout-all affects only the User; revoked sessions cannot authenticate or refresh and token rows remain historical. |
 
 When releasing a primary method, `ReplacementPrimaryLoginMethodCode` is required even if only one alternative exists. This keeps the security decision explicit and deterministic. Recovery, support override, email/SSO, MFA, and device trust remain deferred. Docker-dependent SQL race tests remain available for external execution; this environment validates domain/application behavior and statically reviews the SQL locking and filtered-index guarantees.
+
+Existing-customer login and invitation acceptance acquire the same User security lock used by LoginMethod release, then re-read the LoginMethod and require it to remain active, verified, unreleased, and in `active` status before creating a Session. The bearer handler independently enforces the same ownership and usability predicate for customer Sessions backed by a LoginMethod. Thus a stale Session cannot authenticate after its method is released even if revocation side effects were unexpectedly incomplete.
+
+Refresh, specific Session revoke, and current-session logout serialize through a SQL Server Session-row `UPDLOCK, HOLDLOCK`. Refresh re-reads both Session and refresh token after acquiring that lock. Logout-all follows the deterministic order User lock first, then active Session locks in ascending internal ID order; LoginMethod release uses the same User-then-Session ordering. Once revocation commits, a later refresh observes the revoked Session and cannot issue credentials. These are database locks inside active transactions, not process-local synchronization.
 
 Login methods are released, not deleted. Filtered unique indexes prevent two active Users from sharing a normalized identifier while allowing later reuse after release. UserPartyLink and PartyAffiliation preserve history. Party BirthDate is nullable.
 
@@ -121,4 +127,4 @@ Migration `AddIdentityAccessManagement` is additive and also adds nullable `Birt
 
 Implemented: persistence model and constraints, OTP registration/login, opaque DB-backed sessions, refresh rotation/reuse handling, logout, current profile, context listing, central permission evaluation, migration, role/permission seeds, and resource authorization across the current physical-structure, Party, file, Asset, and Finance application services. Destination authorization is enforced when a Building or Asset changes scope; unattached Parties are not exposed to ordinary scoped users; confidential files require their distinct permission.
 
-The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Invitation creation, preview, invitation-purpose OTP, acceptance, scoped list, revocation, and bulk creation are implemented. Login-method lifecycle APIs, context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notification delivery remain deferred.
+The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Invitation creation, preview, invitation-purpose OTP, acceptance, scoped list, revocation, and bulk creation are implemented. Login-method lifecycle and Session list/revoke APIs are implemented. Context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notification delivery remain deferred.

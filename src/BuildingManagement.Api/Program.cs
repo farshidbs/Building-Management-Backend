@@ -22,8 +22,12 @@ builder.Services.AddSingleton(iamOptions);
 builder.Services.AddSingleton<IIamSecretProtector>(new HmacIamSecretProtector(iamSecret));
 builder.Services.AddSingleton<IOtpDelivery, UnconfiguredOtpDelivery>();
 builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, DatabaseBearerHandler>("Bearer", null);
-builder.Services.AddAuthorizationBuilder().SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
-    .RequireAuthenticatedUser().Build());
+builder.Services.AddAuthorizationBuilder()
+    .AddPolicy(IamEndpoints.CustomerUserPolicy, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("actor_type", "user"))
+    .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser().Build());
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentActor, HttpCurrentActor>();
 builder.Services.AddExceptionHandler<ApiExceptionHandler>();

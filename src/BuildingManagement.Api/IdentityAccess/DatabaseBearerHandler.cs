@@ -25,6 +25,12 @@ public sealed class DatabaseBearerHandler(IOptionsMonitor<AuthenticationSchemeOp
         {
             var user = await db.Users.AsNoTracking().SingleOrDefaultAsync(x => x.Id == session.UserId && x.IsActive && x.StatusKey == IamKeys.UserStatuses.Active, Context.RequestAborted);
             if (user is null) return AuthenticateResult.Fail("User is disabled.");
+            if (session.AuthenticatedViaLoginMethodId.HasValue &&
+                !await db.UserLoginMethods.AsNoTracking().AnyAsync(x =>
+                    x.Id == session.AuthenticatedViaLoginMethodId && x.UserId == session.UserId &&
+                    x.IsActive && x.IsVerified && x.ReleasedAtUtc == null &&
+                    x.StatusKey == IamKeys.LoginStatuses.Active, Context.RequestAborted))
+                return AuthenticateResult.Fail("The Session LoginMethod is no longer usable.");
         }
         var claims = new List<Claim> { new("session_id", session.Id.ToString(System.Globalization.CultureInfo.InvariantCulture)), new(ClaimTypes.NameIdentifier, (session.UserId ?? session.PlatformUserId)!.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), new("actor_type", session.UserId.HasValue ? "user" : "platform") };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, Scheme.Name));

@@ -52,11 +52,14 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 challenge.Verify(Now);
                 challenge.Consume(Now);
                 await db.SaveChangesAsync(token);
-                var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
-                    x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue, token);
+                var methodState = await UsableLoginMethods().AsNoTracking()
+                    .Where(x => x.LoginTypeKey == challenge.LoginTypeKey &&
+                        x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue)
+                    .Select(x => new { x.Id, x.UserId }).SingleOrDefaultAsync(token);
+                UserLoginMethod? method = null;
                 User user;
                 string? partyCode;
-                if (method is null)
+                if (methodState is null)
                 {
                     if (challenge.PurposeKey == "login") throw new AppException(401, "authentication.failed", "Authentication failed.");
                     user = new User(await UniqueCode(db.Users, token), Now); db.Users.Add(user); await db.SaveChangesAsync(token);
@@ -73,6 +76,11 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 }
                 else
                 {
+                    await db.LockUserForSecurityMutation(methodState.UserId, token);
+                    method = await UsableLoginMethods().SingleOrDefaultAsync(x => x.Id == methodState.Id &&
+                        x.UserId == methodState.UserId && x.LoginTypeKey == challenge.LoginTypeKey &&
+                        x.NormalizedIdentifierValue == challenge.NormalizedIdentifierValue, token)
+                        ?? throw new AppException(401, "authentication.failed", "Authentication failed.");
                     user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive && x.StatusKey == IamKeys.UserStatuses.Active, token);
                     partyCode = await (from link in db.UserPartyLinks
                                        where link.UserId == user.Id && link.IsActive && link.IsPrimary
@@ -96,23 +104,25 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         var hash = protector.Hash(Required(request.RefreshToken, "refreshToken"));
         var state = await db.AuthRefreshTokens.AsNoTracking()
             .Where(x => x.TokenHash == hash)
-            .Select(x => new { x.AuthSessionId, x.ConsumedAtUtc, x.RevokedAtUtc, x.ExpiresAtUtc })
+            .Select(x => new { x.AuthSessionId })
             .SingleOrDefaultAsync(ct)
             ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
-        if (state.ConsumedAtUtc.HasValue || state.RevokedAtUtc.HasValue)
-        {
-            await RevokeReplaySession(state.AuthSessionId, ct);
-            throw new AppException(401, "refresh_token.reused", "Refresh token reuse was detected.");
-        }
 
         try
         {
-            return await db.ExecuteInTransaction(async token =>
+            var result = await db.ExecuteInTransaction<TokenResponse?>(async token =>
             {
+                await db.LockSessionForSecurityMutation(state.AuthSessionId, token);
                 var old = await db.AuthRefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == hash, token)
                     ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
                 var session = await db.AuthSessions.SingleAsync(x => x.Id == old.AuthSessionId, token);
-                if (!session.IsUsable(Now) || old.ExpiresAtUtc <= Now || old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
+                if (old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
+                {
+                    await RevokeLockedSessions([session], "refresh_reuse", token);
+                    await db.SaveChangesAsync(token);
+                    return null;
+                }
+                if (!session.IsUsable(Now) || old.ExpiresAtUtc <= Now)
                     throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
                 old.Consume(Now);
                 var plainAccess = protector.CreateToken(); var plainRefresh = protector.CreateToken();
@@ -126,6 +136,7 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 await db.SaveChangesAsync(token);
                 return new TokenResponse(plainAccess, plainRefresh, accessExpiry, user.Code, partyCode);
             }, ct);
+            return result ?? throw new AppException(401, "refresh_token.reused", "Refresh token reuse was detected.");
         }
         catch (DbUpdateConcurrencyException exception)
         {
@@ -291,12 +302,14 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     public async Task RevokeSession(long userId, string code, CancellationToken ct)
     {
         code = PublicCode.Normalize(code);
+        var sessionId = await db.AuthSessions.AsNoTracking().Where(x => x.UserId == userId && x.Code == code)
+            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct) ?? throw AppException.NotFound("session");
         await db.ExecuteInTransaction(async token =>
         {
-            var session = await db.AuthSessions.SingleOrDefaultAsync(x => x.UserId == userId &&
-                x.Code == code, token) ?? throw AppException.NotFound("session");
-            await RevokeSessions(db.AuthSessions.Where(x => x.Id == session.Id),
-                "user_revoked_session", token);
+            await db.LockSessionForSecurityMutation(sessionId, token);
+            var session = await db.AuthSessions.SingleOrDefaultAsync(x => x.Id == sessionId &&
+                x.UserId == userId && x.Code == code, token) ?? throw AppException.NotFound("session");
+            await RevokeLockedSessions([session], "user_revoked_session", token);
             await db.SaveChangesAsync(token);
             return session.Id;
         }, ct);
@@ -306,24 +319,38 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     {
         await db.ExecuteInTransaction(async token =>
         {
-            var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, token);
-            var query = all && session.UserId.HasValue
-                ? db.AuthSessions.Where(x => x.UserId == session.UserId && x.IsActive)
-                : db.AuthSessions.Where(x => x.Id == session.Id);
-            await RevokeSessions(query, all ? "logout_all" : "logout", token);
+            var state = await db.AuthSessions.AsNoTracking().Where(x => x.Id == sessionId)
+                .Select(x => new { x.UserId }).SingleOrDefaultAsync(token) ?? throw AppException.NotFound("session");
+            if (all)
+            {
+                var userId = state.UserId ?? throw AppException.NotFound("session");
+                // Global lock order: User first, then that User's Sessions in ascending Id order.
+                await db.LockUserForSecurityMutation(userId, token);
+                await RevokeSessions(db.AuthSessions.Where(x => x.UserId == userId && x.IsActive),
+                    "logout_all", token);
+            }
+            else
+            {
+                await db.LockSessionForSecurityMutation(sessionId, token);
+                var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, token);
+                await RevokeLockedSessions([session], "logout", token);
+            }
             await db.SaveChangesAsync(token);
-            return session.Id;
+            return sessionId;
         }, ct);
     }
 
     public async Task<(long UserId, TokenResponse Tokens)> ProvisionInvitationIdentity(string normalizedMobile,
         string? displayName, string clientTypeKey, string? deviceIdentifier, CancellationToken ct)
     {
-        var method = await db.UserLoginMethods.SingleOrDefaultAsync(x => x.IsActive && x.IsVerified &&
-            x.LoginTypeKey == IamKeys.LoginTypes.Mobile && x.NormalizedIdentifierValue == normalizedMobile, ct);
+        var methodState = await UsableLoginMethods().AsNoTracking().Where(x =>
+                x.LoginTypeKey == IamKeys.LoginTypes.Mobile &&
+                x.NormalizedIdentifierValue == normalizedMobile)
+            .Select(x => new { x.Id, x.UserId }).SingleOrDefaultAsync(ct);
+        UserLoginMethod? method = null;
         User user;
         string? partyCode;
-        if (method is null)
+        if (methodState is null)
         {
             user = new User(await UniqueCode(db.Users, ct), Now);
             db.Users.Add(user);
@@ -345,6 +372,11 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
         }
         else
         {
+            await db.LockUserForSecurityMutation(methodState.UserId, ct);
+            method = await UsableLoginMethods().SingleOrDefaultAsync(x => x.Id == methodState.Id &&
+                x.UserId == methodState.UserId && x.LoginTypeKey == IamKeys.LoginTypes.Mobile &&
+                x.NormalizedIdentifierValue == normalizedMobile, ct)
+                ?? throw new AppException(401, "authentication.failed", "Authentication failed.");
             user = await db.Users.SingleAsync(x => x.Id == method.UserId && x.IsActive &&
                 x.StatusKey == IamKeys.UserStatuses.Active, ct);
             partyCode = await (from link in db.UserPartyLinks
@@ -374,12 +406,14 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
 
     private async Task RevokeReplaySession(long sessionId, CancellationToken ct)
     {
-        var session = await db.AuthSessions.SingleOrDefaultAsync(x => x.Id == sessionId, ct);
-        if (session is not null && session.IsActive)
+        await db.ExecuteInTransaction(async token =>
         {
-            session.Revoke("refresh_reuse", Now);
-            await db.SaveChangesAsync(ct);
-        }
+            await db.LockSessionForSecurityMutation(sessionId, token);
+            var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, token);
+            await RevokeLockedSessions([session], "refresh_reuse", token);
+            await db.SaveChangesAsync(token);
+            return session.Id;
+        }, ct);
     }
 
     private IQueryable<UserLoginMethod> UsableLoginMethods() => db.UserLoginMethods.Where(x =>
@@ -392,7 +426,15 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
     private async Task RevokeSessions(IQueryable<AuthSession> usableSessionQuery, string reason,
         CancellationToken ct)
     {
-        var sessions = await usableSessionQuery.ToListAsync(ct);
+        var ids = await usableSessionQuery.AsNoTracking().Select(x => x.Id).OrderBy(x => x).ToListAsync(ct);
+        foreach (var id in ids) await db.LockSessionForSecurityMutation(id, ct);
+        var sessions = await db.AuthSessions.Where(x => ids.Contains(x.Id)).OrderBy(x => x.Id).ToListAsync(ct);
+        await RevokeLockedSessions(sessions, reason, ct);
+    }
+
+    private async Task RevokeLockedSessions(IReadOnlyCollection<AuthSession> sessions, string reason,
+        CancellationToken ct)
+    {
         foreach (var session in sessions.Where(x => x.IsActive)) session.Revoke(reason, Now);
         var ids = sessions.Select(x => x.Id).ToList();
         var refreshTokens = await db.AuthRefreshTokens.Where(x => ids.Contains(x.AuthSessionId) &&

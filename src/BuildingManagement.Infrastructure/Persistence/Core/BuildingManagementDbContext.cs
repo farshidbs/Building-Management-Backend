@@ -156,6 +156,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("user");
     }
 
+    public async Task LockSessionForSecurityMutation(long sessionId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Session security lock requires an active transaction.");
+        _ = await AuthSessions.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[AuthSessions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {sessionId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("session");
+    }
+
     public async Task LockInvitation(string tokenHash, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)

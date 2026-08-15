@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using BuildingManagement.Application;
 using BuildingManagement.Domain;
@@ -11,6 +12,94 @@ namespace BuildingManagement.IntegrationTests;
 
 public sealed partial class ApiScenarios
 {
+    [Fact]
+    public async Task PlatformRealmCannotReachCustomerSelfServiceEvenWhenNumericIdsCollide()
+    {
+        RequireMilestoneCSql();
+        var customerUserId = defaultUserId;
+        var method = Assert.Single((await client!.GetFromJsonAsync<List<LoginMethodResponse>>(
+            "/api/v1/me/login-methods"))!, x => x.IsActiveLoginMethod());
+        AuthSession customerSession;
+        string platformToken;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var protector = scope.ServiceProvider.GetRequiredService<IIamSecretProtector>();
+            var now = DateTimeOffset.UtcNow;
+            var platform = new PlatformUser(PublicCode.Create(), $"support-{Guid.NewGuid():N}", "hash", now);
+            db.PlatformUsers.Add(platform);
+            await db.SaveChangesAsync();
+            Assert.Equal(customerUserId, platform.Id);
+            platformToken = protector.CreateToken();
+            db.AuthSessions.Add(new AuthSession(PublicCode.Create(), null, platform.Id, null, "web",
+                protector.Hash(platformToken), now.AddMinutes(15), now, now.AddHours(1),
+                now.AddMinutes(30), "platform-test", null));
+            customerSession = await db.AuthSessions.AsNoTracking().SingleAsync(x =>
+                x.UserId == customerUserId && x.DeviceIdentifier == "integration");
+            await db.SaveChangesAsync();
+        }
+
+        using var platformClient = factory.CreateClient();
+        platformClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", platformToken);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await platformClient.GetAsync("/api/v1/me/login-methods")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await platformClient.PostAsJsonAsync(
+            $"/api/v1/me/login-methods/{method.Code}/release",
+            new ReleaseLoginMethodRequest("user_requested"))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await platformClient.PostAsync(
+            $"/api/v1/me/sessions/{customerSession.Code}/revoke", null)).StatusCode);
+
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.True((await verifyDb.UserLoginMethods.SingleAsync(x => x.Code == method.Code)).IsActive);
+        Assert.True((await verifyDb.AuthSessions.SingleAsync(x => x.Id == customerSession.Id)).IsActive);
+    }
+
+    [Fact]
+    public async Task ReleasedLoginMethodRevokesItsSessionsAndBearerRejectsThemButLeavesOtherMethodSessionsUsable()
+    {
+        RequireMilestoneCSql();
+        var actor = await CreateAuthenticatedClientWithIdentity();
+        using var authenticated = actor.Client;
+        var original = Assert.Single((await authenticated.GetFromJsonAsync<List<LoginMethodResponse>>(
+            "/api/v1/me/login-methods"))!, x => x.IsActiveLoginMethod());
+        var replacement = await AddMobile(authenticated,
+            $"+989{Random.Shared.Next(100000000, 999999999)}", false);
+        string otherToken;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            var protector = scope.ServiceProvider.GetRequiredService<IIamSecretProtector>();
+            var replacementId = await db.UserLoginMethods.Where(x => x.Code == replacement.Code)
+                .Select(x => x.Id).SingleAsync();
+            var now = DateTimeOffset.UtcNow;
+            otherToken = protector.CreateToken();
+            db.AuthSessions.Add(new AuthSession(PublicCode.Create(), actor.UserId, null, replacementId,
+                "web", protector.Hash(otherToken), now.AddMinutes(15), now, now.AddHours(1),
+                now.AddMinutes(30), "replacement-method", null));
+            await db.SaveChangesAsync();
+        }
+
+        using var released = await authenticated.PostAsJsonAsync(
+            $"/api/v1/me/login-methods/{original.Code}/release",
+            new ReleaseLoginMethodRequest("number_changed", replacement.Code));
+        Assert.Equal(HttpStatusCode.NoContent, released.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized,
+            (await authenticated.GetAsync("/api/v1/me/login-methods")).StatusCode);
+
+        using var otherClient = factory.CreateClient();
+        otherClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", otherToken);
+        Assert.Equal(HttpStatusCode.OK,
+            (await otherClient.GetAsync("/api/v1/me/login-methods")).StatusCode);
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.All(await verifyDb.AuthSessions.Where(x => x.AuthenticatedViaLoginMethodId ==
+            verifyDb.UserLoginMethods.Where(m => m.Code == original.Code).Select(m => m.Id).Single())
+            .ToListAsync(), x => Assert.False(x.IsActive));
+        Assert.True(await verifyDb.AuthSessions.AnyAsync(x => x.DeviceIdentifier == "replacement-method" &&
+            x.IsActive));
+    }
+
     [Fact]
     public async Task AuthenticatedUserAddsSecondMobileWithoutCreatingAnotherIdentityAndSwitchesPrimary()
     {
