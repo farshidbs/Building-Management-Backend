@@ -7,6 +7,16 @@ public sealed record VerifyOtpRequest(string ChallengeReference, string Code, st
 public sealed record TokenResponse(string AccessToken, string RefreshToken, DateTimeOffset ExpiresAtUtc,
     string UserCode, string? PartyCode);
 public sealed record RefreshTokenRequest(string RefreshToken);
+public sealed record StartRecoveryRequest(string OldMobile, string NewMobile,
+    string? IdentityNumber = null, DateOnly? BirthDate = null);
+public sealed record RecoveryReferenceResponse(string RecoveryReference, string Status,
+    DateTimeOffset ExpiresAtUtc);
+public sealed record RecoveryStatusResponse(string Status, DateTimeOffset ExpiresAtUtc,
+    bool CanComplete);
+public sealed record RecoveryOtpRequestResponse(string ChallengeReference, DateTimeOffset ExpiresAtUtc);
+public sealed record VerifyRecoveryMobileRequest(string ChallengeReference, string OtpCode);
+public sealed record CompleteRecoveryRequest(string ChallengeReference, string OtpCode,
+    string ClientTypeKey = "web", string? DeviceIdentifier = null);
 public sealed record LoginMethodOtpRequest(string Mobile);
 public sealed record ReleaseLoginMethodRequest(string ReasonKey, string? ReplacementPrimaryLoginMethodCode = null);
 public sealed record AddLoginMethodRequest(string Mobile, string ChallengeReference, string OtpCode, bool MakePrimary);

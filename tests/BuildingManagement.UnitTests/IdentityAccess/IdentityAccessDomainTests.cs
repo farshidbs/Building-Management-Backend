@@ -7,6 +7,35 @@ namespace BuildingManagement.UnitTests;
 public sealed class IdentityAccessDomainTests
 {
     [Fact]
+    public void RecoveryRequiresMobileProofAndSupportApprovalBeforeSingleCompletion()
+    {
+        var recovery = new AccountRecoveryCase("RCV01", "reference-hash", 10, 20,
+            "+989121111111", "+989122222222", "0012345678", new DateOnly(1990, 1, 1),
+            Now.AddHours(1), Now);
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.Throws<DomainValidationException>(() => recovery.Approve(5, "ticket", Now));
+        recovery.MarkMobileVerified(Now.AddMinutes(1));
+        recovery.Approve(5, "ticket-123", Now.AddMinutes(2));
+        recovery.Complete(Now.AddMinutes(3));
+        Assert.Equal("completed", recovery.StatusKey);
+        Assert.False(recovery.IsActive);
+        Assert.Throws<DomainValidationException>(() => recovery.Complete(Now.AddMinutes(4)));
+    }
+
+    [Fact]
+    public void RejectedOrExpiredRecoveryCannotComplete()
+    {
+        var rejected = new AccountRecoveryCase("RCV02", "hash-2", 10, 20, "+989121111111",
+            "+989122222222", null, null, Now.AddHours(1), Now);
+        rejected.MarkMobileVerified(Now); rejected.Reject(5, "evidence mismatch", Now);
+        Assert.Throws<DomainValidationException>(() => rejected.Complete(Now));
+        var expired = new AccountRecoveryCase("RCV03", "hash-3", 10, 20, "+989121111111",
+            "+989122222222", null, null, Now, Now.AddHours(-1));
+        expired.Expire(Now);
+        Assert.Equal("expired", expired.StatusKey);
+    }
+
+    [Fact]
     public void LoginMethodVerificationPrimarySwitchAndReleasePreserveHistory()
     {
         var now = DateTimeOffset.UtcNow;

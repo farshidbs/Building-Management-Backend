@@ -82,6 +82,18 @@ Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vend
 
 ## History, recovery, and support
 
+## Milestone D — Account Recovery
+
+Lost-SIM recovery is a public, anti-enumeration workflow and never acts as ordinary login. Its state machine is `pending_mobile_verification → pending_review → approved → completed`; `rejected`, `cancelled`, and `expired` are terminal historical outcomes. Start responses always have the same safe shape and contain only an unguessable recovery reference, generic status, and expiry. The database stores only its HMAC hash.
+
+The new Iranian mobile is proven with the dedicated `account_recovery_new_mobile` OTP purpose. Each challenge is bound to the recovery case and normalized new mobile, so login, registration, invitation, and LoginMethod-add proofs cannot be replayed. Candidate resolution uses old LoginMethod history plus exact optional identity evidence through the primary UserPartyLink; it never uses fuzzy names or arbitrary PartyContact values. Ambiguous evidence creates an IdentityConflictReview and never silently selects or merges an identity.
+
+Support approval is a separate boundary and does not mutate credentials or sessions. Completion requires an approved, unexpired case plus a fresh case-bound OTP proof. It locks the recovery row and existing User, rechecks active identifier availability, preserves that User and identity Party, creates a new verified primary LoginMethod, releases matching old methods historically, revokes every prior customer Session and active refresh token, creates one new Session, and marks the case completed in one transaction. A mobile active on another User is never transferred.
+
+Acceptance matrix: D01–D02 public start is indistinguishable for known/unknown old mobiles; D03–D06 enforce dedicated, case/mobile-bound OTP and durable attempts; D07 prevents active identifier takeover; D08–D09 resolve exactly or enter conflict review; D10 approval has no credential side effects; D11–D12 terminal/expired cases cannot complete; D13–D19 preserve identity, rotate credentials, reset sessions, and reject repeat completion; D20 is protected by recovery-row, User, and ordered Session SQL locks plus filtered identifier uniqueness. SQL race execution remains opt-in; static DB review is mandatory.
+
+Out of scope: automatic identity merging, old-SIM possession, customer self-approval, recovery by PartyContact, password/email recovery, and notification-provider implementation.
+
 ## Milestone C — Login Method & Session Security Acceptance Matrix
 
 All operations below are authenticated as the customer User represented by the current session. Unknown or foreign public codes are concealed as not found. Security mutations are serialized by locking the User row in SQL Server; filtered unique indexes remain the final protection for active identifiers and primaries.

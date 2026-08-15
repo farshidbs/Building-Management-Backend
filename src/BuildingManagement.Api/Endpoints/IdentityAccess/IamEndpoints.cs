@@ -12,6 +12,18 @@ public static class IamEndpoints
         auth.MapPost("/otp/request", (RequestOtpRequest request, IamService service, CancellationToken ct) => service.RequestOtp(request, ct)).AllowAnonymous();
         auth.MapPost("/otp/verify", (VerifyOtpRequest request, IamService service, CancellationToken ct) => service.VerifyOtp(request, ct)).AllowAnonymous();
         auth.MapPost("/refresh", (RefreshTokenRequest request, IamService service, CancellationToken ct) => service.Refresh(request, ct)).AllowAnonymous();
+        auth.MapPost("/recovery", (StartRecoveryRequest request, RecoveryService service,
+            CancellationToken ct) => service.Start(request, ct)).AllowAnonymous();
+        auth.MapGet("/recovery/{reference}", (string reference, RecoveryService service,
+            CancellationToken ct) => service.Status(reference, ct)).AllowAnonymous();
+        auth.MapPost("/recovery/{reference}/otp", (string reference, RecoveryService service,
+            CancellationToken ct) => service.RequestOtp(reference, ct)).AllowAnonymous();
+        auth.MapPost("/recovery/{reference}/verify-mobile", (string reference,
+            VerifyRecoveryMobileRequest request, RecoveryService service, CancellationToken ct) =>
+            service.VerifyMobile(reference, request, ct)).AllowAnonymous();
+        auth.MapPost("/recovery/{reference}/complete", (string reference,
+            CompleteRecoveryRequest request, RecoveryService service, CancellationToken ct) =>
+            service.Complete(reference, request, ct)).AllowAnonymous();
         auth.MapGet("/me", (ICurrentActor actor, IamService service, CancellationToken ct) => service.Current(UserId(actor), ct)).RequireAuthorization(CustomerUserPolicy);
         auth.MapPost("/logout", async (ICurrentActor actor, IamService service, CancellationToken ct) => { await service.Logout(SessionId(actor), false, ct); return Results.NoContent(); }).RequireAuthorization(CustomerUserPolicy);
         auth.MapPost("/logout-all", async (ICurrentActor actor, IamService service, CancellationToken ct) => { await service.Logout(SessionId(actor), true, ct); return Results.NoContent(); }).RequireAuthorization(CustomerUserPolicy);

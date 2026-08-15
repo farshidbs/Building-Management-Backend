@@ -166,6 +166,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("session");
     }
 
+    public async Task LockRecoveryCase(string referenceHash, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Recovery Case lock requires an active transaction.");
+        _ = await AccountRecoveryCases.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[AccountRecoveryCases] WITH (UPDLOCK, HOLDLOCK) WHERE [ReferenceHash] = {referenceHash}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("recovery");
+    }
+
     public async Task LockInvitation(string tokenHash, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)

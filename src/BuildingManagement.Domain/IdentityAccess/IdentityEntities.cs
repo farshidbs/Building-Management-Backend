@@ -264,11 +264,39 @@ public sealed class AccountRecoveryCase : Entity
 {
     private AccountRecoveryCase() { }
     public long? UserId { get; private set; }
-    public string RecoveryTypeKey { get; private set; } = ""; public string StatusKey { get; private set; } = "pending"; public string? NewNormalizedIdentifier { get; private set; }
+    public long? OldLoginMethodId { get; private set; }
+    public string ReferenceHash { get; private set; } = "";
+    public string RecoveryTypeKey { get; private set; } = "";
+    public string StatusKey { get; private set; } = "pending_mobile_verification";
+    public string? OldNormalizedIdentifier { get; private set; }
+    public string? NewNormalizedIdentifier { get; private set; }
+    public string? IdentityNumberEvidence { get; private set; }
+    public DateOnly? BirthDateEvidence { get; private set; }
     public string? Reason { get; private set; }
+    public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public DateTimeOffset? MobileVerifiedAtUtc { get; private set; }
+    public DateTimeOffset? ReviewedAtUtc { get; private set; }
+    public DateTimeOffset? CompletedAtUtc { get; private set; }
     public DateTimeOffset? ResolvedAtUtc { get; private set; }
     public long? ResolvedByPlatformUserId { get; private set; }
-    public AccountRecoveryCase(string code, long? userId, string type, string? identifier, string? reason, DateTimeOffset now) { Initialize(code, now); UserId = userId; RecoveryTypeKey = Required(type, "recoveryTypeKey"); NewNormalizedIdentifier = Optional(identifier); Reason = Optional(reason); }
+    public AccountRecoveryCase(string code, string referenceHash, long? userId, long? oldLoginMethodId,
+        string oldIdentifier, string newIdentifier, string? identityNumber, DateOnly? birthDate,
+        DateTimeOffset expiresAtUtc, DateTimeOffset now)
+    {
+        Initialize(code, now); ReferenceHash = Required(referenceHash, "referenceHash"); UserId = userId;
+        OldLoginMethodId = oldLoginMethodId; RecoveryTypeKey = "lost_sim";
+        OldNormalizedIdentifier = Required(oldIdentifier, "oldMobile");
+        NewNormalizedIdentifier = Required(newIdentifier, "newMobile");
+        IdentityNumberEvidence = Optional(identityNumber); BirthDateEvidence = birthDate;
+        ExpiresAtUtc = expiresAtUtc;
+    }
+    public void MarkMobileVerified(DateTimeOffset now) { RequirePending(now); MobileVerifiedAtUtc = now; StatusKey = "pending_review"; Touch(now); }
+    public void Approve(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "approved"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; Touch(now); }
+    public void Reject(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "rejected"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
+    public void Complete(DateTimeOffset now) { if (StatusKey != "approved" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not completable."); StatusKey = "completed"; CompletedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
+    public void Expire(DateTimeOffset now) { if (StatusKey is "completed" or "rejected" or "cancelled" or "expired") return; if (now < ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery has not expired."); StatusKey = "expired"; ResolvedAtUtc = now; SetActivation(false, now); }
+    private void RequirePending(DateTimeOffset now) { if (StatusKey != "pending_mobile_verification" || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting mobile verification."); }
+    private void RequireReview(DateTimeOffset now) { if (StatusKey != "pending_review" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting review."); }
 }
 
 public sealed class PlatformRole : ReferenceDataItem { private PlatformRole() { } public PlatformRole(string key, string title, int order, DateTimeOffset now) => Initialize(key, title, order, now); }
