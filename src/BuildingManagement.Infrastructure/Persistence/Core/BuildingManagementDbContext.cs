@@ -176,6 +176,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("recovery");
     }
 
+    public async Task LockSupportActingSession(long actingSessionId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Support Acting Session lock requires an active transaction.");
+        _ = await SupportActingSessions.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[SupportActingSessions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {actingSessionId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("support_acting_session");
+    }
+
     public async Task LockInvitation(string tokenHash, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)

@@ -130,6 +130,17 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             throw new AppException(401, "authentication.invalid_session", "The authenticated session is no longer valid.");
     }
 
+    public async Task EnsureActingSession(long userId, long platformUserId, long actingSessionId,
+        CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var active = await db.SupportActingSessions.AsNoTracking().AnyAsync(x =>
+            x.Id == actingSessionId && x.TargetUserId == userId && x.PlatformUserId == platformUserId &&
+            x.IsActive && x.EndedAtUtc == null && x.ExpiresAtUtc > now, ct);
+        if (!active) throw new AppException(401, "authentication.invalid_acting_session",
+            "The support acting session is no longer valid.");
+    }
+
     public async Task<AccessibleResourceIds> Accessible(long userId, string permissionKey, CancellationToken ct)
     {
         var now = clock.GetUtcNow();

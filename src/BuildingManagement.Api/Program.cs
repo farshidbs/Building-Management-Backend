@@ -26,6 +26,9 @@ builder.Services.AddAuthorizationBuilder()
     .AddPolicy(IamEndpoints.CustomerUserPolicy, policy => policy
         .RequireAuthenticatedUser()
         .RequireClaim("actor_type", "user"))
+    .AddPolicy(IamEndpoints.PlatformUserPolicy, policy => policy
+        .RequireAuthenticatedUser()
+        .RequireClaim("actor_type", "platform"))
     .SetFallbackPolicy(new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser().Build());
 builder.Services.AddHttpContextAccessor();
@@ -69,6 +72,8 @@ builder.Services.AddScoped<FinancialFileService>();
 builder.Services.AddScoped<UnitCreditSettlementService>();
 builder.Services.AddScoped<IamService>();
 builder.Services.AddScoped<RecoveryService>();
+builder.Services.AddScoped<PlatformSupportService>();
+builder.Services.AddSingleton<IPlatformPasswordHasher, AspNetCorePlatformPasswordHasher>();
 builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<AccessAuthorizationService>();
 builder.Services.AddScoped<ResourceAuthorization>();

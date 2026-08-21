@@ -5,6 +5,7 @@ namespace BuildingManagement.Api;
 public static class IamEndpoints
 {
     public const string CustomerUserPolicy = "CustomerUser";
+    public const string PlatformUserPolicy = "PlatformUser";
 
     public static void MapIamEndpoints(this IEndpointRouteBuilder app)
     {
@@ -58,6 +59,33 @@ public static class IamEndpoints
         invitations.MapPost("/building/{buildingCode}/bulk", (string buildingCode, InvitationService service, CancellationToken ct) => service.CreateBulk(buildingCode, ct));
         invitations.MapGet("/", (string? buildingCode, string? unitCode, InvitationService service, CancellationToken ct) => service.List(buildingCode, unitCode, ct));
         invitations.MapPost("/{code}/revoke", async (string code, InvitationService service, CancellationToken ct) => { await service.Revoke(code, ct); return Results.NoContent(); });
+
+        var platformAuth = app.MapGroup("/api/v1/platform/auth").WithTags("Platform Identity");
+        platformAuth.MapPost("/login", (PlatformLoginRequest request, PlatformSupportService service,
+            CancellationToken ct) => service.Login(request, ct)).AllowAnonymous();
+        platformAuth.MapPost("/refresh", (RefreshTokenRequest request, PlatformSupportService service,
+            CancellationToken ct) => service.Refresh(request, ct)).AllowAnonymous();
+
+        var platform = app.MapGroup("/api/v1/platform").WithTags("Platform Support")
+            .RequireAuthorization(PlatformUserPolicy);
+        platform.MapGet("/recovery-cases", (PlatformSupportService service, CancellationToken ct) =>
+            service.RecoveryCases(ct));
+        platform.MapGet("/recovery-cases/{code}", (string code, PlatformSupportService service,
+            CancellationToken ct) => service.RecoveryCase(code, ct));
+        platform.MapPost("/recovery-cases/{code}/approve", async (string code,
+            RecoveryDecisionRequest request, PlatformSupportService service, CancellationToken ct) =>
+        { await service.DecideRecovery(code, request, true, ct); return Results.NoContent(); });
+        platform.MapPost("/recovery-cases/{code}/reject", async (string code,
+            RecoveryDecisionRequest request, PlatformSupportService service, CancellationToken ct) =>
+        { await service.DecideRecovery(code, request, false, ct); return Results.NoContent(); });
+        platform.MapPost("/support/acting-sessions", async (StartActingSessionRequest request,
+            PlatformSupportService service, CancellationToken ct) => Results.Created(
+                "/api/v1/platform/support/acting-sessions", await service.StartActing(request, ct)));
+        platform.MapGet("/support/acting-sessions", (PlatformSupportService service,
+            CancellationToken ct) => service.ActingSessions(ct));
+        platform.MapPost("/support/acting-sessions/{code}/revoke", async (string code,
+            PlatformSupportService service, CancellationToken ct) =>
+        { await service.RevokeActing(code, ct); return Results.NoContent(); });
     }
     private static long UserId(ICurrentActor actor) => actor.UserId
         ?? throw new AppException(403, "authorization.customer_user_required", "A customer User is required.");

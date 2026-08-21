@@ -1,3 +1,5 @@
+using BuildingManagement.Domain;
+
 namespace BuildingManagement.Application;
 
 public sealed record RequestOtpRequest(string Mobile, string PurposeKey);
@@ -17,6 +19,26 @@ public sealed record RecoveryOtpRequestResponse(string ChallengeReference, DateT
 public sealed record VerifyRecoveryMobileRequest(string ChallengeReference, string OtpCode);
 public sealed record CompleteRecoveryRequest(string ChallengeReference, string OtpCode,
     string ClientTypeKey = "web", string? DeviceIdentifier = null);
+public sealed record PlatformLoginRequest(string Username, string Password, string? DeviceIdentifier = null);
+public sealed record PlatformTokenResponse(string AccessToken, string RefreshToken,
+    DateTimeOffset ExpiresAtUtc, string PlatformUserCode);
+public sealed record RecoveryReviewResponse(string Code, string Status, string? OldMobile,
+    string? NewMobile, string? IdentityNumber, DateOnly? BirthDate, DateTimeOffset ExpiresAtUtc,
+    DateTimeOffset? MobileVerifiedAtUtc, string? ReviewReason);
+public sealed record RecoveryDecisionRequest(string Reason, string? TicketReference = null);
+public sealed record StartActingSessionRequest(string TargetUserCode, string Reason,
+    string? TicketReference = null, int RequestedMinutes = 30);
+public sealed record ActingSessionTokenResponse(string Code, string AccessToken,
+    DateTimeOffset ExpiresAtUtc, string TargetUserCode);
+public sealed record ActingSessionResponse(string Code, string TargetUserCode, string Reason,
+    string? TicketReference, DateTimeOffset ExpiresAtUtc, DateTimeOffset? EndedAtUtc,
+    string Status);
+
+public interface IPlatformPasswordHasher
+{
+    string Hash(PlatformUser user, string password);
+    bool Verify(PlatformUser user, string passwordHash, string password);
+}
 public sealed record LoginMethodOtpRequest(string Mobile);
 public sealed record ReleaseLoginMethodRequest(string ReasonKey, string? ReplacementPrimaryLoginMethodCode = null);
 public sealed record AddLoginMethodRequest(string Mobile, string ChallengeReference, string OtpCode, bool MakePrimary);

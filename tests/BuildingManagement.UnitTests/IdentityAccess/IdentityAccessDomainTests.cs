@@ -36,6 +36,30 @@ public sealed class IdentityAccessDomainTests
     }
 
     [Fact]
+    public void SupportActingSessionRetainsPlatformTargetSourceAndRevocationHistory()
+    {
+        var acting = new SupportActingSession("ACT01", 7, 11, 13, "token-hash",
+            "بررسی تیکت", "T-100", Now.AddMinutes(30), Now);
+        Assert.Equal(7, acting.PlatformUserId);
+        Assert.Equal(11, acting.TargetUserId);
+        Assert.Equal(13, acting.PlatformAuthSessionId);
+        acting.End("platform_revoked", Now.AddMinutes(2));
+        acting.End("duplicate", Now.AddMinutes(3));
+        Assert.False(acting.IsActive);
+        Assert.Equal("platform_revoked", acting.EndReasonKey);
+        Assert.Equal(Now.AddMinutes(2), acting.EndedAtUtc);
+    }
+
+    [Fact]
+    public void PlatformAndActingDtosDoNotExposeHashesOrInternalIds()
+    {
+        var types = new[] { typeof(PlatformTokenResponse), typeof(ActingSessionTokenResponse),
+            typeof(RecoveryReviewResponse) };
+        Assert.All(types, type => Assert.DoesNotContain(type.GetProperties(), property =>
+            property.Name.Contains("Hash", StringComparison.OrdinalIgnoreCase) || property.Name == "Id"));
+    }
+
+    [Fact]
     public void LoginMethodVerificationPrimarySwitchAndReleasePreserveHistory()
     {
         var now = DateTimeOffset.UtcNow;

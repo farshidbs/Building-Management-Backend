@@ -57,7 +57,11 @@ public sealed class ResourceAuthorization(ICurrentActor actor, AccessAuthorizati
         return await authorization.Accessible(UserId, permissionKey, cancellationToken);
     }
 
-    private Task EnsureSession(CancellationToken cancellationToken) => actor.SessionId.HasValue
-        ? authorization.EnsureSession(UserId, actor.SessionId.Value, cancellationToken)
-        : throw new AppException(401, "authentication.invalid_session", "The authenticated session is no longer valid.");
+    private Task EnsureSession(CancellationToken cancellationToken) => actor.ActorType == "support_acting" &&
+        actor.SupportActingSessionId.HasValue && actor.PlatformUserId.HasValue
+            ? authorization.EnsureActingSession(UserId, actor.PlatformUserId.Value,
+                actor.SupportActingSessionId.Value, cancellationToken)
+            : actor.SessionId.HasValue
+                ? authorization.EnsureSession(UserId, actor.SessionId.Value, cancellationToken)
+                : throw new AppException(401, "authentication.invalid_session", "The authenticated session is no longer valid.");
 }

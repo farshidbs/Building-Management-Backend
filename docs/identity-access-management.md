@@ -94,6 +94,18 @@ Acceptance matrix: D01–D02 public start is indistinguishable for known/unknown
 
 Out of scope: automatic identity merging, old-SIM possession, customer self-approval, recovery by PartyContact, password/email recovery, and notification-provider implementation.
 
+## Milestone E — Platform Support
+
+The Platform realm is independent of customer IAM. Username/password login uses ASP.NET Core Identity's versioned PasswordHasher; only hashes are persisted. A Platform AuthSession has `PlatformUserId`, no customer User, and no LoginMethod. `/api/v1/platform/*` requires `actor_type=platform`, while `CustomerUser` remains strictly `actor_type=user`. Generic authentication failures prevent username enumeration.
+
+Platform authorization uses PlatformRoles and PlatformPermissions only. `super_admin` has all five current permissions; `support_manager` has recovery view/review plus acting/view; the stricter `support_agent` baseline has recovery view only. Recovery review is limited to case identity evidence. Approval/rejection locks the case, requires `recovery_case_review`, records the real PlatformUser, source Platform Session, reason/ticket, and audit event, and never changes credentials or logs the customer in.
+
+Support acting has lifecycle `active → revoked` or effective expiry. Creation requires `support_act`, a target User code, non-empty reason, optional ticket, and a server-clamped lifetime of at most 60 minutes. The one-time opaque token is stored only as a hash. Authentication revalidates the acting row, source Platform Session, real PlatformUser, and represented User. Claims retain `actor_type=support_acting`, represented User, real PlatformUser, and acting-session identity. Business authorization evaluates the represented User's normal Memberships, overrides, AccessGrants, and hard rules; acting grants no Platform permission and no customer security-self-service access. Revocation is immediate and historical.
+
+Acceptance matrix: E01–E02 enforce cross-realm denial; E03–E04 cover secure Platform login; E05–E07 permissioned, serialized recovery decisions; E08–E09 reason and permission requirements; E10 preserves dual provenance; E11–E13 use only represented business authorization and exclude customer security endpoints; E14–E15 reject revoked/expired acting tokens; E16 does not mutate customer Membership, LoginMethod, or Party. SQL-backed rows—not process-local claims—are authoritative.
+
+Out of scope: Platform password reset, MFA, SSO, customer-security override, omniscient support access, and broad audit analytics.
+
 ## Milestone C — Login Method & Session Security Acceptance Matrix
 
 All operations below are authenticated as the customer User represented by the current session. Unknown or foreign public codes are concealed as not found. Security mutations are serialized by locking the User row in SQL Server; filtered unique indexes remain the final protection for active identifiers and primaries.

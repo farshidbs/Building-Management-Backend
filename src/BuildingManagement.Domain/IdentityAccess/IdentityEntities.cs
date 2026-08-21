@@ -222,10 +222,16 @@ public sealed class SupportActingSession : Entity
     private SupportActingSession() { }
     public long PlatformUserId { get; private set; }
     public long TargetUserId { get; private set; }
+    public long PlatformAuthSessionId { get; private set; }
+    public string TokenHash { get; private set; } = "";
     public string Reason { get; private set; } = ""; public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public string? TicketReference { get; private set; }
     public DateTimeOffset? EndedAtUtc { get; private set; }
-    public SupportActingSession(string code, long platform, long target, string reason, DateTimeOffset expires, DateTimeOffset now) { Initialize(code, now); PlatformUserId = platform; TargetUserId = target; Reason = Required(reason, "reason"); ExpiresAtUtc = expires; }
-    public void End(DateTimeOffset now) { EndedAtUtc = now; SetActivation(false, now); }
+    public string? EndReasonKey { get; private set; }
+    public SupportActingSession(string code, long platform, long target, long platformSession,
+        string tokenHash, string reason, string? ticketReference, DateTimeOffset expires, DateTimeOffset now)
+    { Initialize(code, now); PlatformUserId = platform; TargetUserId = target; PlatformAuthSessionId = platformSession; TokenHash = Required(tokenHash, "tokenHash"); Reason = Required(reason, "reason"); TicketReference = Optional(ticketReference); ExpiresAtUtc = expires; }
+    public void End(string reason, DateTimeOffset now) { if (EndedAtUtc.HasValue) return; EndedAtUtc = now; EndReasonKey = Required(reason, "reason"); SetActivation(false, now); }
 }
 
 public sealed class BuildingRolePermissionOverride : Entity
