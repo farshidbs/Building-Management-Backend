@@ -196,6 +196,27 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("invitation");
     }
 
+    public async Task LockMembershipForSecurityMutation(long membershipId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Membership lock requires an active transaction.");
+        _ = await AccessMemberships.FromSqlInterpolated($"SELECT * FROM [bms].[AccessMemberships] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {membershipId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("membership");
+    }
+
+    public async Task LockMembershipExitRequest(long requestId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Membership Exit Request lock requires an active transaction.");
+        _ = await MembershipExitRequests.FromSqlInterpolated($"SELECT * FROM [bms].[MembershipExitRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {requestId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("membership_exit_request");
+    }
+
+    public async Task LockAccessGrant(long grantId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Access Grant lock requires an active transaction.");
+        _ = await AccessGrants.FromSqlInterpolated($"SELECT * FROM [bms].[AccessGrants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {grantId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("access_grant");
+    }
+
     public bool IsUniqueViolation(Exception exception) =>
         exception is DbUpdateException { InnerException: SqlException { Number: 2601 or 2627 } };
 

@@ -52,6 +52,33 @@ public static class IamEndpoints
         me.MapPost("/sessions/{code}/revoke", async (ICurrentActor actor, string code,
             IamService service, CancellationToken ct) =>
         { await service.RevokeSession(UserId(actor), code, ct); return Results.NoContent(); });
+        me.MapPost("/memberships/{membershipCode}/exit-request", async (string membershipCode,
+            MembershipExitRequestDto request, AccessWorkflowService service, CancellationToken ct) =>
+            Results.Created("/api/v1/me/membership-exit-requests", await service.RequestExit(membershipCode, request, ct)));
+        me.MapPost("/membership-exit-requests/{code}/cancel", async (string code,
+            AccessWorkflowService service, CancellationToken ct) =>
+        { await service.CancelExit(code, ct); return Results.NoContent(); });
+
+        var exits = app.MapGroup("/api/v1/membership-exit-requests").WithTags("Identity & Access")
+            .RequireAuthorization();
+        exits.MapGet("/", (string scopeKind, string scopeCode, AccessWorkflowService service,
+            CancellationToken ct) => service.ListExitRequests(scopeKind, scopeCode, ct));
+        exits.MapPost("/{code}/approve", async (string code, MembershipExitDecisionRequest request,
+            AccessWorkflowService service, CancellationToken ct) =>
+        { await service.DecideExit(code, request, true, ct); return Results.NoContent(); });
+        exits.MapPost("/{code}/reject", async (string code, MembershipExitDecisionRequest request,
+            AccessWorkflowService service, CancellationToken ct) =>
+        { await service.DecideExit(code, request, false, ct); return Results.NoContent(); });
+
+        var grants = app.MapGroup("/api/v1/access-grants").WithTags("Identity & Access")
+            .RequireAuthorization();
+        grants.MapPost("/", async (CreateAccessGrantRequest request, AccessWorkflowService service,
+            CancellationToken ct) => Results.Created("/api/v1/access-grants", await service.CreateGrant(request, ct)));
+        grants.MapGet("/", (string scopeKind, string scopeCode, AccessWorkflowService service,
+            CancellationToken ct) => service.ListGrants(scopeKind, scopeCode, ct));
+        grants.MapPost("/{code}/revoke", async (string code, AccessWorkflowService service,
+            CancellationToken ct) =>
+        { await service.RevokeGrant(code, ct); return Results.NoContent(); });
 
         var invitations = app.MapGroup("/api/v1/invitations").WithTags("Identity & Access").RequireAuthorization();
         invitations.MapPost("/unit", async (CreateUnitInvitationRequest request, InvitationService service, CancellationToken ct) => Results.Created("/api/v1/invitations", await service.CreateUnit(request, ct)));

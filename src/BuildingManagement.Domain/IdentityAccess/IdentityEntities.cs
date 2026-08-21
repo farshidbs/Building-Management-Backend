@@ -158,11 +158,12 @@ public sealed class AccessGrant : Entity
     public long? ComplexId { get; private set; }
     public long? BuildingId { get; private set; }
     public long? UnitId { get; private set; }
+    public DateTimeOffset? StartsAtUtc { get; private set; }
     public DateTimeOffset? ExpiresAtUtc { get; private set; }
     public DateTimeOffset? RevokedAtUtc { get; private set; }
     public string Reason { get; private set; } = "";
-    public AccessGrant(string code, long user, long by, long permission, long? complexId, long? buildingId, long? unitId, DateTimeOffset? expires, string reason, DateTimeOffset now) { if ((complexId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (unitId.HasValue ? 1 : 0) != 1) throw new DomainValidationException("scope", "Exactly one scope is required."); Initialize(code, now); UserId = user; GrantedByUserId = by; PermissionId = permission; ComplexId = complexId; BuildingId = buildingId; UnitId = unitId; ExpiresAtUtc = expires; Reason = Required(reason, "reason"); }
-    public void Revoke(DateTimeOffset now) { RevokedAtUtc = now; SetActivation(false, now); }
+    public AccessGrant(string code, long user, long by, long permission, long? complexId, long? buildingId, long? unitId, DateTimeOffset? starts, DateTimeOffset? expires, string reason, DateTimeOffset now) { if ((complexId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (unitId.HasValue ? 1 : 0) != 1) throw new DomainValidationException("scope", "Exactly one scope is required."); if (starts.HasValue && expires.HasValue && expires <= starts) throw new DomainValidationException("expiresAtUtc", "Must be later than startsAtUtc."); Initialize(code, now); UserId = user; GrantedByUserId = by; PermissionId = permission; ComplexId = complexId; BuildingId = buildingId; UnitId = unitId; StartsAtUtc = starts; ExpiresAtUtc = expires; Reason = Required(reason, "reason"); }
+    public void Revoke(DateTimeOffset now) { if (RevokedAtUtc.HasValue) return; RevokedAtUtc = now; SetActivation(false, now); }
 }
 
 public sealed class BuildingAccessSetting : Entity
@@ -250,10 +251,12 @@ public sealed class MembershipExitRequest : Entity
     public long MembershipId { get; private set; }
     public long RequestedByUserId { get; private set; }
     public string StatusKey { get; private set; } = "pending"; public string? Reason { get; private set; }
+    public string? DecisionReason { get; private set; }
     public DateTimeOffset? DecidedAtUtc { get; private set; }
     public long? DecidedByUserId { get; private set; }
     public MembershipExitRequest(string code, long membershipId, long requestedBy, string? reason, DateTimeOffset now) { Initialize(code, now); MembershipId = membershipId; RequestedByUserId = requestedBy; Reason = Optional(reason); }
-    public void Decide(bool approved, long decidedBy, DateTimeOffset now) { if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = approved ? "approved" : "rejected"; DecidedByUserId = decidedBy; DecidedAtUtc = now; Touch(now); }
+    public void Decide(bool approved, long decidedBy, string? reason, DateTimeOffset now) { if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = approved ? "approved" : "rejected"; DecidedByUserId = decidedBy; DecidedAtUtc = now; DecisionReason = Optional(reason); SetActivation(false, now); }
+    public void Cancel(long requestedBy, DateTimeOffset now) { if (RequestedByUserId != requestedBy) throw new DomainValidationException("exitRequest", "Only the requester can cancel this request."); if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = "cancelled"; DecidedByUserId = requestedBy; DecidedAtUtc = now; SetActivation(false, now); }
 }
 
 public sealed class IdentityConflictReview : Entity

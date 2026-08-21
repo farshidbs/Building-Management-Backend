@@ -100,6 +100,9 @@ public interface IApplicationDbContext
     Task LockRecoveryCase(string referenceHash, CancellationToken cancellationToken);
     Task LockSupportActingSession(long actingSessionId, CancellationToken cancellationToken);
     Task LockInvitation(string tokenHash, CancellationToken cancellationToken);
+    Task LockMembershipForSecurityMutation(long membershipId, CancellationToken cancellationToken);
+    Task LockMembershipExitRequest(long requestId, CancellationToken cancellationToken);
+    Task LockAccessGrant(long grantId, CancellationToken cancellationToken);
     bool IsUniqueViolation(Exception exception);
     Task<T> ExecuteInTransaction<T>(Func<CancellationToken, Task<T>> operation,
         CancellationToken cancellationToken);

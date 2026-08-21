@@ -180,9 +180,11 @@ public sealed class RecoveryService(IApplicationDbContext db, TimeProvider clock
         db.AuthSessions.Add(session); await db.SaveChangesAsync(ct);
         db.AuthRefreshTokens.Add(new AuthRefreshToken(session.Id, protector.Hash(refresh), Now,
             Now.AddDays(options.RefreshTokenDays)));
-        var partyCode = await (from link in db.UserPartyLinks where link.UserId == user.Id &&
-            link.IsActive && link.IsPrimary join party in db.Parties on link.PartyId equals party.Id
-            select party.Code).SingleOrDefaultAsync(ct);
+        var partyCode = await (from link in db.UserPartyLinks
+                               where link.UserId == user.Id &&
+            link.IsActive && link.IsPrimary
+                               join party in db.Parties on link.PartyId equals party.Id
+                               select party.Code).SingleOrDefaultAsync(ct);
         return new(access, refresh, accessExpiry, user.Code, partyCode);
     }
 

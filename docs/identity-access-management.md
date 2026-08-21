@@ -78,7 +78,7 @@ Invitation terminal states are mutually exclusive: only a pending, unexpired inv
 | H01–H04 | created Membership scope/role | Exactly one scope; `RoleAllowedScope` enforced; Unit workflow cannot create Building membership and vice versa. |
 | H05 | equivalent active Membership | Existing Membership reused; service and DB concurrency prevent duplicates. |
 
-Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vendors, notifications/SMS delivery, recovery, SSO, support acting, AccessGrant UI and membership-exit workflows remain deferred.
+Bulk responses do not expose target mobiles. Scoped onboarding of unrelated vendors, notifications/SMS delivery, SSO, and access-management UI remain deferred.
 
 ## History, recovery, and support
 
@@ -105,6 +105,18 @@ Support acting has lifecycle `active → revoked` or effective expiry. Creation 
 Acceptance matrix: E01–E02 enforce cross-realm denial; E03–E04 cover secure Platform login; E05–E07 permissioned, serialized recovery decisions; E08–E09 reason and permission requirements; E10 preserves dual provenance; E11–E13 use only represented business authorization and exclude customer security endpoints; E14–E15 reject revoked/expired acting tokens; E16 does not mutate customer Membership, LoginMethod, or Party. SQL-backed rows—not process-local claims—are authoritative.
 
 Out of scope: Platform password reset, MFA, SSO, customer-security override, omniscient support access, and broad audit analytics.
+
+## Milestone F — Membership Exit and Individual Access Grants
+
+A customer can request exit only from their own current Membership. One pending request per Membership is enforced in both the service and a filtered unique index. The requester may cancel while pending, but cannot approve or reject their own request. A scoped manager with `membership_manage_scoped` may list and decide requests only inside the exact requested Complex, Building, or Unit scope. Approval ends and preserves the AccessMembership; it never changes Party, UnitPartyRelation, occupancy, LoginMethod, or Session state. Rejection and cancellation likewise retain their historical request rows.
+
+Approve, reject, and cancel serialize on the MembershipExitRequest row. Approval additionally locks the AccessMembership before ending it. This makes competing decisions deterministic and prevents a terminal request from being applied twice. Request, approval, rejection, and cancellation write security audit events.
+
+Individual AccessGrant is deliberately narrow: it targets one existing active User, one allowlisted Permission, and exactly one Complex, Building, or Unit. `IamPermissionPolicy` currently permits only `financial_unit_view_own` and `financial_unit_pay`; sensitive management permissions such as `building_manage`, `membership_manage_scoped`, and confidential file access cannot be granted individually. Creation and revocation require `access_grant_manage` on the target scope, while scoped lists require `access_grant_view` and filter in SQL before materialization.
+
+A grant is effective only while active, not revoked, started (when a start time exists), and unexpired. StartsAtUtc and ExpiresAtUtc are optional; an explicit expiry must be in the future and later than an explicit start. Equivalent effective records are protected by service validation and a filtered unique index. Revocation is historical and serialized with a SQL row lock. Grants never create a User, Party, Membership, or occupancy relation and do not expand Platform/support authority; support acting can use only grants already belonging to the represented customer User.
+
+Acceptance coverage includes lifecycle domain tests and opt-in SQL Server API/database scenarios proving that approved exit changes only Membership state, grant creation does not create Memberships, revocation is immediate, and audit/history rows persist. Cross-scope authorization continues to be enforced by the shared resource authorization evaluator.
 
 ## Milestone C — Login Method & Session Security Acceptance Matrix
 
@@ -151,4 +163,4 @@ Migration `AddIdentityAccessManagement` is additive and also adds nullable `Birt
 
 Implemented: persistence model and constraints, OTP registration/login, opaque DB-backed sessions, refresh rotation/reuse handling, logout, current profile, context listing, central permission evaluation, migration, role/permission seeds, and resource authorization across the current physical-structure, Party, file, Asset, and Finance application services. Destination authorization is enforced when a Building or Asset changes scope; unattached Parties are not exposed to ordinary scoped users; confidential files require their distinct permission.
 
-The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Invitation creation, preview, invitation-purpose OTP, acceptance, scoped list, revocation, and bulk creation are implemented. Login-method lifecycle and Session list/revoke APIs are implemented. Context-selection UX, Platform/Support operations, account-recovery operations, audit workflows, and notification delivery remain deferred.
+The default OTP provider remains intentionally unconfigured until an SMS vendor is chosen. Invitation, LoginMethod/Session lifecycle, account recovery, Platform/support acting, Membership exit, and individual AccessGrant workflows are implemented. Context-selection UX, notification delivery, broad audit analytics, Platform credential recovery, and SSO remain deferred.

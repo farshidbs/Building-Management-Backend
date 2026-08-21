@@ -26,8 +26,9 @@ Do not introduce microservices, CQRS, MediatR, generic repositories, AutoMapper,
 3. Party and occupancy: Party, PartyContact, UnitPartyRelation, UnitOccupancyHistory.
 4. Asset management: Asset, AssetEvent, gallery/documents/event files and derived review dates.
 5. Financial domain: FinancialAccount, immutable transactions/entries, Expense/Disbursement, Demand/allocation/Receivable, Payment/allocation, AccountAdjustment and explicit UnitCreditSettlement.
+6. Identity and access: customer OTP/login/session security, Invitations and scoped Memberships, recovery, separate Platform/support acting, Membership exits, and narrow individual AccessGrants.
 
-Identity/login, Invitation, authorization, notification, reporting/BI, localization tables, multitenancy, refunds/reversals, real gateway adapters and advanced finance workflows are not implemented.
+Notification delivery/provider integration, reporting/BI, localization tables, multitenancy, SSO/MFA, refunds/reversals, real gateway adapters and advanced finance workflows are not implemented.
 
 ## Identifier and persistence rules
 

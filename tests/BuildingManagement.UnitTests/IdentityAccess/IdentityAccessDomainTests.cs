@@ -217,4 +217,38 @@ public sealed class IdentityAccessDomainTests
         Assert.Throws<AppException>(() => IamPermissionPolicy.RequireOverrideable("file_read_confidential"));
         Assert.Throws<AppException>(() => IamPermissionPolicy.RequireGrantable("building_manage"));
     }
+
+    [Fact]
+    public void MembershipExitRetainsHistoryAcrossApprovalRejectionAndCancellation()
+    {
+        var approved = new MembershipExitRequest("EXT01", 10, 20, "خروج", Now);
+        approved.Decide(true, 30, "تأیید مدیر", Now.AddMinutes(1));
+        Assert.Equal("approved", approved.StatusKey);
+        Assert.False(approved.IsActive);
+        Assert.Equal(30, approved.DecidedByUserId);
+
+        var rejected = new MembershipExitRequest("EXT02", 11, 21, null, Now);
+        rejected.Decide(false, 31, "نیاز به بررسی", Now.AddMinutes(1));
+        Assert.Equal("rejected", rejected.StatusKey);
+        Assert.False(rejected.IsActive);
+
+        var cancelled = new MembershipExitRequest("EXT03", 12, 22, null, Now);
+        cancelled.Cancel(22, Now.AddMinutes(1));
+        Assert.Equal("cancelled", cancelled.StatusKey);
+        Assert.False(cancelled.IsActive);
+        Assert.Throws<DomainValidationException>(() => cancelled.Cancel(22, Now.AddMinutes(2)));
+    }
+
+    [Fact]
+    public void AccessGrantSupportsScheduledActivationAndPreservesRevocationHistory()
+    {
+        var grant = new AccessGrant("GRT01", 1, 2, 3, null, null, 4,
+            Now.AddHours(1), Now.AddHours(2), "دسترسی موقت", Now);
+        Assert.Equal(Now.AddHours(1), grant.StartsAtUtc);
+        grant.Revoke(Now.AddMinutes(10));
+        Assert.False(grant.IsActive);
+        Assert.Equal(Now.AddMinutes(10), grant.RevokedAtUtc);
+        Assert.Throws<DomainValidationException>(() => new AccessGrant("GRT02", 1, 2, 3,
+            null, null, 4, Now.AddHours(2), Now.AddHours(1), "نامعتبر", Now));
+    }
 }

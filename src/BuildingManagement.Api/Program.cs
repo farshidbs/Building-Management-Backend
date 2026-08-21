@@ -73,6 +73,7 @@ builder.Services.AddScoped<UnitCreditSettlementService>();
 builder.Services.AddScoped<IamService>();
 builder.Services.AddScoped<RecoveryService>();
 builder.Services.AddScoped<PlatformSupportService>();
+builder.Services.AddScoped<AccessWorkflowService>();
 builder.Services.AddSingleton<IPlatformPasswordHasher, AspNetCorePlatformPasswordHasher>();
 builder.Services.AddScoped<InvitationService>();
 builder.Services.AddScoped<AccessAuthorizationService>();
