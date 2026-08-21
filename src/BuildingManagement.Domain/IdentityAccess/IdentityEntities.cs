@@ -216,6 +216,16 @@ public sealed class PlatformUser : Entity
     public string Username { get; private set; } = ""; public string NormalizedUsername { get; private set; } = ""; public string PasswordHash { get; private set; } = ""; public string StatusKey { get; private set; } = "active"; public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockedUntilUtc { get; private set; }
     public PlatformUser(string code, string username, string passwordHash, DateTimeOffset now) { Initialize(code, now); Username = Required(username, "username"); NormalizedUsername = Username.ToUpperInvariant(); PasswordHash = passwordHash; }
+    public void RecordFailedLogin(int maxAttempts, int lockoutMinutes, DateTimeOffset now)
+    {
+        FailedLoginCount++;
+        if (FailedLoginCount >= maxAttempts) LockedUntilUtc = now.AddMinutes(lockoutMinutes);
+        Touch(now);
+    }
+    public void RecordSuccessfulLogin(DateTimeOffset now)
+    {
+        FailedLoginCount = 0; LockedUntilUtc = null; Touch(now);
+    }
 }
 
 public sealed class SupportActingSession : Entity
@@ -303,6 +313,12 @@ public sealed class AccountRecoveryCase : Entity
     public void Approve(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "approved"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; Touch(now); }
     public void Reject(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "rejected"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
     public void Complete(DateTimeOffset now) { if (StatusKey != "approved" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not completable."); StatusKey = "completed"; CompletedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
+    public void Cancel(DateTimeOffset now)
+    {
+        if (StatusKey is "completed" or "rejected" or "cancelled" or "expired")
+            throw new DomainValidationException("recovery", "Recovery is already terminal.");
+        StatusKey = "cancelled"; ResolvedAtUtc = now; SetActivation(false, now);
+    }
     public void Expire(DateTimeOffset now) { if (StatusKey is "completed" or "rejected" or "cancelled" or "expired") return; if (now < ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery has not expired."); StatusKey = "expired"; ResolvedAtUtc = now; SetActivation(false, now); }
     private void RequirePending(DateTimeOffset now) { if (StatusKey != "pending_mobile_verification" || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting mobile verification."); }
     private void RequireReview(DateTimeOffset now) { if (StatusKey != "pending_review" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting review."); }

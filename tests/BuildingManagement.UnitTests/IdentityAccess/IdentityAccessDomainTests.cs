@@ -35,6 +35,39 @@ public sealed class IdentityAccessDomainTests
         Assert.Equal("expired", expired.StatusKey);
     }
 
+    [Theory]
+    [InlineData("pending_mobile_verification")]
+    [InlineData("pending_review")]
+    [InlineData("approved")]
+    public void LiveRecoveryStatesCanBeCancelledWithoutCredentialSideEffects(string state)
+    {
+        var recovery = new AccountRecoveryCase("CAN01", "cancel-hash", 10, 20,
+            "+989121111111", "+989122222222", null, null, Now.AddHours(1), Now);
+        if (state is "pending_review" or "approved") recovery.MarkMobileVerified(Now.AddMinutes(1));
+        if (state == "approved") recovery.Approve(5, "reviewed", Now.AddMinutes(2));
+        recovery.Cancel(Now.AddMinutes(3));
+        Assert.Equal("cancelled", recovery.StatusKey);
+        Assert.False(recovery.IsActive);
+        Assert.Equal(Now.AddMinutes(3), recovery.ResolvedAtUtc);
+        Assert.Throws<DomainValidationException>(() => recovery.Cancel(Now.AddMinutes(4)));
+        Assert.Throws<DomainValidationException>(() => recovery.Complete(Now.AddMinutes(4)));
+        Assert.Equal(10, recovery.UserId);
+        Assert.Equal(20, recovery.OldLoginMethodId);
+    }
+
+    [Fact]
+    public void PlatformLoginFailureStateLocksAndSuccessfulLoginClearsIt()
+    {
+        var platform = new PlatformUser("PLT01", "admin", "hash", Now);
+        for (var attempt = 0; attempt < 5; attempt++)
+            platform.RecordFailedLogin(5, 15, Now.AddMinutes(attempt));
+        Assert.Equal(5, platform.FailedLoginCount);
+        Assert.Equal(Now.AddMinutes(19), platform.LockedUntilUtc);
+        platform.RecordSuccessfulLogin(Now.AddMinutes(20));
+        Assert.Equal(0, platform.FailedLoginCount);
+        Assert.Null(platform.LockedUntilUtc);
+    }
+
     [Fact]
     public void SupportActingSessionRetainsPlatformTargetSourceAndRevocationHistory()
     {

@@ -123,21 +123,34 @@ public sealed class AccessWorkflowService(IApplicationDbContext db, TimeProvider
             throw FieldValidation("expiresAtUtc", "Must be in the future.");
         if (request.StartsAtUtc.HasValue && request.ExpiresAtUtc.HasValue && request.ExpiresAtUtc <= request.StartsAtUtc)
             throw FieldValidation("expiresAtUtc", "Must be later than startsAtUtc.");
-        if (await db.AccessGrants.AnyAsync(x => x.UserId == user.Id && x.PermissionId == permission.Id &&
-                x.ComplexId == scope.ComplexId && x.BuildingId == scope.BuildingId && x.UnitId == scope.UnitId &&
-                x.IsActive && x.RevokedAtUtc == null, ct))
-            throw AppException.Conflict("access_grant.duplicate", "An equivalent active grant already exists.");
-        var grant = new AccessGrant(await Unique(db.AccessGrants, ct), user.Id, authorization.UserId,
-            permission.Id, scope.ComplexId, scope.BuildingId, scope.UnitId, request.StartsAtUtc,
-            request.ExpiresAtUtc, request.Reason, now);
-        db.AccessGrants.Add(grant);
-        Audit("access_grant_created", authorization.UserId, "access_grant", grant.Code, request.Reason);
-        try { await db.SaveChangesAsync(ct); }
-        catch (Exception exception) when (db.IsUniqueViolation(exception))
-        { throw AppException.Conflict("access_grant.duplicate", "An equivalent active grant already exists."); }
-        return new(grant.Code, user.Code, permission.Key, scope.Kind, scope.Code, grant.StartsAtUtc,
-            grant.ExpiresAtUtc, grant.RevokedAtUtc, grant.IsActive, grant.Reason);
+        return await db.ExecuteInTransaction(async token =>
+        {
+            await db.LockUserForSecurityMutation(user.Id, token);
+            if (!await db.Users.AnyAsync(x => x.Id == user.Id && x.IsActive &&
+                    x.StatusKey == IamKeys.UserStatuses.Active, token)) throw AppException.NotFound("user");
+            var existing = await db.AccessGrants.AsNoTracking().Where(x => x.UserId == user.Id &&
+                x.PermissionId == permission.Id && x.ComplexId == scope.ComplexId &&
+                x.BuildingId == scope.BuildingId && x.UnitId == scope.UnitId &&
+                x.RevokedAtUtc == null).ToListAsync(token);
+            var requestedStart = request.StartsAtUtc ?? now;
+            if (existing.Any(x => WindowsOverlap(x.StartsAtUtc ?? x.CreatedAtUtc, x.ExpiresAtUtc,
+                    requestedStart, request.ExpiresAtUtc)))
+                throw AppException.Conflict("access_grant.duplicate", "An equivalent grant overlaps this time window.");
+            var grant = new AccessGrant(await Unique(db.AccessGrants, token), user.Id, authorization.UserId,
+                permission.Id, scope.ComplexId, scope.BuildingId, scope.UnitId, request.StartsAtUtc,
+                request.ExpiresAtUtc, request.Reason, now);
+            db.AccessGrants.Add(grant);
+            Audit("access_grant_created", authorization.UserId, "access_grant", grant.Code, request.Reason);
+            await db.SaveChangesAsync(token);
+            return new AccessGrantResponse(grant.Code, user.Code, permission.Key, scope.Kind, scope.Code,
+                grant.StartsAtUtc, grant.ExpiresAtUtc, grant.RevokedAtUtc, grant.IsActive, grant.Reason);
+        }, ct);
     }
+
+    private static bool WindowsOverlap(DateTimeOffset firstStart, DateTimeOffset? firstEnd,
+        DateTimeOffset secondStart, DateTimeOffset? secondEnd) =>
+        (!firstEnd.HasValue || secondStart < firstEnd.Value) &&
+        (!secondEnd.HasValue || firstStart < secondEnd.Value);
 
     public async Task<IReadOnlyList<AccessGrantResponse>> ListGrants(string scopeKind, string scopeCode,
         CancellationToken ct)

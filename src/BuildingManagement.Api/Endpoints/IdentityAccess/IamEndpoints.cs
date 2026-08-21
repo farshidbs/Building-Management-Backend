@@ -25,6 +25,9 @@ public static class IamEndpoints
         auth.MapPost("/recovery/{reference}/complete", (string reference,
             CompleteRecoveryRequest request, RecoveryService service, CancellationToken ct) =>
             service.Complete(reference, request, ct)).AllowAnonymous();
+        auth.MapPost("/recovery/{reference}/cancel", async (string reference, RecoveryService service,
+            CancellationToken ct) =>
+        { await service.Cancel(reference, ct); return Results.NoContent(); }).AllowAnonymous();
         auth.MapGet("/me", (ICurrentActor actor, IamService service, CancellationToken ct) => service.Current(UserId(actor), ct)).RequireAuthorization(CustomerUserPolicy);
         auth.MapPost("/logout", async (ICurrentActor actor, IamService service, CancellationToken ct) => { await service.Logout(SessionId(actor), false, ct); return Results.NoContent(); }).RequireAuthorization(CustomerUserPolicy);
         auth.MapPost("/logout-all", async (ICurrentActor actor, IamService service, CancellationToken ct) => { await service.Logout(SessionId(actor), true, ct); return Results.NoContent(); }).RequireAuthorization(CustomerUserPolicy);

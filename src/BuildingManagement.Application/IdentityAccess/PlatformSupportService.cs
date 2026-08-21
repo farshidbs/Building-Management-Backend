@@ -11,21 +11,41 @@ public sealed class PlatformSupportService(IApplicationDbContext db, TimeProvide
 
     public async Task<PlatformTokenResponse> Login(PlatformLoginRequest request, CancellationToken ct)
     {
-        var username = Required(request.Username, "username").ToUpperInvariant();
-        var user = await db.PlatformUsers.SingleOrDefaultAsync(x => x.NormalizedUsername == username &&
-            x.IsActive && x.StatusKey == "active", ct);
-        if (user is null || !passwordHasher.Verify(user, user.PasswordHash,
-            Required(request.Password, "password"))) throw AuthenticationFailed();
-        var access = protector.CreateToken(); var refresh = protector.CreateToken();
-        var accessExpiry = Now.AddMinutes(options.AccessTokenMinutes);
-        var session = new AuthSession(await UniqueCode(db.AuthSessions, ct), null, user.Id, null, "web",
-            protector.Hash(access), accessExpiry, Now, Now.AddHours(options.WebSessionHours),
-            Now.AddHours(2), request.DeviceIdentifier, null);
-        db.AuthSessions.Add(session); await db.SaveChangesAsync(ct);
-        db.AuthRefreshTokens.Add(new AuthRefreshToken(session.Id, protector.Hash(refresh), Now,
-            Now.AddDays(options.RefreshTokenDays)));
-        await db.SaveChangesAsync(ct);
-        return new(access, refresh, accessExpiry, user.Code);
+        var username = request.Username?.Trim().ToUpperInvariant() ?? "";
+        var password = request.Password ?? "";
+        var userId = await db.PlatformUsers.AsNoTracking().Where(x => x.NormalizedUsername == username)
+            .Select(x => (long?)x.Id).SingleOrDefaultAsync(ct);
+        if (!userId.HasValue) throw AuthenticationFailed();
+        var result = await db.ExecuteInTransaction<PlatformTokenResponse?>(async token =>
+        {
+            await db.LockPlatformUserForSecurityMutation(userId.Value, token);
+            var user = await db.PlatformUsers.SingleAsync(x => x.Id == userId.Value, token);
+            var locked = user.LockedUntilUtc.HasValue && user.LockedUntilUtc > Now;
+            var valid = !string.IsNullOrWhiteSpace(password) && user.IsActive &&
+                user.StatusKey == "active" && !locked && passwordHasher.Verify(user, user.PasswordHash, password);
+            if (!valid)
+            {
+                if (user.IsActive && user.StatusKey == "active" && !locked)
+                {
+                    user.RecordFailedLogin(options.PlatformMaxFailedAttempts,
+                        options.PlatformLockoutMinutes, Now);
+                    await db.SaveChangesAsync(token);
+                }
+                return null;
+            }
+            user.RecordSuccessfulLogin(Now);
+            var access = protector.CreateToken(); var refresh = protector.CreateToken();
+            var accessExpiry = Now.AddMinutes(options.AccessTokenMinutes);
+            var session = new AuthSession(await UniqueCode(db.AuthSessions, token), null, user.Id, null, "web",
+                protector.Hash(access), accessExpiry, Now, Now.AddHours(options.WebSessionHours),
+                Now.AddHours(2), request.DeviceIdentifier, null);
+            db.AuthSessions.Add(session); await db.SaveChangesAsync(token);
+            db.AuthRefreshTokens.Add(new AuthRefreshToken(session.Id, protector.Hash(refresh), Now,
+                Now.AddDays(options.RefreshTokenDays)));
+            await db.SaveChangesAsync(token);
+            return new PlatformTokenResponse(access, refresh, accessExpiry, user.Code);
+        }, ct);
+        return result ?? throw AuthenticationFailed();
     }
 
     public async Task<PlatformTokenResponse> Refresh(RefreshTokenRequest request, CancellationToken ct)
@@ -40,7 +60,8 @@ public sealed class PlatformSupportService(IApplicationDbContext db, TimeProvide
             var old = await db.AuthRefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == hash, token)
                 ?? throw AuthenticationFailed();
             var session = await db.AuthSessions.SingleAsync(x => x.Id == sessionId, token);
-            if (!session.PlatformUserId.HasValue || !session.IsUsable(Now) || old.ExpiresAtUtc <= Now)
+            if (!session.PlatformUserId.HasValue || session.UserId.HasValue ||
+                !session.IsUsable(Now) || old.ExpiresAtUtc <= Now)
                 throw AuthenticationFailed();
             if (old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
             {

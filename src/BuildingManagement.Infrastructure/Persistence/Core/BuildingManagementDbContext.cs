@@ -176,6 +176,16 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("recovery");
     }
 
+    public async Task LockPlatformUserForSecurityMutation(long platformUserId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Platform User security lock requires an active transaction.");
+        _ = await PlatformUsers.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[PlatformUsers] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {platformUserId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("platform_user");
+    }
+
     public async Task LockSupportActingSession(long actingSessionId, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)

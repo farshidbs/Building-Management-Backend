@@ -96,6 +96,7 @@ public interface IApplicationDbContext
     void Detach(object entity);
     Task LockUserForFirstRoot(long userId, CancellationToken cancellationToken);
     Task LockUserForSecurityMutation(long userId, CancellationToken cancellationToken);
+    Task LockPlatformUserForSecurityMutation(long platformUserId, CancellationToken cancellationToken);
     Task LockSessionForSecurityMutation(long sessionId, CancellationToken cancellationToken);
     Task LockRecoveryCase(string referenceHash, CancellationToken cancellationToken);
     Task LockSupportActingSession(long actingSessionId, CancellationToken cancellationToken);

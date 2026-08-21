@@ -58,6 +58,9 @@ public sealed class RecoveryService(IApplicationDbContext db, TimeProvider clock
             x.PurposeKey == "account_recovery_new_mobile" && x.StatusKey == IamKeys.OtpStatuses.Pending &&
             x.SentAtUtc > Now.AddMinutes(-1), ct))
             throw new AppException(429, "otp.cooldown", "Wait before requesting another OTP.");
+        var recent = await db.OtpChallenges.CountAsync(x => x.NormalizedIdentifierValue == mobile &&
+            x.CreatedAtUtc > Now.AddMinutes(-10), ct);
+        if (recent >= 5) throw new AppException(429, "otp.rate_limited", "Too many OTP requests.");
         var code = protector.CreateOtp();
         var challenge = new OtpChallenge(protector.CreateToken(18), IamKeys.LoginTypes.Mobile,
             RecoveryBinding(recovery, mobile), mobile, "account_recovery_new_mobile",
@@ -66,6 +69,21 @@ public sealed class RecoveryService(IApplicationDbContext db, TimeProvider clock
         await db.SaveChangesAsync(ct);
         await otpDelivery.Send(mobile, code, ct);
         return new(challenge.PublicReference, challenge.ExpiresAtUtc);
+    }
+
+    public Task Cancel(string reference, CancellationToken ct)
+    {
+        var recoveryHash = protector.Hash(Required(reference, "recoveryReference"));
+        return db.ExecuteInTransaction(async token =>
+        {
+            await db.LockRecoveryCase(recoveryHash, token);
+            var recovery = await db.AccountRecoveryCases.SingleAsync(x => x.ReferenceHash == recoveryHash, token);
+            try { recovery.Cancel(Now); }
+            catch (DomainValidationException exception)
+            { throw AppException.Conflict("recovery.not_cancellable", exception.Message); }
+            await db.SaveChangesAsync(token);
+            return true;
+        }, ct);
     }
 
     public async Task<RecoveryStatusResponse> VerifyMobile(string reference,

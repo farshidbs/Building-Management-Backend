@@ -86,4 +86,6 @@ public sealed class IamOptions
     public int MobileSessionDays { get; init; } = 30;
     public int RefreshTokenDays { get; init; } = 30;
     public int AccessTokenMinutes { get; init; } = 15;
+    public int PlatformMaxFailedAttempts { get; init; } = 5;
+    public int PlatformLockoutMinutes { get; init; } = 15;
 }

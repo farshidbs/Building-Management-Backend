@@ -12,6 +12,44 @@ namespace BuildingManagement.IntegrationTests;
 public sealed partial class ApiScenarios
 {
     [Fact]
+    public async Task EquivalentAccessGrantsUseOverlappingTimeWindowsInsteadOfPermanentUniqueness()
+    {
+        RequireMilestoneFSql();
+        var target = await CreateAuthenticatedClientWithIdentity();
+        string userCode; string unitCode; long userId; long unitId; long permissionId;
+        await using (var scope = factory!.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+            userId = target.UserId;
+            userCode = await db.Users.Where(x => x.Id == userId).Select(x => x.Code).SingleAsync();
+            var unit = await db.Units.OrderBy(x => x.Id).Select(x => new { x.Id, x.Code }).FirstAsync();
+            unitId = unit.Id; unitCode = unit.Code;
+            permissionId = await db.AccessPermissions.Where(x => x.Key == "financial_unit_pay")
+                .Select(x => x.Id).SingleAsync();
+            var now = DateTimeOffset.UtcNow;
+            db.AccessGrants.Add(new AccessGrant(PublicCode.Create(), userId, defaultUserId, permissionId,
+                null, null, unitId, now.AddHours(-2), now.AddHours(-1), "expired history", now.AddHours(-2)));
+            await db.SaveChangesAsync();
+        }
+        var firstStart = DateTimeOffset.UtcNow.AddHours(1); var firstEnd = firstStart.AddHours(1);
+        var first = await client!.PostAsJsonAsync("/api/v1/access-grants", new CreateAccessGrantRequest(
+            userCode, "financial_unit_pay", "unit", unitCode, firstStart, firstEnd, "first window"));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        var second = await client!.PostAsJsonAsync("/api/v1/access-grants", new CreateAccessGrantRequest(
+            userCode, "financial_unit_pay", "unit", unitCode, firstEnd.AddMinutes(1),
+            firstEnd.AddHours(1), "non-overlapping window"));
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var overlap = await client!.PostAsJsonAsync("/api/v1/access-grants", new CreateAccessGrantRequest(
+            userCode, "financial_unit_pay", "unit", unitCode, firstStart.AddMinutes(30),
+            firstEnd.AddMinutes(30), "overlap"));
+        Assert.Equal(HttpStatusCode.Conflict, overlap.StatusCode);
+        await using var verifyScope = factory.Services.CreateAsyncScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<BuildingManagementDbContext>();
+        Assert.Equal(3, await verifyDb.AccessGrants.CountAsync(x => x.UserId == userId &&
+            x.PermissionId == permissionId && x.UnitId == unitId));
+    }
+
+    [Fact]
     public async Task MembershipExitApprovalEndsOnlyMembershipAndRetainsDecisionHistory()
     {
         RequireMilestoneFSql();

@@ -30,7 +30,7 @@ public sealed class DatabaseBearerHandler(IOptionsMonitor<AuthenticationSchemeOp
             var source = await db.AuthSessions.AsNoTracking().SingleOrDefaultAsync(x =>
                 x.Id == acting.PlatformAuthSessionId && x.PlatformUserId == acting.PlatformUserId,
                 Context.RequestAborted);
-            if (source is null || !source.IsUsable(now) || source.AccessTokenExpiresAtUtc <= now ||
+            if (source is null || !source.IsUsable(now) ||
                 !await db.PlatformUsers.AsNoTracking().AnyAsync(x => x.Id == acting.PlatformUserId &&
                     x.IsActive && x.StatusKey == "active", Context.RequestAborted) ||
                 !await db.Users.AsNoTracking().AnyAsync(x => x.Id == acting.TargetUserId && x.IsActive &&
