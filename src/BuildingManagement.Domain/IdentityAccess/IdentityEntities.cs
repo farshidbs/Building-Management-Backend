@@ -158,11 +158,12 @@ public sealed class AccessGrant : Entity
     public long? ComplexId { get; private set; }
     public long? BuildingId { get; private set; }
     public long? UnitId { get; private set; }
+    public DateTimeOffset? StartsAtUtc { get; private set; }
     public DateTimeOffset? ExpiresAtUtc { get; private set; }
     public DateTimeOffset? RevokedAtUtc { get; private set; }
     public string Reason { get; private set; } = "";
-    public AccessGrant(string code, long user, long by, long permission, long? complexId, long? buildingId, long? unitId, DateTimeOffset? expires, string reason, DateTimeOffset now) { if ((complexId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (unitId.HasValue ? 1 : 0) != 1) throw new DomainValidationException("scope", "Exactly one scope is required."); Initialize(code, now); UserId = user; GrantedByUserId = by; PermissionId = permission; ComplexId = complexId; BuildingId = buildingId; UnitId = unitId; ExpiresAtUtc = expires; Reason = Required(reason, "reason"); }
-    public void Revoke(DateTimeOffset now) { RevokedAtUtc = now; SetActivation(false, now); }
+    public AccessGrant(string code, long user, long by, long permission, long? complexId, long? buildingId, long? unitId, DateTimeOffset? starts, DateTimeOffset? expires, string reason, DateTimeOffset now) { if ((complexId.HasValue ? 1 : 0) + (buildingId.HasValue ? 1 : 0) + (unitId.HasValue ? 1 : 0) != 1) throw new DomainValidationException("scope", "Exactly one scope is required."); if (starts.HasValue && expires.HasValue && expires <= starts) throw new DomainValidationException("expiresAtUtc", "Must be later than startsAtUtc."); Initialize(code, now); UserId = user; GrantedByUserId = by; PermissionId = permission; ComplexId = complexId; BuildingId = buildingId; UnitId = unitId; StartsAtUtc = starts; ExpiresAtUtc = expires; Reason = Required(reason, "reason"); }
+    public void Revoke(DateTimeOffset now) { if (RevokedAtUtc.HasValue) return; RevokedAtUtc = now; SetActivation(false, now); }
 }
 
 public sealed class BuildingAccessSetting : Entity
@@ -215,6 +216,16 @@ public sealed class PlatformUser : Entity
     public string Username { get; private set; } = ""; public string NormalizedUsername { get; private set; } = ""; public string PasswordHash { get; private set; } = ""; public string StatusKey { get; private set; } = "active"; public int FailedLoginCount { get; private set; }
     public DateTimeOffset? LockedUntilUtc { get; private set; }
     public PlatformUser(string code, string username, string passwordHash, DateTimeOffset now) { Initialize(code, now); Username = Required(username, "username"); NormalizedUsername = Username.ToUpperInvariant(); PasswordHash = passwordHash; }
+    public void RecordFailedLogin(int maxAttempts, int lockoutMinutes, DateTimeOffset now)
+    {
+        FailedLoginCount++;
+        if (FailedLoginCount >= maxAttempts) LockedUntilUtc = now.AddMinutes(lockoutMinutes);
+        Touch(now);
+    }
+    public void RecordSuccessfulLogin(DateTimeOffset now)
+    {
+        FailedLoginCount = 0; LockedUntilUtc = null; Touch(now);
+    }
 }
 
 public sealed class SupportActingSession : Entity
@@ -222,10 +233,16 @@ public sealed class SupportActingSession : Entity
     private SupportActingSession() { }
     public long PlatformUserId { get; private set; }
     public long TargetUserId { get; private set; }
+    public long PlatformAuthSessionId { get; private set; }
+    public string TokenHash { get; private set; } = "";
     public string Reason { get; private set; } = ""; public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public string? TicketReference { get; private set; }
     public DateTimeOffset? EndedAtUtc { get; private set; }
-    public SupportActingSession(string code, long platform, long target, string reason, DateTimeOffset expires, DateTimeOffset now) { Initialize(code, now); PlatformUserId = platform; TargetUserId = target; Reason = Required(reason, "reason"); ExpiresAtUtc = expires; }
-    public void End(DateTimeOffset now) { EndedAtUtc = now; SetActivation(false, now); }
+    public string? EndReasonKey { get; private set; }
+    public SupportActingSession(string code, long platform, long target, long platformSession,
+        string tokenHash, string reason, string? ticketReference, DateTimeOffset expires, DateTimeOffset now)
+    { Initialize(code, now); PlatformUserId = platform; TargetUserId = target; PlatformAuthSessionId = platformSession; TokenHash = Required(tokenHash, "tokenHash"); Reason = Required(reason, "reason"); TicketReference = Optional(ticketReference); ExpiresAtUtc = expires; }
+    public void End(string reason, DateTimeOffset now) { if (EndedAtUtc.HasValue) return; EndedAtUtc = now; EndReasonKey = Required(reason, "reason"); SetActivation(false, now); }
 }
 
 public sealed class BuildingRolePermissionOverride : Entity
@@ -244,10 +261,12 @@ public sealed class MembershipExitRequest : Entity
     public long MembershipId { get; private set; }
     public long RequestedByUserId { get; private set; }
     public string StatusKey { get; private set; } = "pending"; public string? Reason { get; private set; }
+    public string? DecisionReason { get; private set; }
     public DateTimeOffset? DecidedAtUtc { get; private set; }
     public long? DecidedByUserId { get; private set; }
     public MembershipExitRequest(string code, long membershipId, long requestedBy, string? reason, DateTimeOffset now) { Initialize(code, now); MembershipId = membershipId; RequestedByUserId = requestedBy; Reason = Optional(reason); }
-    public void Decide(bool approved, long decidedBy, DateTimeOffset now) { if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = approved ? "approved" : "rejected"; DecidedByUserId = decidedBy; DecidedAtUtc = now; Touch(now); }
+    public void Decide(bool approved, long decidedBy, string? reason, DateTimeOffset now) { if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = approved ? "approved" : "rejected"; DecidedByUserId = decidedBy; DecidedAtUtc = now; DecisionReason = Optional(reason); SetActivation(false, now); }
+    public void Cancel(long requestedBy, DateTimeOffset now) { if (RequestedByUserId != requestedBy) throw new DomainValidationException("exitRequest", "Only the requester can cancel this request."); if (StatusKey != "pending") throw new DomainValidationException("exitRequest", "Request was already decided."); StatusKey = "cancelled"; DecidedByUserId = requestedBy; DecidedAtUtc = now; SetActivation(false, now); }
 }
 
 public sealed class IdentityConflictReview : Entity
@@ -264,11 +283,47 @@ public sealed class AccountRecoveryCase : Entity
 {
     private AccountRecoveryCase() { }
     public long? UserId { get; private set; }
-    public string RecoveryTypeKey { get; private set; } = ""; public string StatusKey { get; private set; } = "pending"; public string? NewNormalizedIdentifier { get; private set; }
+    public long? OldLoginMethodId { get; private set; }
+    public string ReferenceHash { get; private set; } = "";
+    public string RecoveryTypeKey { get; private set; } = "";
+    public string StatusKey { get; private set; } = "pending_mobile_verification";
+    public string? OldNormalizedIdentifier { get; private set; }
+    public string? NewNormalizedIdentifier { get; private set; }
+    public string? IdentityNumberEvidence { get; private set; }
+    public DateOnly? BirthDateEvidence { get; private set; }
     public string? Reason { get; private set; }
+    public DateTimeOffset ExpiresAtUtc { get; private set; }
+    public DateTimeOffset? MobileVerifiedAtUtc { get; private set; }
+    public DateTimeOffset? ReviewedAtUtc { get; private set; }
+    public DateTimeOffset? CompletedAtUtc { get; private set; }
     public DateTimeOffset? ResolvedAtUtc { get; private set; }
     public long? ResolvedByPlatformUserId { get; private set; }
-    public AccountRecoveryCase(string code, long? userId, string type, string? identifier, string? reason, DateTimeOffset now) { Initialize(code, now); UserId = userId; RecoveryTypeKey = Required(type, "recoveryTypeKey"); NewNormalizedIdentifier = Optional(identifier); Reason = Optional(reason); }
+    public AccountRecoveryCase(string code, string referenceHash, long? userId, long? oldLoginMethodId,
+        string oldIdentifier, string newIdentifier, string? identityNumber, DateOnly? birthDate,
+        DateTimeOffset expiresAtUtc, DateTimeOffset now)
+    {
+        Initialize(code, now); ReferenceHash = Required(referenceHash, "referenceHash"); UserId = userId;
+        OldLoginMethodId = oldLoginMethodId; RecoveryTypeKey = "lost_sim";
+        OldNormalizedIdentifier = Required(oldIdentifier, "oldMobile");
+        NewNormalizedIdentifier = Required(newIdentifier, "newMobile");
+        IdentityNumberEvidence = Optional(identityNumber); BirthDateEvidence = birthDate;
+        ExpiresAtUtc = expiresAtUtc;
+    }
+    public void MarkMobileVerified(DateTimeOffset now) { RequirePending(now); MobileVerifiedAtUtc = now; StatusKey = "pending_review"; Touch(now); }
+    public void Approve(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "approved"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; Touch(now); }
+    public void Reject(long platformUserId, string reason, DateTimeOffset now) { RequireReview(now); StatusKey = "rejected"; ResolvedByPlatformUserId = platformUserId; Reason = Required(reason, "reason"); ReviewedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
+    public void Complete(DateTimeOffset now) { if (StatusKey != "approved" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not completable."); StatusKey = "completed"; CompletedAtUtc = ResolvedAtUtc = now; SetActivation(false, now); }
+    public void Cancel(DateTimeOffset now)
+    {
+        if (StatusKey is "completed" or "rejected" or "cancelled" or "expired")
+            throw new DomainValidationException("recovery", "Recovery is already terminal.");
+        if (now >= ExpiresAtUtc)
+            throw new DomainValidationException("recovery", "Recovery has expired.");
+        StatusKey = "cancelled"; ResolvedAtUtc = now; SetActivation(false, now);
+    }
+    public void Expire(DateTimeOffset now) { if (StatusKey is "completed" or "rejected" or "cancelled" or "expired") return; if (now < ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery has not expired."); StatusKey = "expired"; ResolvedAtUtc = now; SetActivation(false, now); }
+    private void RequirePending(DateTimeOffset now) { if (StatusKey != "pending_mobile_verification" || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting mobile verification."); }
+    private void RequireReview(DateTimeOffset now) { if (StatusKey != "pending_review" || MobileVerifiedAtUtc is null || now >= ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery is not awaiting review."); }
 }
 
 public sealed class PlatformRole : ReferenceDataItem { private PlatformRole() { } public PlatformRole(string key, string title, int order, DateTimeOffset now) => Initialize(key, title, order, now); }

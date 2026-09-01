@@ -108,7 +108,7 @@ FinancialTransactionEntries exist for CurrentBalance changes, not for a credit s
 
 Only relative storage keys are persisted. Generated physical filenames prevent disclosure of object IDs or original names. The upload directory is not public static content. Database backup does not include file bytes; both SQL and storage root require backup.
 
-Authentication and authorization are not implemented yet. Do not describe current routes as tenant-isolated or production-authorized. Adding User/Invitation/auth is a future deliberate phase.
+Authentication and scoped authorization are implemented through the IAM module. Customer OTP login, database-backed sessions, Invitations, Memberships, recovery, Platform/support acting, Membership exits, and narrow individual AccessGrants are available. This is scoped resource authorization, not multitenancy; do not describe the service as tenant-isolated. Read `docs/identity-access-management.md` before changing IAM behavior.
 
 ## Development and validation
 
@@ -129,4 +129,4 @@ Before starting a new phase:
 7. Add persisted-state integration coverage for critical invariants.
 8. Update this context if a decision changes.
 
-The next product phase has not been authorized merely because it appears in the roadmap. User/Invitation/auth, notification, reporting, localization and advanced financial reversals remain deferred until explicitly requested.
+The next product phase has not been authorized merely because it appears in the roadmap. Notification delivery, SSO/MFA, reporting, localization, multitenancy and advanced financial reversals remain deferred until explicitly requested.

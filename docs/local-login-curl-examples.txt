@@ -1,0 +1,154 @@
+Building Management API - Login curl examples
+============================================================
+
+Base URL:
+  http://localhost:5080
+
+These examples use PowerShell and curl.exe on Windows.
+Do not commit real passwords, OTP values, access tokens, or refresh tokens.
+
+
+1. CUSTOMER USER LOGIN WITH OTP
+============================================================
+
+All customer roles use the same login workflow, including:
+  - complex_manager
+  - building_manager
+  - manager_assistant
+  - accountant
+  - unit_owner
+  - unit_tenant
+  - unit_resident
+  - unit_representative
+
+The Development environment prints the plaintext OTP in the API console.
+
+Step 1 - Request a login OTP:
+
+curl.exe -X POST "http://localhost:5080/api/v1/auth/otp/request" `
+  -H "Content-Type: application/json" `
+  -d '{"mobile":"09120000001","purposeKey":"login"}'
+
+Copy these two values:
+  - challengeReference from the response
+  - OTP from the API console
+
+Step 2 - Verify OTP and receive customer tokens:
+
+$env:BMS_CHALLENGE_REFERENCE = "PASTE_CHALLENGE_REFERENCE"
+$env:BMS_OTP = "PASTE_OTP_FROM_API_CONSOLE"
+
+curl.exe -X POST "http://localhost:5080/api/v1/auth/otp/verify" `
+  -H "Content-Type: application/json" `
+  -d "{`"challengeReference`":`"$env:BMS_CHALLENGE_REFERENCE`",`"code`":`"$env:BMS_OTP`",`"clientTypeKey`":`"web`",`"deviceIdentifier`":`"curl-test`"}"
+
+Copy accessToken from the response:
+
+$env:BMS_CUSTOMER_ACCESS_TOKEN = "PASTE_CUSTOMER_ACCESS_TOKEN"
+$env:BMS_CUSTOMER_REFRESH_TOKEN = "PASTE_CUSTOMER_REFRESH_TOKEN"
+
+Test the current customer identity:
+
+curl.exe "http://localhost:5080/api/v1/auth/me" `
+  -H "Authorization: Bearer $env:BMS_CUSTOMER_ACCESS_TOKEN"
+
+Refresh customer tokens:
+
+curl.exe -X POST "http://localhost:5080/api/v1/auth/refresh" `
+  -H "Content-Type: application/json" `
+  -d "{`"refreshToken`":`"$env:BMS_CUSTOMER_REFRESH_TOKEN`"}"
+
+
+2. PLATFORM USER LOGIN
+============================================================
+
+Platform roles use a separate security realm:
+  - super_admin
+  - support_manager
+  - support_agent
+
+Set the Platform credentials locally. Do not save the real password in this file.
+
+$env:BMS_PLATFORM_USERNAME = "admin"
+$env:BMS_PLATFORM_PASSWORD = "PASTE_PLATFORM_PASSWORD"
+
+Login:
+
+curl.exe -X POST "http://localhost:5080/api/v1/platform/auth/login" `
+  -H "Content-Type: application/json" `
+  -d "{`"username`":`"$env:BMS_PLATFORM_USERNAME`",`"password`":`"$env:BMS_PLATFORM_PASSWORD`",`"deviceIdentifier`":`"curl-test`"}"
+
+Copy the returned tokens:
+
+$env:BMS_PLATFORM_ACCESS_TOKEN = "PASTE_PLATFORM_ACCESS_TOKEN"
+$env:BMS_PLATFORM_REFRESH_TOKEN = "PASTE_PLATFORM_REFRESH_TOKEN"
+
+Test a Platform-only endpoint:
+
+curl.exe "http://localhost:5080/api/v1/platform/recovery-cases" `
+  -H "Authorization: Bearer $env:BMS_PLATFORM_ACCESS_TOKEN"
+
+Refresh Platform tokens:
+
+curl.exe -X POST "http://localhost:5080/api/v1/platform/auth/refresh" `
+  -H "Content-Type: application/json" `
+  -d "{`"refreshToken`":`"$env:BMS_PLATFORM_REFRESH_TOKEN`"}"
+
+Important:
+  A Platform token cannot call ordinary customer APIs.
+
+
+3. SUPPORT ACTING SESSION
+============================================================
+
+Support acting is not a separate permanent User. An authorized Platform User creates
+a short-lived acting session for an existing customer User. Business authorization is
+still evaluated from the represented customer's Memberships and AccessGrants.
+
+Prerequisites:
+  - BMS_PLATFORM_ACCESS_TOKEN is set from section 2.
+  - Target customer UserCode is known.
+
+$env:BMS_TARGET_USER_CODE = "H73H7"
+
+Create a support acting session:
+
+curl.exe -X POST "http://localhost:5080/api/v1/platform/support/acting-sessions" `
+  -H "Authorization: Bearer $env:BMS_PLATFORM_ACCESS_TOKEN" `
+  -H "Content-Type: application/json" `
+  -d "{`"targetUserCode`":`"$env:BMS_TARGET_USER_CODE`",`"reason`":`"Swagger support test`",`"ticketReference`":`"LOCAL-TEST-1`",`"requestedMinutes`":30}"
+
+Copy accessToken and code from the response:
+
+$env:BMS_ACTING_ACCESS_TOKEN = "PASTE_ACTING_ACCESS_TOKEN"
+$env:BMS_ACTING_SESSION_CODE = "PASTE_ACTING_SESSION_CODE"
+
+Call an ordinary business endpoint as the represented customer:
+
+curl.exe "http://localhost:5080/api/v1/buildings?pageNumber=1&pageSize=20" `
+  -H "Authorization: Bearer $env:BMS_ACTING_ACCESS_TOKEN"
+
+Revoke the acting session using the real Platform token:
+
+curl.exe -X POST "http://localhost:5080/api/v1/platform/support/acting-sessions/$env:BMS_ACTING_SESSION_CODE/revoke" `
+  -H "Authorization: Bearer $env:BMS_PLATFORM_ACCESS_TOKEN"
+
+Important:
+  - Acting tokens cannot call Platform APIs.
+  - Acting tokens cannot call customer security self-service endpoints.
+  - Revocation takes effect immediately.
+
+
+4. SWAGGER AUTHORIZE
+============================================================
+
+Swagger URL:
+  http://localhost:5080/swagger/index.html
+
+Click Authorize and paste only the accessToken value.
+Do not add the word "Bearer" because Swagger adds it automatically.
+
+Use the matching token type:
+  - Customer access token for ordinary /api/v1 business and /api/v1/me endpoints
+  - Platform access token for /api/v1/platform endpoints
+  - Acting access token for represented-customer business operations

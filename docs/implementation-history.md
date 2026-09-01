@@ -109,3 +109,11 @@ This is a functional history, not a replacement for Git. It explains the sequenc
 - Full multi-currency accounting.
 
 Any future phase must start with a focused prompt, preserve existing invariants, and add an ADR when it changes an accepted decision.
+
+## IAM Milestones D, E, and F
+
+- Added anti-enumeration account recovery with dedicated OTP proof, explicit support review, serialized completion, LoginMethod replacement, and full customer Session revocation.
+- Added a separate Platform identity realm with password hashing, Platform roles/permissions, recovery review, and short-lived audited support acting that preserves real and represented actor provenance.
+- Added customer Membership exit requests with scoped manager decisions. Approval ends only the AccessMembership and preserves every Party/occupancy relationship.
+- Added narrow, allowlisted, time-bounded individual AccessGrants at exactly one scope, including scoped list/revoke operations, database uniqueness, and audit history.
+- Kept SMS delivery, SSO/MFA, notification workflows, omniscient support, and broad access-grant permissions out of scope.

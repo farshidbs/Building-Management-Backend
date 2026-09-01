@@ -116,6 +116,8 @@ public sealed class IamService(IApplicationDbContext db, TimeProvider clock, IIa
                 var old = await db.AuthRefreshTokens.SingleOrDefaultAsync(x => x.TokenHash == hash, token)
                     ?? throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
                 var session = await db.AuthSessions.SingleAsync(x => x.Id == old.AuthSessionId, token);
+                if (!session.UserId.HasValue || session.PlatformUserId.HasValue)
+                    throw new AppException(401, "refresh_token.invalid", "Refresh token is invalid.");
                 if (old.ConsumedAtUtc.HasValue || old.RevokedAtUtc.HasValue)
                 {
                     await RevokeLockedSessions([session], "refresh_reuse", token);

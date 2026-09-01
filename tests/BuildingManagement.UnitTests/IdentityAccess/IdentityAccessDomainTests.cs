@@ -7,6 +7,110 @@ namespace BuildingManagement.UnitTests;
 public sealed class IdentityAccessDomainTests
 {
     [Fact]
+    public void RecoveryRequiresMobileProofAndSupportApprovalBeforeSingleCompletion()
+    {
+        var recovery = new AccountRecoveryCase("RCV01", "reference-hash", 10, 20,
+            "+989121111111", "+989122222222", "0012345678", new DateOnly(1990, 1, 1),
+            Now.AddHours(1), Now);
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.Throws<DomainValidationException>(() => recovery.Approve(5, "ticket", Now));
+        recovery.MarkMobileVerified(Now.AddMinutes(1));
+        recovery.Approve(5, "ticket-123", Now.AddMinutes(2));
+        recovery.Complete(Now.AddMinutes(3));
+        Assert.Equal("completed", recovery.StatusKey);
+        Assert.False(recovery.IsActive);
+        Assert.Throws<DomainValidationException>(() => recovery.Complete(Now.AddMinutes(4)));
+    }
+
+    [Fact]
+    public void RejectedOrExpiredRecoveryCannotComplete()
+    {
+        var rejected = new AccountRecoveryCase("RCV02", "hash-2", 10, 20, "+989121111111",
+            "+989122222222", null, null, Now.AddHours(1), Now);
+        rejected.MarkMobileVerified(Now); rejected.Reject(5, "evidence mismatch", Now);
+        Assert.Throws<DomainValidationException>(() => rejected.Complete(Now));
+        var expired = new AccountRecoveryCase("RCV03", "hash-3", 10, 20, "+989121111111",
+            "+989122222222", null, null, Now, Now.AddHours(-1));
+        expired.Expire(Now);
+        Assert.Equal("expired", expired.StatusKey);
+    }
+
+    [Theory]
+    [InlineData("pending_mobile_verification")]
+    [InlineData("pending_review")]
+    [InlineData("approved")]
+    public void LiveRecoveryStatesCanBeCancelledWithoutCredentialSideEffects(string state)
+    {
+        var recovery = new AccountRecoveryCase("CAN01", "cancel-hash", 10, 20,
+            "+989121111111", "+989122222222", null, null, Now.AddHours(1), Now);
+        if (state is "pending_review" or "approved") recovery.MarkMobileVerified(Now.AddMinutes(1));
+        if (state == "approved") recovery.Approve(5, "reviewed", Now.AddMinutes(2));
+        recovery.Cancel(Now.AddMinutes(3));
+        Assert.Equal("cancelled", recovery.StatusKey);
+        Assert.False(recovery.IsActive);
+        Assert.Equal(Now.AddMinutes(3), recovery.ResolvedAtUtc);
+        Assert.Throws<DomainValidationException>(() => recovery.Cancel(Now.AddMinutes(4)));
+        Assert.Throws<DomainValidationException>(() => recovery.Complete(Now.AddMinutes(4)));
+        Assert.Equal(10, recovery.UserId);
+        Assert.Equal(20, recovery.OldLoginMethodId);
+    }
+
+    [Fact]
+    public void TimestampExpiredRecoveryCannotBeCancelledBeforeExpiryIsMaterialized()
+    {
+        var recovery = new AccountRecoveryCase("EXP01", "expired-cancel-hash", 10, 20,
+            "+989121111111", "+989122222222", null, null, Now, Now.AddHours(-1));
+
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.True(recovery.IsActive);
+        Assert.Null(recovery.ResolvedAtUtc);
+
+        Assert.Throws<DomainValidationException>(() => recovery.Cancel(Now));
+
+        Assert.NotEqual("cancelled", recovery.StatusKey);
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.True(recovery.IsActive);
+        Assert.Null(recovery.ResolvedAtUtc);
+    }
+
+    [Fact]
+    public void PlatformLoginFailureStateLocksAndSuccessfulLoginClearsIt()
+    {
+        var platform = new PlatformUser("PLT01", "admin", "hash", Now);
+        for (var attempt = 0; attempt < 5; attempt++)
+            platform.RecordFailedLogin(5, 15, Now.AddMinutes(attempt));
+        Assert.Equal(5, platform.FailedLoginCount);
+        Assert.Equal(Now.AddMinutes(19), platform.LockedUntilUtc);
+        platform.RecordSuccessfulLogin(Now.AddMinutes(20));
+        Assert.Equal(0, platform.FailedLoginCount);
+        Assert.Null(platform.LockedUntilUtc);
+    }
+
+    [Fact]
+    public void SupportActingSessionRetainsPlatformTargetSourceAndRevocationHistory()
+    {
+        var acting = new SupportActingSession("ACT01", 7, 11, 13, "token-hash",
+            "بررسی تیکت", "T-100", Now.AddMinutes(30), Now);
+        Assert.Equal(7, acting.PlatformUserId);
+        Assert.Equal(11, acting.TargetUserId);
+        Assert.Equal(13, acting.PlatformAuthSessionId);
+        acting.End("platform_revoked", Now.AddMinutes(2));
+        acting.End("duplicate", Now.AddMinutes(3));
+        Assert.False(acting.IsActive);
+        Assert.Equal("platform_revoked", acting.EndReasonKey);
+        Assert.Equal(Now.AddMinutes(2), acting.EndedAtUtc);
+    }
+
+    [Fact]
+    public void PlatformAndActingDtosDoNotExposeHashesOrInternalIds()
+    {
+        var types = new[] { typeof(PlatformTokenResponse), typeof(ActingSessionTokenResponse),
+            typeof(RecoveryReviewResponse) };
+        Assert.All(types, type => Assert.DoesNotContain(type.GetProperties(), property =>
+            property.Name.Contains("Hash", StringComparison.OrdinalIgnoreCase) || property.Name == "Id"));
+    }
+
+    [Fact]
     public void LoginMethodVerificationPrimarySwitchAndReleasePreserveHistory()
     {
         var now = DateTimeOffset.UtcNow;
@@ -163,5 +267,39 @@ public sealed class IdentityAccessDomainTests
         Assert.True(IamPermissionPolicy.CanOverrideAtBuilding("unit_view"));
         Assert.Throws<AppException>(() => IamPermissionPolicy.RequireOverrideable("file_read_confidential"));
         Assert.Throws<AppException>(() => IamPermissionPolicy.RequireGrantable("building_manage"));
+    }
+
+    [Fact]
+    public void MembershipExitRetainsHistoryAcrossApprovalRejectionAndCancellation()
+    {
+        var approved = new MembershipExitRequest("EXT01", 10, 20, "خروج", Now);
+        approved.Decide(true, 30, "تأیید مدیر", Now.AddMinutes(1));
+        Assert.Equal("approved", approved.StatusKey);
+        Assert.False(approved.IsActive);
+        Assert.Equal(30, approved.DecidedByUserId);
+
+        var rejected = new MembershipExitRequest("EXT02", 11, 21, null, Now);
+        rejected.Decide(false, 31, "نیاز به بررسی", Now.AddMinutes(1));
+        Assert.Equal("rejected", rejected.StatusKey);
+        Assert.False(rejected.IsActive);
+
+        var cancelled = new MembershipExitRequest("EXT03", 12, 22, null, Now);
+        cancelled.Cancel(22, Now.AddMinutes(1));
+        Assert.Equal("cancelled", cancelled.StatusKey);
+        Assert.False(cancelled.IsActive);
+        Assert.Throws<DomainValidationException>(() => cancelled.Cancel(22, Now.AddMinutes(2)));
+    }
+
+    [Fact]
+    public void AccessGrantSupportsScheduledActivationAndPreservesRevocationHistory()
+    {
+        var grant = new AccessGrant("GRT01", 1, 2, 3, null, null, 4,
+            Now.AddHours(1), Now.AddHours(2), "دسترسی موقت", Now);
+        Assert.Equal(Now.AddHours(1), grant.StartsAtUtc);
+        grant.Revoke(Now.AddMinutes(10));
+        Assert.False(grant.IsActive);
+        Assert.Equal(Now.AddMinutes(10), grant.RevokedAtUtc);
+        Assert.Throws<DomainValidationException>(() => new AccessGrant("GRT02", 1, 2, 3,
+            null, null, 4, Now.AddHours(2), Now.AddHours(1), "نامعتبر", Now));
     }
 }

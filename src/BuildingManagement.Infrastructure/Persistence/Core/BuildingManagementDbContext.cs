@@ -166,6 +166,36 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
             ?? throw AppException.NotFound("session");
     }
 
+    public async Task LockRecoveryCase(string referenceHash, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Recovery Case lock requires an active transaction.");
+        _ = await AccountRecoveryCases.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[AccountRecoveryCases] WITH (UPDLOCK, HOLDLOCK) WHERE [ReferenceHash] = {referenceHash}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("recovery");
+    }
+
+    public async Task LockPlatformUserForSecurityMutation(long platformUserId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Platform User security lock requires an active transaction.");
+        _ = await PlatformUsers.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[PlatformUsers] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {platformUserId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("platform_user");
+    }
+
+    public async Task LockSupportActingSession(long actingSessionId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null)
+            throw new InvalidOperationException("The Support Acting Session lock requires an active transaction.");
+        _ = await SupportActingSessions.FromSqlInterpolated(
+                $"SELECT * FROM [bms].[SupportActingSessions] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {actingSessionId}")
+            .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("support_acting_session");
+    }
+
     public async Task LockInvitation(string tokenHash, CancellationToken cancellationToken)
     {
         if (Database.CurrentTransaction is null)
@@ -174,6 +204,27 @@ public sealed class BuildingManagementDbContext(DbContextOptions<BuildingManagem
                 $"SELECT * FROM [bms].[Invitations] WITH (UPDLOCK, HOLDLOCK) WHERE [TokenHash] = {tokenHash}")
             .AsNoTracking().SingleOrDefaultAsync(cancellationToken)
             ?? throw AppException.NotFound("invitation");
+    }
+
+    public async Task LockMembershipForSecurityMutation(long membershipId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Membership lock requires an active transaction.");
+        _ = await AccessMemberships.FromSqlInterpolated($"SELECT * FROM [bms].[AccessMemberships] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {membershipId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("membership");
+    }
+
+    public async Task LockMembershipExitRequest(long requestId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Membership Exit Request lock requires an active transaction.");
+        _ = await MembershipExitRequests.FromSqlInterpolated($"SELECT * FROM [bms].[MembershipExitRequests] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {requestId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("membership_exit_request");
+    }
+
+    public async Task LockAccessGrant(long grantId, CancellationToken cancellationToken)
+    {
+        if (Database.CurrentTransaction is null) throw new InvalidOperationException("The Access Grant lock requires an active transaction.");
+        _ = await AccessGrants.FromSqlInterpolated($"SELECT * FROM [bms].[AccessGrants] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {grantId}").AsNoTracking().SingleOrDefaultAsync(cancellationToken)
+            ?? throw AppException.NotFound("access_grant");
     }
 
     public bool IsUniqueViolation(Exception exception) =>

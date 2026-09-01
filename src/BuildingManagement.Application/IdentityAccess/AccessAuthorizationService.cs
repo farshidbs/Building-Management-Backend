@@ -130,6 +130,17 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             throw new AppException(401, "authentication.invalid_session", "The authenticated session is no longer valid.");
     }
 
+    public async Task EnsureActingSession(long userId, long platformUserId, long actingSessionId,
+        CancellationToken ct)
+    {
+        var now = clock.GetUtcNow();
+        var active = await db.SupportActingSessions.AsNoTracking().AnyAsync(x =>
+            x.Id == actingSessionId && x.TargetUserId == userId && x.PlatformUserId == platformUserId &&
+            x.IsActive && x.EndedAtUtc == null && x.ExpiresAtUtc > now, ct);
+        if (!active) throw new AppException(401, "authentication.invalid_acting_session",
+            "The support acting session is no longer valid.");
+    }
+
     public async Task<AccessibleResourceIds> Accessible(long userId, string permissionKey, CancellationToken ct)
     {
         var now = clock.GetUtcNow();
@@ -203,12 +214,21 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
                                 join permission in db.AccessPermissions.AsNoTracking()
                                     on grant.PermissionId equals permission.Id
                                 where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&
+                                      (!grant.StartsAtUtc.HasValue || grant.StartsAtUtc <= now) &&
                                       (!grant.ExpiresAtUtc.HasValue || grant.ExpiresAtUtc > now) &&
                                       permission.Key == permissionKey
                                 select new { grant.ComplexId, grant.BuildingId, grant.UnitId }).ToListAsync(ct);
             complexIds.AddRange(grants.Where(x => x.ComplexId.HasValue).Select(x => x.ComplexId!.Value));
             effectiveBuildingIds.AddRange(grants.Where(x => x.BuildingId.HasValue).Select(x => x.BuildingId!.Value));
             unitIds.AddRange(grants.Where(x => x.UnitId.HasValue).Select(x => x.UnitId!.Value));
+            var grantedComplexIds = grants.Where(x => x.ComplexId.HasValue).Select(x => x.ComplexId!.Value).ToArray();
+            var grantedBuildingIds = await db.Buildings.AsNoTracking()
+                .Where(x => x.IsActive && x.ComplexId.HasValue && grantedComplexIds.Contains(x.ComplexId.Value))
+                .Select(x => x.Id).ToListAsync(ct);
+            effectiveBuildingIds.AddRange(grantedBuildingIds);
+            var allGrantedBuildingIds = effectiveBuildingIds.Distinct().ToArray();
+            unitIds.AddRange(await db.Units.AsNoTracking().Where(x => x.IsActive &&
+                allGrantedBuildingIds.Contains(x.BuildingId)).Select(x => x.Id).ToListAsync(ct));
         }
         return new(complexIds.Distinct().ToArray(), effectiveBuildingIds.Distinct().ToArray(),
             unitIds.Distinct().ToArray());
@@ -260,8 +280,11 @@ public sealed class AccessAuthorizationService(IApplicationDbContext db, TimePro
             await (from grant in db.AccessGrants.AsNoTracking()
                    join permission in db.AccessPermissions.AsNoTracking() on grant.PermissionId equals permission.Id
                    where grant.UserId == userId && grant.IsActive && grant.RevokedAtUtc == null &&
+                         (!grant.StartsAtUtc.HasValue || grant.StartsAtUtc <= now) &&
                          (!grant.ExpiresAtUtc.HasValue || grant.ExpiresAtUtc > now) && permission.Key == permissionKey &&
-                         ((complexId != null && grant.ComplexId == complexId) || (buildingId != null && grant.BuildingId == buildingId) || (unitId != null && grant.UnitId == unitId))
+                         ((targetComplexId != null && grant.ComplexId == targetComplexId) ||
+                          (targetBuildingId != null && grant.BuildingId == targetBuildingId) ||
+                          (unitId != null && grant.UnitId == unitId))
                    select grant.Id).AnyAsync(ct);
         if (!roleAllowed && !grantAllowed) throw new AppException(403, "authorization.denied", "You are not allowed to access this resource.");
     }

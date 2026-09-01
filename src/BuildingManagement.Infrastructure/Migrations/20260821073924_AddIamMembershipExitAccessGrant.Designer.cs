@@ -4,6 +4,7 @@ using BuildingManagement.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    partial class BuildingManagementDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260821073924_AddIamMembershipExitAccessGrant")]
+    partial class AddIamMembershipExitAccessGrant
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -550,7 +553,9 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("UnitId");
 
-                    b.HasIndex("UserId", "PermissionId", "ComplexId", "BuildingId", "UnitId");
+                    b.HasIndex("UserId", "PermissionId", "ComplexId", "BuildingId", "UnitId")
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1 AND [RevokedAtUtc] IS NULL");
 
                     b.ToTable("AccessGrants", "bms", t =>
                         {

@@ -4,6 +4,7 @@ using BuildingManagement.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    partial class BuildingManagementDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815061844_AddIamPlatformSupport")]
+    partial class AddIamPlatformSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -520,9 +523,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<DateTimeOffset?>("StartsAtUtc")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<long?>("UnitId")
                         .HasColumnType("bigint");
 
@@ -550,7 +550,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("UnitId");
 
-                    b.HasIndex("UserId", "PermissionId", "ComplexId", "BuildingId", "UnitId");
+                    b.HasIndex("UserId", "PermissionId", "IsActive");
 
                     b.ToTable("AccessGrants", "bms", t =>
                         {
@@ -5173,10 +5173,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<long?>("DecidedByUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("DecisionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -5213,9 +5209,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("MembershipId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1 AND [StatusKey] = 'pending'");
+                    b.HasIndex("MembershipId");
 
                     b.HasIndex("RequestedByUserId");
 

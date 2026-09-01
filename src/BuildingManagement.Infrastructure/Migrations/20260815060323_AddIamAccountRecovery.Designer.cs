@@ -4,6 +4,7 @@ using BuildingManagement.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace BuildingManagement.Infrastructure.Migrations
 {
     [DbContext(typeof(BuildingManagementDbContext))]
-    partial class BuildingManagementDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260815060323_AddIamAccountRecovery")]
+    partial class AddIamAccountRecovery
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -520,9 +523,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("rowversion");
 
-                    b.Property<DateTimeOffset?>("StartsAtUtc")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<long?>("UnitId")
                         .HasColumnType("bigint");
 
@@ -550,7 +550,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("UnitId");
 
-                    b.HasIndex("UserId", "PermissionId", "ComplexId", "BuildingId", "UnitId");
+                    b.HasIndex("UserId", "PermissionId", "IsActive");
 
                     b.ToTable("AccessGrants", "bms", t =>
                         {
@@ -5173,10 +5173,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<long?>("DecidedByUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("DecisionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -5213,9 +5209,7 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("MembershipId")
-                        .IsUnique()
-                        .HasFilter("[IsActive] = 1 AND [StatusKey] = 'pending'");
+                    b.HasIndex("MembershipId");
 
                     b.HasIndex("RequestedByUserId");
 
@@ -6032,53 +6026,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_PlatformPermissions_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
                         });
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "recovery_case_view",
-                            SortOrder = 10,
-                            Title = "مشاهده پرونده بازیابی"
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "recovery_case_review",
-                            SortOrder = 20,
-                            Title = "بررسی پرونده بازیابی"
-                        },
-                        new
-                        {
-                            Id = 3L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "support_act",
-                            SortOrder = 30,
-                            Title = "نمایندگی پشتیبانی"
-                        },
-                        new
-                        {
-                            Id = 4L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "support_act_view",
-                            SortOrder = 40,
-                            Title = "مشاهده نمایندگی پشتیبانی"
-                        },
-                        new
-                        {
-                            Id = 5L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "platform_user_manage",
-                            SortOrder = 50,
-                            Title = "مدیریت کاربران پلتفرم"
-                        });
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.PlatformRole", b =>
@@ -6129,35 +6076,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_PlatformRoles_KeyFormat", "[Key] NOT LIKE '%[^a-z0-9_]%' AND LEN([Key]) > 0");
                         });
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "super_admin",
-                            SortOrder = 10,
-                            Title = "مدیر کل پلتفرم"
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "support_manager",
-                            SortOrder = 20,
-                            Title = "مدیر پشتیبانی"
-                        },
-                        new
-                        {
-                            Id = 3L,
-                            CreatedAtUtc = new DateTimeOffset(new DateTime(2026, 8, 15, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            IsActive = true,
-                            Key = "support_agent",
-                            SortOrder = 30,
-                            Title = "کارشناس پشتیبانی"
-                        });
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.PlatformRolePermissionLink", b =>
@@ -6182,68 +6100,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("PlatformRolePermissions", "bms");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1L,
-                            PermissionId = 1L,
-                            RoleId = 1L
-                        },
-                        new
-                        {
-                            Id = 2L,
-                            PermissionId = 2L,
-                            RoleId = 1L
-                        },
-                        new
-                        {
-                            Id = 3L,
-                            PermissionId = 3L,
-                            RoleId = 1L
-                        },
-                        new
-                        {
-                            Id = 4L,
-                            PermissionId = 4L,
-                            RoleId = 1L
-                        },
-                        new
-                        {
-                            Id = 5L,
-                            PermissionId = 5L,
-                            RoleId = 1L
-                        },
-                        new
-                        {
-                            Id = 6L,
-                            PermissionId = 1L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 7L,
-                            PermissionId = 2L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 8L,
-                            PermissionId = 3L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 9L,
-                            PermissionId = 4L,
-                            RoleId = 2L
-                        },
-                        new
-                        {
-                            Id = 10L,
-                            PermissionId = 1L,
-                            RoleId = 3L
-                        });
                 });
 
             modelBuilder.Entity("BuildingManagement.Domain.PlatformUser", b =>
@@ -6561,9 +6417,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
 
-                    b.Property<string>("EndReasonKey")
-                        .HasColumnType("varchar(40)");
-
                     b.Property<DateTimeOffset?>("EndedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -6572,9 +6425,6 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
-
-                    b.Property<long>("PlatformAuthSessionId")
-                        .HasColumnType("bigint");
 
                     b.Property<long>("PlatformUserId")
                         .HasColumnType("bigint");
@@ -6593,15 +6443,6 @@ namespace BuildingManagement.Infrastructure.Migrations
                     b.Property<long>("TargetUserId")
                         .HasColumnType("bigint");
 
-                    b.Property<string>("TicketReference")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
                     b.Property<DateTimeOffset?>("UpdatedAtUtc")
                         .HasPrecision(0)
                         .HasColumnType("datetimeoffset(0)");
@@ -6613,14 +6454,9 @@ namespace BuildingManagement.Infrastructure.Migrations
 
                     b.HasIndex("IsActive");
 
-                    b.HasIndex("PlatformAuthSessionId");
-
                     b.HasIndex("PlatformUserId");
 
                     b.HasIndex("TargetUserId");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
 
                     b.ToTable("SupportActingSessions", "bms", t =>
                         {
@@ -8518,12 +8354,6 @@ namespace BuildingManagement.Infrastructure.Migrations
 
             modelBuilder.Entity("BuildingManagement.Domain.SupportActingSession", b =>
                 {
-                    b.HasOne("BuildingManagement.Domain.AuthSession", null)
-                        .WithMany()
-                        .HasForeignKey("PlatformAuthSessionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("BuildingManagement.Domain.PlatformUser", null)
                         .WithMany()
                         .HasForeignKey("PlatformUserId")
