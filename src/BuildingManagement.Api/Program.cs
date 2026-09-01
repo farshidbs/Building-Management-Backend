@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 var connectionString = builder.Configuration.GetConnectionString("BuildingManagement");
@@ -20,7 +21,10 @@ if (string.IsNullOrWhiteSpace(iamSecret) && !builder.Environment.IsDevelopment()
 iamSecret ??= "development-only-iam-secret-change-before-production";
 builder.Services.AddSingleton(iamOptions);
 builder.Services.AddSingleton<IIamSecretProtector>(new HmacIamSecretProtector(iamSecret));
-builder.Services.AddSingleton<IOtpDelivery, UnconfiguredOtpDelivery>();
+if (builder.Environment.IsDevelopment())
+    builder.Services.AddSingleton<IOtpDelivery, DevelopmentConsoleOtpDelivery>();
+else
+    builder.Services.AddSingleton<IOtpDelivery, UnconfiguredOtpDelivery>();
 builder.Services.AddAuthentication("Bearer").AddScheme<AuthenticationSchemeOptions, DatabaseBearerHandler>("Bearer", null);
 builder.Services.AddAuthorizationBuilder()
     .AddPolicy(IamEndpoints.CustomerUserPolicy, policy => policy
@@ -42,6 +46,17 @@ builder.Services.AddSwaggerGen(options =>
         Title = "Building Management API",
         Version = "v1",
         Description = "Physical structure APIs for locations, complexes, buildings, and units."
+    });
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "Opaque",
+        Description = "Access token returned by a customer OTP login or Platform login."
+    });
+    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
+    {
+        [new OpenApiSecuritySchemeReference("Bearer", document)] = []
     });
 });
 var fileStorageOptions = builder.Configuration.GetSection("FileStorage").Get<FileStorageOptions>() ?? new FileStorageOptions();

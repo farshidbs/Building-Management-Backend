@@ -26,3 +26,23 @@ public sealed class UnconfiguredOtpDelivery : IOtpDelivery
     public Task Send(string normalizedMobile, string code, CancellationToken cancellationToken) =>
         throw new InvalidOperationException("No OTP provider is configured. Configure an IOtpDelivery implementation; plaintext OTP values are never logged.");
 }
+
+/// <summary>
+/// Development-only OTP delivery for local Swagger testing. This implementation must never be
+/// registered outside the Development environment because it exposes the plaintext OTP.
+/// </summary>
+public sealed class DevelopmentConsoleOtpDelivery : IOtpDelivery
+{
+    public Task Send(string normalizedMobile, string code, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Console.WriteLine();
+        Console.WriteLine("============================================================");
+        Console.WriteLine(" DEVELOPMENT OTP - never enable this provider in production ");
+        Console.WriteLine($" Mobile: {normalizedMobile}");
+        Console.WriteLine($" OTP:    {code}");
+        Console.WriteLine("============================================================");
+        Console.WriteLine();
+        return Task.CompletedTask;
+    }
+}
