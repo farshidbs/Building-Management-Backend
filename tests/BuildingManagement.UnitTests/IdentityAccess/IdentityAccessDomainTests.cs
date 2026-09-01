@@ -56,6 +56,24 @@ public sealed class IdentityAccessDomainTests
     }
 
     [Fact]
+    public void TimestampExpiredRecoveryCannotBeCancelledBeforeExpiryIsMaterialized()
+    {
+        var recovery = new AccountRecoveryCase("EXP01", "expired-cancel-hash", 10, 20,
+            "+989121111111", "+989122222222", null, null, Now, Now.AddHours(-1));
+
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.True(recovery.IsActive);
+        Assert.Null(recovery.ResolvedAtUtc);
+
+        Assert.Throws<DomainValidationException>(() => recovery.Cancel(Now));
+
+        Assert.NotEqual("cancelled", recovery.StatusKey);
+        Assert.Equal("pending_mobile_verification", recovery.StatusKey);
+        Assert.True(recovery.IsActive);
+        Assert.Null(recovery.ResolvedAtUtc);
+    }
+
+    [Fact]
     public void PlatformLoginFailureStateLocksAndSuccessfulLoginClearsIt()
     {
         var platform = new PlatformUser("PLT01", "admin", "hash", Now);

@@ -317,6 +317,8 @@ public sealed class AccountRecoveryCase : Entity
     {
         if (StatusKey is "completed" or "rejected" or "cancelled" or "expired")
             throw new DomainValidationException("recovery", "Recovery is already terminal.");
+        if (now >= ExpiresAtUtc)
+            throw new DomainValidationException("recovery", "Recovery has expired.");
         StatusKey = "cancelled"; ResolvedAtUtc = now; SetActivation(false, now);
     }
     public void Expire(DateTimeOffset now) { if (StatusKey is "completed" or "rejected" or "cancelled" or "expired") return; if (now < ExpiresAtUtc) throw new DomainValidationException("recovery", "Recovery has not expired."); StatusKey = "expired"; ResolvedAtUtc = now; SetActivation(false, now); }
